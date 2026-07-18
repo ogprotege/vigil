@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { loadRegistry } from "../src/spec/registry.js";
-import { mintClaude } from "../src/oauth/claudeMint.js";
+import { mintClaude, parsePastedCallback } from "../src/oauth/claudeMint.js";
 import { json, startFixtureServer, type FixtureServer } from "./helpers.js";
 
 const registry = loadRegistry();
@@ -10,6 +10,24 @@ let server: FixtureServer | null = null;
 afterEach(async () => {
   await server?.close();
   server = null;
+});
+
+describe("parsePastedCallback", () => {
+  it("accepts every shape a user might paste", () => {
+    const F = "FALLBACK";
+    expect(parsePastedCallback("abc123", F)).toEqual({ code: "abc123", state: F });
+    expect(parsePastedCallback("abc123#st99", F)).toEqual({ code: "abc123", state: "st99" });
+    expect(parsePastedCallback("abc123&state=st99", F)).toEqual({ code: "abc123", state: "st99" });
+    expect(parsePastedCallback("http://127.0.0.1:54545/callback?code=abc123&state=st99", F)).toEqual({
+      code: "abc123",
+      state: "st99",
+    });
+    expect(parsePastedCallback("http://localhost:54545/callback?code=abc123", F)).toEqual({
+      code: "abc123",
+      state: F,
+    });
+    expect(() => parsePastedCallback("two words", F)).toThrow(/could not parse/);
+  });
 });
 
 // Loopback ports distinct from the production 54545 so tests never collide.
@@ -33,6 +51,9 @@ describe("claude mint (PKCE loopback)", () => {
         expect(authorize.origin + authorize.pathname).toBe("https://claude.ai/oauth/authorize");
         expect(authorize.searchParams.get("client_id")).toBe(oauth.clientId);
         expect(authorize.searchParams.get("code_challenge_method")).toBe("S256");
+        expect(authorize.searchParams.get("code")).toBe("true");
+        // Anthropic rejects short state values; state must be verifier-length.
+        expect(authorize.searchParams.get("state")!.length).toBeGreaterThanOrEqual(43);
         expect(authorize.searchParams.get("scope")).toBe(oauth.scopes.join(" "));
         const redirect = new URL(authorize.searchParams.get("redirect_uri")!);
         redirect.searchParams.set("code", "auth-code-123");
@@ -71,6 +92,28 @@ describe("claude mint (PKCE loopback)", () => {
         },
       })
     ).rejects.toThrow(/state mismatch/);
+  });
+
+  it("recovers via paste when the browser can't reach the loopback", async () => {
+    server = await startFixtureServer({
+      "/v1/oauth/token": json(200, { access_token: "sk-ant-oat01-PASTED", refresh_token: "r", expires_in: 3600 }),
+    });
+    const creds = await mintClaude(oauth, {
+      port: 54614,
+      tokenUrlOverride: `${server.url}/v1/oauth/token`,
+      openBrowser: () => {
+        // Browser opens but the redirect never reaches the loopback
+        // (firewall, wrong browser profile, CLI machine != browser machine).
+      },
+      promptPaste: async (url) => {
+        // User pastes the full failed-callback URL from the address bar.
+        const state = new URL(url).searchParams.get("state")!;
+        return `http://127.0.0.1:54614/callback?code=paste-code-789&state=${state}`;
+      },
+    });
+    expect(creds.accessToken).toBe("sk-ant-oat01-PASTED");
+    const exchange = server.requests.find((r) => r.path === "/v1/oauth/token")!;
+    expect((JSON.parse(exchange.body) as Record<string, unknown>)["code"]).toBe("paste-code-789");
   });
 
   it("falls back to manual code paste when the loopback port is taken", async () => {

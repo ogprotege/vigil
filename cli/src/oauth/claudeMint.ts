@@ -27,6 +27,9 @@ async function defaultOpenBrowser(url: string): Promise<void> {
 
 function authorizeUrl(oauth: OAuthSpec, redirectUri: string, challenge: string, state: string): string {
   const url = new URL(oauth.authorizeUrl);
+  // Anthropic's authorize endpoint rejects requests without code=true
+  // ("invalid request format", observed live 2026-07-18).
+  url.searchParams.set("code", "true");
   url.searchParams.set("client_id", oauth.clientId);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("redirect_uri", redirectUri);
@@ -74,6 +77,25 @@ async function exchangeCode(
   };
 }
 
+/**
+ * Parses whatever the user pastes after authorizing: a full callback URL
+ * (including one copied from a "can't connect to localhost" error page), a
+ * "code#state" pair, "code&state=...", or a bare code.
+ */
+export function parsePastedCallback(input: string, fallbackState: string): { code: string; state: string } {
+  const text = input.trim();
+  const fromUrl = /[?&]code=([^&\s]+)(?:&state=([^&\s]+))?/.exec(text);
+  if (fromUrl) {
+    return {
+      code: decodeURIComponent(fromUrl[1]!),
+      state: fromUrl[2] ? decodeURIComponent(fromUrl[2]) : fallbackState,
+    };
+  }
+  const bare = /^([^#&\s]+)(?:(?:#|&state=)([^&\s]+))?$/.exec(text);
+  if (!bare) throw new Error("could not parse the pasted code — paste the full callback URL or code#state");
+  return { code: bare[1]!, state: bare[2] ?? fallbackState };
+}
+
 function listenLoopback(port: number): Promise<{ server: Server; codePromise: Promise<{ code: string; state: string }> }> {
   return new Promise((resolveListen, rejectListen) => {
     let resolveCode: (v: { code: string; state: string }) => void;
@@ -113,7 +135,9 @@ function listenLoopback(port: number): Promise<{ server: Server; codePromise: Pr
 export async function mintClaude(oauth: OAuthSpec, opts: MintOptions = {}): Promise<Credentials> {
   const pkce = generatePkce();
   const port = opts.port ?? oauth.loopbackPort;
-  const timeoutMs = opts.timeoutMs ?? 300_000;
+  // Generous window: signing in via emailed code (fresh browser session)
+  // routinely takes longer than 5 minutes.
+  const timeoutMs = opts.timeoutMs ?? 900_000;
   const open = opts.openBrowser ?? defaultOpenBrowser;
 
   let loopback: Awaited<ReturnType<typeof listenLoopback>> | null = null;
@@ -124,6 +148,10 @@ export async function mintClaude(oauth: OAuthSpec, opts: MintOptions = {}): Prom
   }
 
   if (loopback) {
+    // Must be the literal host "localhost": the client's allowlist rejects
+    // http://127.0.0.1:<port>/callback ("Redirect URI ... is not supported by
+    // client", observed live 2026-07-18). Browsers fall back to the IPv4
+    // listener when resolving localhost.
     const redirectUri = `http://localhost:${port}/callback`;
     const url = authorizeUrl(oauth, redirectUri, pkce.challenge, pkce.state);
     try {
@@ -131,7 +159,18 @@ export async function mintClaude(oauth: OAuthSpec, opts: MintOptions = {}): Prom
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error("timed out waiting for browser authorization")), timeoutMs).unref()
       );
-      const { code, state } = await Promise.race([loopback.codePromise, timeout]);
+      const racers: Promise<{ code: string; state: string }>[] = [loopback.codePromise];
+      if (opts.promptPaste) {
+        // Recovery lane: if the browser can't reach the loopback (or the user
+        // prefers pasting), accept the callback URL / code at any time.
+        const paste = opts.promptPaste(url).then(async (pasted) => {
+          if (!pasted.trim()) return new Promise<never>(() => {}); // ignore stray Enter
+          return parsePastedCallback(pasted, pkce.state);
+        });
+        paste.catch(() => {}); // readline may close after the browser lane wins
+        racers.push(paste as Promise<{ code: string; state: string }>);
+      }
+      const { code, state } = await Promise.race([...racers, timeout]);
       if (state !== pkce.state) throw new Error("state mismatch — possible interception, aborting");
       return await exchangeCode(oauth, opts, { code, redirectUri, verifier: pkce.verifier, state });
     } finally {
@@ -144,8 +183,8 @@ export async function mintClaude(oauth: OAuthSpec, opts: MintOptions = {}): Prom
   }
   const url = authorizeUrl(oauth, oauth.manualRedirectUri, pkce.challenge, pkce.state);
   const pasted = (await opts.promptPaste(url)).trim();
-  const [code, state] = pasted.includes("#") ? pasted.split("#", 2) : [pasted, pkce.state];
-  if (!code) throw new Error("no authorization code pasted");
+  if (!pasted) throw new Error("no authorization code pasted");
+  const { code, state } = parsePastedCallback(pasted, pkce.state);
   if (state !== pkce.state) throw new Error("state mismatch in pasted code");
   return exchangeCode(oauth, opts, {
     code,

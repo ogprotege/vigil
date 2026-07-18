@@ -12,6 +12,8 @@ If the phone copies the computer's token pair and both later refresh independent
 
 Unverified specifics (validated live at the M2 smoke step): the exact allowed loopback redirect URIs for the public client, and whether `user:profile` alone is grantable. Fallback ladder if assumptions miss: manual code-paste redirect → `--copy`.
 
+**Live validation (2026-07-18):** every open question above is resolved, and mint is verified end-to-end (browser consent → loopback code → token exchange at platform.claude.com → usage fetch 200 with the minted token). Findings: the loopback redirect works with the literal host `localhost` on an arbitrary port (54545 verified) — `http://127.0.0.1:<port>/callback` is rejected as unsupported; `user:profile` alone is not grantable — request the full triple, and the issued grant narrows to `user:inference user:profile`; the authorize query requires `code=true`; and `state` must be the PKCE verifier itself — a separate short random state fails the consent grant with "invalid request format".
+
 ## Consequences
 
 - One extra browser-approve step at link time (only for mint; copy remains instant).
