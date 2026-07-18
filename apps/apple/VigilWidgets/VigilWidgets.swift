@@ -123,6 +123,7 @@ struct CircularUsageView: View {
             }
             .gaugeStyle(.accessoryCircularCapacity)
             .widgetAccentable()
+            .accessibilityLabel(Text("\(entry.account?.displayName ?? "Vigil") session, \(Int(session.utilization.rounded())) percent used"))
         } else {
             Gauge(value: 0, in: 0...100) {
                 Text("V")

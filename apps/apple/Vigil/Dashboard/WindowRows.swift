@@ -14,10 +14,14 @@ struct WindowGaugeRow: View {
             } currentValueLabel: {
                 Text("\(Int(window.utilization.rounded()))%")
                     .font(.system(.title3, design: .rounded).weight(.semibold))
+                    // Dynamic Type can outgrow the fixed ring — scale, don't clip.
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
             }
             .gaugeStyle(.accessoryCircularCapacity)
             .tint(UsageTint.color(for: window.utilization))
             .frame(width: 64, height: 64)
+            .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
@@ -26,7 +30,17 @@ struct WindowGaugeRow: View {
             }
             Spacer()
         }
+        // One VoiceOver element: "Session, 27 percent used, resets in ...".
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("\(title), \(Int(window.utilization.rounded())) percent used"))
+        .accessibilityValue(accessibilityCountdown(window.resetsAt))
     }
+}
+
+func accessibilityCountdown(_ resetsAt: Date?) -> Text {
+    guard let resetsAt else { return Text("no reset scheduled") }
+    if resetsAt <= Date() { return Text("reset due, awaiting refresh") }
+    return Text("resets \(resetsAt, style: .relative) from now")
 }
 
 /// Weekly / secondary windows: a linear bar + countdown.
@@ -50,6 +64,9 @@ struct WindowBarRow: View {
             .tint(UsageTint.color(for: window.utilization))
             ResetCountdownView(resetsAt: window.resetsAt)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("\(title), \(Int(window.utilization.rounded())) percent used"))
+        .accessibilityValue(accessibilityCountdown(window.resetsAt))
     }
 }
 
