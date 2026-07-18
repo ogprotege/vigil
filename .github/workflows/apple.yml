@@ -16,4 +16,15 @@ jobs:
         run: swift --version
       - name: VigilKit tests
         run: swift test --package-path packages/VigilKit
-      # xcodegen + xcodebuild of the app targets joins here at milestone M4.
+      # M4: compile-check the app targets on every push.
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+        working-directory: apps/apple
+      - name: Build app (iOS Simulator)
+        run: >
+          xcodebuild -project Vigil.xcodeproj -scheme Vigil
+          -destination 'generic/platform=iOS Simulator'
+          build CODE_SIGNING_ALLOWED=NO
+        working-directory: apps/apple
