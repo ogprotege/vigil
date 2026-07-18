@@ -12,7 +12,7 @@ Moves credentials from the computer (where CLIs like Claude Code and Codex keep 
     {
       "p": "claude",
       "label": "Max — you@example.com",
-      "c": { "at": "sk-ant-oat01-…", "rt": "sk-ant-ort01-…", "exp": 1784412000 },
+      "c": { "at": "sk-ant-oat01-…", "rt": "sk-ant-ort01-…", "exp": 1784412000, "src": "mint" },
       "meta": { "plan": "max" }
     },
     {
@@ -25,7 +25,8 @@ Moves credentials from the computer (where CLIs like Claude Code and Codex keep 
 }
 ```
 
-- Keys are deliberately short (`p` provider id, `c` credentials, `at`/`rt` access/refresh token, `exp` access-token expiry unix seconds, `acct` account id).
+- Keys are deliberately short (`p` provider id, `c` credentials, `at`/`rt` access/refresh token, `exp` access-token expiry unix seconds, `acct` account id, `src` credential origin).
+- `c.src` is `"mint"` only for token pairs Vigil minted itself — the app may refresh those on 401. Absent `src` means copied credentials, which the app must never rotate (ADR-0005). Receivers treat unknown `src` values as non-refreshable.
 - `iat` is unix seconds at payload creation. **Receivers MUST reject payloads older than 10 minutes.**
 - Codex `id_token` JWTs are never included (dead weight; the plan label is precomputed into `meta.plan`).
 
