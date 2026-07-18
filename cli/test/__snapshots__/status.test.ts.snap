@@ -1,0 +1,39 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`doctor > reports discovery results without any network calls (golden) 1`] = `
+"Claude
+  ✓ credentials found (file)
+  access token valid ~119m
+  refresh token: present
+  plan: max
+
+ChatGPT / Codex
+  ✓ credentials found (file)
+  access token valid ~26h
+  account id: present
+  plan: pro
+
+vigil-link is stateless: it never writes credentials to disk (ADR-0004).
+"
+`;
+
+exports[`status > renders both providers' windows (golden) 1`] = `
+"Claude (max)
+  Session           86%  █████████████████░░░  resets in 59m
+  Weekly            57%  ███████████░░░░░░░░░  resets in 1d 10h
+  Weekly (Sonnet)   41%  ████████░░░░░░░░░░░░  resets in 1d 10h
+  Weekly (Opus)     24%  █████░░░░░░░░░░░░░░░  resets in 3d 10h
+
+ChatGPT / Codex (pro)
+  Session             72%  ██████████████░░░░░░  resets in 59m
+  Weekly              32%  ██████░░░░░░░░░░░░░░  resets in 1d 10h
+  gpt-5-codex-spark   12%  ██░░░░░░░░░░░░░░░░░░  resets in 1d 10h"
+`;
+
+exports[`status > reports honest states for missing creds and rate limiting 1`] = `
+"Claude (max)
+  ⚠ provider is rate-limiting checks — this is normal, try again in a few minutes
+
+ChatGPT / Codex
+  no credentials found — is the provider's CLI signed in on this machine? (\`vigil-link doctor\` shows where Vigil looks)"
+`;

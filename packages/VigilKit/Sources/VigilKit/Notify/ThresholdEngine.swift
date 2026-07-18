@@ -1,0 +1,44 @@
+import Foundation
+
+public struct ThresholdEvent: Equatable, Sendable {
+    public let windowId: String
+    public let threshold: Int
+    public let utilization: Double
+
+    public init(windowId: String, threshold: Int, utilization: Double) {
+        self.windowId = windowId
+        self.threshold = threshold
+        self.utilization = utilization
+    }
+}
+
+/// Pure crossing detection — the app layer turns events into local
+/// notifications. Keeping this side-effect-free makes it fully testable.
+public enum ThresholdEngine {
+    public static let defaultThresholds = [80, 95]
+
+    /// Events fire when a window moves from below a threshold to at/above it
+    /// between two consecutive snapshots. No previous snapshot -> no events
+    /// (avoids a notification storm on first link). A window reset (usage
+    /// dropping) never fires.
+    public static func crossings(
+        previous: ProviderSnapshot?,
+        current: ProviderSnapshot,
+        thresholds: [Int] = defaultThresholds
+    ) -> [ThresholdEvent] {
+        guard let previous, previous.status == .ok, current.status == .ok else { return [] }
+        let previousById = Dictionary(uniqueKeysWithValues: previous.windows.map { ($0.id, $0) })
+
+        var events: [ThresholdEvent] = []
+        for window in current.windows {
+            guard let before = previousById[window.id] else { continue }
+            guard window.utilization > before.utilization else { continue }
+            for threshold in thresholds.sorted() {
+                if before.utilization < Double(threshold), window.utilization >= Double(threshold) {
+                    events.append(ThresholdEvent(windowId: window.id, threshold: threshold, utilization: window.utilization))
+                }
+            }
+        }
+        return events
+    }
+}

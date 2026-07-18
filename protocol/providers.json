@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "providers": {
+    "claude": {
+      "displayName": "Claude",
+      "auth": "oauth_bearer",
+      "usage": {
+        "method": "GET",
+        "url": "https://api.anthropic.com/api/oauth/usage",
+        "headers": {
+          "Authorization": "Bearer {access_token}",
+          "anthropic-beta": "oauth-2025-04-20",
+          "Accept": "application/json",
+          "User-Agent": "claude-code/2.1.32"
+        }
+      },
+      "oauth": {
+        "authorizeUrl": "https://claude.ai/oauth/authorize",
+        "tokenUrl": "https://platform.claude.com/v1/oauth/token",
+        "clientId": "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
+        "scopes": ["user:profile"],
+        "loopbackPort": 54545,
+        "manualRedirectUri": "https://console.anthropic.com/oauth/code/callback"
+      },
+      "poll": {
+        "minSeconds": 300,
+        "jitterSeconds": 60,
+        "backoff429BaseSeconds": 900,
+        "backoffMaxSeconds": 3600
+      },
+      "discovery": {
+        "file": { "path": "~/.claude/.credentials.json", "jsonPath": "claudeAiOauth" },
+        "macosKeychain": { "service": "Claude Code-credentials" }
+      },
+      "responseFields": { "utilization": "utilization", "resetsAt": "resets_at" },
+      "windows": [
+        { "id": "session", "sourceKey": "five_hour", "resetFormat": "iso8601", "windowSeconds": 18000, "secondary": false },
+        { "id": "weekly", "sourceKey": "seven_day", "resetFormat": "iso8601", "windowSeconds": 604800, "secondary": false },
+        { "id": "weekly_sonnet", "sourceKey": "seven_day_sonnet", "resetFormat": "iso8601", "windowSeconds": 604800, "secondary": true },
+        { "id": "weekly_opus", "sourceKey": "seven_day_opus", "resetFormat": "iso8601", "windowSeconds": 604800, "secondary": true }
+      ],
+      "capabilities": ["rate_windows"]
+    },
+    "codex": {
+      "displayName": "ChatGPT / Codex",
+      "auth": "oauth_bearer",
+      "usage": {
+        "method": "GET",
+        "url": "https://chatgpt.com/backend-api/wham/usage",
+        "headers": {
+          "Authorization": "Bearer {access_token}",
+          "ChatGPT-Account-Id": "{account_id}",
+          "Accept": "application/json",
+          "User-Agent": "codex_cli_rs/0.34.0"
+        }
+      },
+      "poll": {
+        "minSeconds": 300,
+        "jitterSeconds": 60,
+        "backoff429BaseSeconds": 900,
+        "backoffMaxSeconds": 3600
+      },
+      "discovery": {
+        "file": { "path": "~/.codex/auth.json", "jsonPath": "tokens" }
+      },
+      "responseFields": { "utilization": "used_percent", "resetsAt": "reset_at", "windowSeconds": "limit_window_seconds" },
+      "planKey": "plan_type",
+      "additionalWindows": { "sourceKey": "additional_rate_limits", "idKey": "name", "secondary": true },
+      "windows": [
+        { "id": "session", "sourceKey": "rate_limit.primary_window", "resetFormat": "unixSeconds", "secondary": false },
+        { "id": "weekly", "sourceKey": "rate_limit.secondary_window", "resetFormat": "unixSeconds", "secondary": false }
+      ],
+      "capabilities": ["rate_windows"]
+    }
+  }
+}

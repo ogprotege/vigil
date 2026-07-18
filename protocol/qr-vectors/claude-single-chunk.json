@@ -1,0 +1,26 @@
+{
+  "description": "Typical Claude-only link: fits in one QR.",
+  "maxChunk": 700,
+  "sid": "AB2C",
+  "payload": {
+    "v": 1,
+    "iat": 1784408400,
+    "accounts": [
+      {
+        "p": "claude",
+        "label": "Claude (max)",
+        "c": {
+          "at": "sk-ant-oat01-VECTORFIXTUREACCESSTOKENVECTORFIXTUREACCESSTOKEN",
+          "rt": "sk-ant-ort01-VECTORFIXTUREREFRESHTOKEN",
+          "exp": 1784412000
+        },
+        "meta": {
+          "plan": "max"
+        }
+      }
+    ]
+  },
+  "chunks": [
+    "vigil1:1/1:AB2C:dY7LCsIwFAV_Rc5KIYVECpbspKQogoW0iiAurjELsS_aVAol_y6KgiBuh2GYEXdIwXAlBykWURjyKOScgYyp-8p1kMcRDSRMQf3FgqGgsy0gEb_AZFrSMAODgRzxrKC7BVS5oCbHRbBXcZ7qZH3Id1ot41hlWZ5u1PYfB0P7HWl_IlolWmWrj22H5n0u5pxzz1BaR8-ZpqAKEiUN8P7kHw"
+  ]
+}

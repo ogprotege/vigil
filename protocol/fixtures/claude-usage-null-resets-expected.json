@@ -1,0 +1,7 @@
+{
+  "windows": [
+    { "id": "session", "utilization": 0, "resetsAt": null, "windowSeconds": 18000, "secondary": false },
+    { "id": "weekly", "utilization": 12, "resetsAt": "2026-07-20T07:00:00Z", "windowSeconds": 604800, "secondary": false },
+    { "id": "weekly_sonnet", "utilization": 8, "resetsAt": null, "windowSeconds": 604800, "secondary": true }
+  ]
+}

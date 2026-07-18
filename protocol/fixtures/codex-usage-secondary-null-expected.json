@@ -1,0 +1,6 @@
+{
+  "planLabel": "plus",
+  "windows": [
+    { "id": "session", "utilization": 4.2, "resetsAt": "2026-07-18T21:00:00Z", "windowSeconds": 18000, "secondary": false }
+  ]
+}
