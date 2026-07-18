@@ -4,11 +4,11 @@
 
 ## Decision
 
-`vigil-link` defaults to running its own browser OAuth flow (PKCE, Anthropic's public client_id, loopback redirect on 127.0.0.1:54545) to obtain a dedicated access/refresh token pair for Vigil. Copying Claude Code's existing pair is a fallback (`--copy`).
+`vigil-link` defaults to running its own browser OAuth flow (PKCE, Anthropic's public client_id, loopback redirect on `localhost:54545` — the literal host `localhost` is required; `127.0.0.1` is rejected by the client allowlist, see Live validation) to obtain a dedicated access/refresh token pair for Vigil. Copying Claude Code's existing pair is a fallback (`--copy`).
 
 ## Context
 
-If the phone copies the computer's token pair and both later refresh independently, refresh-token rotation can invalidate one side — breaking either the user's Claude Code login or Vigil silently. A dedicated pair (like a second Claude Code install) removes the contention entirely and lets Vigil request only the `user:profile` scope it needs.
+If the phone copies the computer's token pair and both later refresh independently, refresh-token rotation can invalidate one side — breaking either the user's Claude Code login or Vigil silently. A dedicated pair (like a second Claude Code install) removes the contention entirely. (The original hope of requesting only `user:profile` proved impossible — the authorize endpoint grants only the client's full registered scope set; see Live validation.)
 
 Unverified specifics (validated live at the M2 smoke step): the exact allowed loopback redirect URIs for the public client, and whether `user:profile` alone is grantable. Fallback ladder if assumptions miss: manual code-paste redirect → `--copy`.
 

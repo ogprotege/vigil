@@ -34,7 +34,7 @@ There is no Vigil server. The phone talks directly to provider endpoints with cr
 - Swift's compiled-in registry constants match `providers.json` (Swift hand-mirrors values for runtime independence; the test keeps them honest)
 - QR vectors in `protocol/qr-vectors/` reassemble/decode identically (CLI asserts the encode side, VigilKit the decode side)
 
-Adding a provider = one registry entry + one small mapper + fixtures. See `docs/provider-spec.md`.
+Adding a provider = one registry entry + fixtures + a thin mapper on each side (plus the Swift spec-parity constants). See `docs/provider-spec.md`.
 
 ## Normalized model (all languages)
 

@@ -1,6 +1,11 @@
 # Mac-side build & smoke checklist
 
-This session's work is authored on Linux; Swift is compile-checked by the macOS CI workflow but the real-credential smoke tests need your Mac. Work through these in order.
+> **Status (2026-07-18):** steps 1–4 below are ✅ done (foundation validated
+> live, `vigil-link@0.1.1` published). M4–M7 are built and M8 shipped —
+> build 0.9.0 (1) is in TestFlight internal testing (see
+> [release.md](release.md)). **The remaining work is steps 5–17: the
+> on-device walk**, starting by installing Vigil from the TestFlight app
+> instead of a tethered Xcode run.
 
 ## After this pass (foundation smoke — no Xcode needed)
 
@@ -11,15 +16,15 @@ This session's work is authored on Linux; Swift is compile-checked by the macOS 
    node dist/index.js status          # should print your real session/weekly percentages
    ```
    `status` working proves the endpoint recipes (headers, User-Agent, response mapping) hold against production from a residential IP.
-2. **QR scannability** — run `node dist/index.js --copy --no-clear`, and point your iPhone **stock camera** at each QR. The camera will offer the decoded text (no app exists yet — you just want to see it recognizes the code instantly). If codes don't lock on quickly, we shrink chunk size before the app milestone.
+2. **QR scannability** — run `node dist/index.js --copy --no-clear`, and point your iPhone **stock camera** at each QR: it should lock on instantly. (Done 2026-07-18. Bonus discovered: single-chunk codes carry the registered `vigil1:` URL scheme, so with the app installed the stock camera deep-links straight into Vigil.)
 3. **Mint flow** — run `node dist/index.js --mint --provider claude`. Browser opens → approve → CLI should print "verified". This validates the redirect-URI/scope assumptions (ADR-0005 lists the fallbacks if it doesn't).
 4. **npm publish (one-time)** — `cd cli && npm publish` (requires your npm login) to reserve the `vigil-link` name.
 
-## M4 — App onboarding + dashboard (next session)
+## M4 — App onboarding + dashboard (the on-device walk)
 
-5. `brew install xcodegen`
-6. `cd apps/apple && xcodegen generate && open Vigil.xcodeproj`
-7. Set your signing team; run on device.
+5. Install **TestFlight** on your iPhone, sign in with the team Apple ID, and install Vigil from the Internal group (see [release.md](release.md)). *(A tethered Xcode run also works, but requires registering the device first — the team's signing is manual distribution because it has no registered devices; see release.md.)*
+6. — merged into step 5 —
+7. — merged into step 5 —
 8. Add Account → "Scan from computer" → `npx vigil-link` on the Mac → scan → live verify succeeds → dashboard shows real percentages.
 9. Kill/relaunch the app: percentages render instantly from the stored snapshot.
 10. Airplane mode: staleness tint + "last updated" appear; countdown keeps ticking.

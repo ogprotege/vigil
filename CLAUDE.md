@@ -31,13 +31,18 @@ swift test --package-path packages/VigilKit
 
 Swift tests locate the repo root via `#filePath` and read `protocol/` fixtures directly — run them from a full checkout, not a copied package.
 
-### Apple app (`apps/apple/` — stub until milestone M4)
+### Apple app (`apps/apple/`)
 
 ```sh
 cd apps/apple && xcodegen generate   # no checked-in .xcodeproj (ADR-0002)
+xcodebuild -project Vigil.xcodeproj -scheme Vigil \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build CODE_SIGNING_ALLOWED=NO
+xcodebuild -project Vigil.xcodeproj -scheme Vigil -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO
 ```
 
-CI: `.github/workflows/cli.yml` (Node 22) and `apple.yml` (macos-14, `swift test`) run on every push.
+Device/App Store builds use **manual distribution signing** scoped to `[sdk=iphoneos*]` in `project.yml` (the team has no registered devices, so automatic development signing cannot mint profiles). TestFlight releases: `docs/release.md` — note the sanitized-`PATH` requirement on `-exportArchive` (Homebrew rsync breaks Xcode's IPA step).
+
+CI: `.github/workflows/cli.yml` (Node 22) and `apple.yml` (macos-15 — XcodeGen emits Xcode-16 project format; runs `swift test` + a simulator build) run on every push.
 
 ## Architecture: one contract, two implementations
 
@@ -72,4 +77,4 @@ Envelope per code: `vigil1:<index>/<total>:<sid>:<data>` where data is a ≤700-
 - `docs/provider-spec.md` — registry field reference, verified endpoint facts, provider expansion map
 - `docs/qr-protocol.md` — payload/envelope format, security posture
 - `docs/decisions/` — ADRs 0001–0006 (the rationale behind the invariants above)
-- `docs/local-next-steps.md` — Mac-local runbook and remaining milestones (M4 app UI is next)
+- `docs/local-next-steps.md` — status ledger of the executed milestones (M1–M8 shipped); the living docs are `docs/mac-checklist.md` (on-device walk) and `docs/release.md` (TestFlight releases)
