@@ -1,0 +1,19 @@
+name: apple
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  vigilkit:
+    # macOS runners are free on public repos but billed at 10x minutes on
+    # private ones — see docs/mac-checklist.md notes.
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift version
+        run: swift --version
+      - name: VigilKit tests
+        run: swift test --package-path packages/VigilKit
+      # xcodegen + xcodebuild of the app targets joins here at milestone M4.

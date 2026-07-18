@@ -1,0 +1,8 @@
+{
+  "planLabel": "pro",
+  "windows": [
+    { "id": "session", "utilization": 71.5, "resetsAt": "2026-07-18T21:00:00Z", "windowSeconds": 18000, "secondary": false },
+    { "id": "weekly", "utilization": 32, "resetsAt": "2026-07-20T07:00:00Z", "windowSeconds": 604800, "secondary": false },
+    { "id": "gpt-5-codex-spark", "utilization": 12, "resetsAt": "2026-07-20T07:00:00Z", "windowSeconds": 604800, "secondary": true }
+  ]
+}

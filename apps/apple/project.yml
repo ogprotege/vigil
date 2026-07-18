@@ -1,0 +1,23 @@
+# XcodeGen manifest (ADR-0002). Generate the project on a Mac:
+#   brew install xcodegen
+#   cd apps/apple && xcodegen generate && open Vigil.xcodeproj
+#
+# Milestone M4 adds the Vigil app + VigilWidgets targets here. This stub keeps
+# the manifest valid so CI and tooling have a stable anchor, and pins the
+# settings the app targets will share.
+name: Vigil
+options:
+  bundleIdPrefix: app.vigil
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "14.0"
+  xcodeVersion: "15.4"
+packages:
+  VigilKit:
+    path: ../../packages/VigilKit
+targets: {}
+# M4 targets sketch (implemented next session):
+#   Vigil:            iOS/macOS SwiftUI app; depends on VigilKit; App Group +
+#                     Keychain access group entitlements; Face ID usage string.
+#   VigilWidgets:     widget extension (systemSmall + accessoryCircular);
+#                     same App Group so SnapshotStore/FetchScheduler share state.
