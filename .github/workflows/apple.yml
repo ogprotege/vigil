@@ -9,7 +9,9 @@ jobs:
   vigilkit:
     # macOS runners are free on public repos but billed at 10x minutes on
     # private ones — see docs/mac-checklist.md notes.
-    runs-on: macos-14
+    # macos-15+: current XcodeGen emits project format 77, which needs
+    # Xcode >= 16 to open (macos-14 tops out at 15.4).
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - name: Swift version
