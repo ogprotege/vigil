@@ -1,11 +1,11 @@
 {
   "name": "vigil-link",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Link your Claude and ChatGPT/Codex accounts to the Vigil usage monitor — and check your subscription usage from the terminal.",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ogprotege/vigil.git",
+    "url": "git+https://github.com/ogprotege/vigil.git",
     "directory": "cli"
   },
   "type": "module",

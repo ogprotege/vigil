@@ -108,8 +108,12 @@ async function main(): Promise<number> {
       mint: rl
         ? {
             promptPaste: async (url) => {
-              process.stderr.write(`\nIf the browser didn't open, visit:\n${url}\n`);
-              return rl.question("Paste the code shown after authorizing (code#state): ");
+              process.stderr.write(
+                `\nIf the browser didn't open, visit:\n${url}\n\n` +
+                  `Waiting for the browser... If it shows a connection error after you\n` +
+                  `authorize, paste that page's full URL (or the code) below instead.\n`
+              );
+              return rl.question("Paste URL/code here (or just wait): ");
             },
           }
         : undefined,
