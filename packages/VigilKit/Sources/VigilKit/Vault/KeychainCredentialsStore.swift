@@ -27,6 +27,10 @@ public final class KeychainCredentialsStore: CredentialsStore, @unchecked Sendab
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
+            // On macOS this opts into the iOS-style data-protection keychain —
+            // without it, kSecAttrAccessible and access groups are inert there.
+            // On iOS it is already the default.
+            kSecUseDataProtectionKeychain as String: true,
         ]
         if let accountKey {
             query[kSecAttrAccount as String] = accountKey

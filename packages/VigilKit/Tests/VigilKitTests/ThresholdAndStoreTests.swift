@@ -58,6 +58,35 @@ final class ThresholdEngineTests: XCTestCase {
         )
         XCTAssertTrue(events.isEmpty)
     }
+
+    func testCrossingSpanningDegradedPreviousStillFires() {
+        // A failed fetch carries the last good windows forward; a crossing
+        // that spans the blip (79 -> network error -> 81) must still fire.
+        let events = ThresholdEngine.crossings(
+            previous: TestSupport.snapshot(windows: [TestSupport.window("session", 79)], status: .network),
+            current: TestSupport.snapshot(windows: [TestSupport.window("session", 81)])
+        )
+        XCTAssertEqual(events, [ThresholdEvent(windowId: "session", threshold: 80, utilization: 81)])
+    }
+}
+
+final class PendingEventStoreTests: XCTestCase {
+    func testAppendMergesAndDrainRemoves() throws {
+        let store = PendingEventStore(directory: try TestSupport.tempDirectory())
+        let key = "claude:acct"
+
+        store.append([ThresholdEvent(windowId: "session", threshold: 80, utilization: 81)], accountKey: key)
+        store.append([
+            ThresholdEvent(windowId: "session", threshold: 80, utilization: 84),
+            ThresholdEvent(windowId: "weekly", threshold: 95, utilization: 96),
+        ], accountKey: key)
+
+        XCTAssertEqual(store.drain(accountKey: key), [
+            ThresholdEvent(windowId: "session", threshold: 80, utilization: 84),
+            ThresholdEvent(windowId: "weekly", threshold: 95, utilization: 96),
+        ], "same window+threshold merges keeping the max utilization")
+        XCTAssertTrue(store.drain(accountKey: key).isEmpty, "drain removes the file")
+    }
 }
 
 final class SnapshotStoreTests: XCTestCase {
@@ -115,5 +144,64 @@ final class InMemoryVaultTests: XCTestCase {
         XCTAssertEqual(try vault.allKeys(), ["claude:a"])
         try vault.delete(accountKey: "claude:a")
         XCTAssertNil(try vault.load(accountKey: "claude:a"))
+    }
+}
+
+final class TokenRefresherTests: XCTestCase {
+    private var mintedClaude: Credentials {
+        Credentials(
+            providerId: "claude",
+            accessToken: "sk-ant-oat01-OLD",
+            refreshToken: "sk-ant-ort01-R",
+            source: TokenRefresher.mintSource
+        )
+    }
+
+    func testBuildsRefreshRequestForMintedClaude() throws {
+        let request = try XCTUnwrap(
+            TokenRefresher.refreshRequest(spec: ProviderRegistry.claude, credentials: mintedClaude)
+        )
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(request.url?.absoluteString, "https://platform.claude.com/v1/oauth/token")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
+        let body = try XCTUnwrap(request.httpBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
+        XCTAssertEqual(json["grant_type"], "refresh_token")
+        XCTAssertEqual(json["refresh_token"], "sk-ant-ort01-R")
+        XCTAssertEqual(json["client_id"], "9d1c250a-e61b-44d9-88ed-5944d1962f5e")
+    }
+
+    func testRefusesNonMintedOrRefreshlessCredentials() {
+        var copied = mintedClaude
+        copied.source = nil
+        XCTAssertNil(
+            TokenRefresher.refreshRequest(spec: ProviderRegistry.claude, credentials: copied),
+            "copied credentials must never be refreshed (ADR-0005)"
+        )
+
+        var refreshless = mintedClaude
+        refreshless.refreshToken = nil
+        XCTAssertNil(TokenRefresher.refreshRequest(spec: ProviderRegistry.claude, credentials: refreshless))
+
+        let codex = Credentials(
+            providerId: "codex", accessToken: "a", refreshToken: "r", source: TokenRefresher.mintSource
+        )
+        XCTAssertNil(
+            TokenRefresher.refreshRequest(spec: ProviderRegistry.codex, credentials: codex),
+            "codex has no verified refresh endpoint in v1"
+        )
+    }
+
+    func testApplyParsesTokenResponse() throws {
+        let now = Date(timeIntervalSince1970: 1_784_408_400)
+        let body = Data(#"{"access_token":"sk-ant-oat01-NEW","refresh_token":"sk-ant-ort01-NEW","expires_in":28800}"#.utf8)
+        let updated = try XCTUnwrap(TokenRefresher.apply(responseBody: body, to: mintedClaude, now: now))
+        XCTAssertEqual(updated.accessToken, "sk-ant-oat01-NEW")
+        XCTAssertEqual(updated.refreshToken, "sk-ant-ort01-NEW")
+        XCTAssertEqual(updated.expiresAt, now.addingTimeInterval(28_800))
+        XCTAssertEqual(updated.source, TokenRefresher.mintSource, "source survives the rotation")
+
+        XCTAssertNil(TokenRefresher.apply(responseBody: Data("{}".utf8), to: mintedClaude))
+        XCTAssertNil(TokenRefresher.apply(responseBody: Data("not json".utf8), to: mintedClaude))
     }
 }

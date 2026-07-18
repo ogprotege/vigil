@@ -28,6 +28,9 @@ public struct LinkCredentialsPayload: Codable, Equatable, Sendable {
     public let rt: String?
     public let exp: Int?
     public let acct: String?
+    /// "mint" marks a token pair Vigil owns and may refresh (absent for
+    /// copied credentials — the app must never rotate those, ADR-0005).
+    public let src: String?
 }
 
 public struct LinkMeta: Codable, Equatable, Sendable {

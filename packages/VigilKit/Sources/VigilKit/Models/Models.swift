@@ -63,6 +63,10 @@ public struct Credentials: Codable, Equatable, Sendable {
     public var accountId: String?
     public var label: String?
     public var plan: String?
+    /// "mint" when Vigil owns this token pair and may refresh it. Copied
+    /// credentials are never refreshed — rotation would race the owning CLI
+    /// (ADR-0005).
+    public var source: String?
 
     public init(
         providerId: String,
@@ -71,7 +75,8 @@ public struct Credentials: Codable, Equatable, Sendable {
         expiresAt: Date? = nil,
         accountId: String? = nil,
         label: String? = nil,
-        plan: String? = nil
+        plan: String? = nil,
+        source: String? = nil
     ) {
         self.providerId = providerId
         self.accessToken = accessToken
@@ -80,5 +85,6 @@ public struct Credentials: Codable, Equatable, Sendable {
         self.accountId = accountId
         self.label = label
         self.plan = plan
+        self.source = source
     }
 }

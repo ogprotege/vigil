@@ -30,7 +30,13 @@ describe("payload round-trip", () => {
     const decoded = assembleAndDecode(chunks);
     expect(decoded).toEqual(payload);
     expect(decoded.accounts[0]!.c["at"]).toBe("sk-ant-oat01-AAAA");
+    expect(decoded.accounts[0]!.c["src"]).toBe("mint");
     expect(decoded.accounts[0]!.meta).toEqual({ plan: "max" });
+  });
+
+  it("marks only minted credentials as refreshable", () => {
+    const copied = buildPayload([{ ...claudeCreds, source: "file" }], 1784408400);
+    expect(copied.accounts[0]!.c["src"]).toBeUndefined();
   });
 
   it("reassembles multi-chunk payloads in any order", () => {

@@ -36,6 +36,9 @@ export function buildPayload(accounts: Credentials[], nowSeconds: number): QrPay
       if (creds.refreshToken) c["rt"] = creds.refreshToken;
       if (creds.expiresAt) c["exp"] = creds.expiresAt;
       if (creds.accountId) c["acct"] = creds.accountId;
+      // Only minted pairs are marked refreshable: the app must never rotate
+      // copied credentials (ADR-0005).
+      if (creds.source === "mint") c["src"] = "mint";
       const account: QrAccount = {
         p: creds.providerId,
         label: creds.label ?? creds.providerId,

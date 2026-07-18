@@ -65,6 +65,12 @@ cd apps/apple && xcodegen generate           # validates the manifest stub; crea
 
 ## Phase 3 — M4: build the iOS app with local Claude Code
 
+> **Status (2026-07-18):** M4–M7 code is implemented and building for iOS +
+> macOS (`apps/apple/`), including widgets, threshold notifications,
+> BGAppRefreshTask, app icon, menu bar, and 401→refresh for minted tokens.
+> What remains is the on-device walk below (§M4 steps 5–11, §M5–M7 smoke) and
+> M8.
+
 Start a Claude Code session **at the repo root** and paste:
 
 ```
