@@ -74,4 +74,4 @@ Rationale: the QR is displayed on the user's own screen and scanned in person; t
 
 ## Test vectors
 
-`protocol/qr-vectors/*.json` hold deterministic payload ⇄ chunk pairs. The CLI test suite asserts the encode direction (payload → exact chunk strings); VigilKit asserts the decode direction (chunk strings → exact payload). If Node's zlib output ever changes across versions, regenerate vectors with `cli/scripts/gen-vectors.mjs` — decode-side compatibility is what matters.
+`protocol/qr-vectors/*.json` hold committed payload ⇄ chunk pairs. Both implementations assert the decode direction byte-exactly (chunk strings → exact payload) — that is the cross-language contract. The encode direction is **not** asserted byte-for-byte: different Node/zlib builds emit different (equally valid) DEFLATE bytes for the same payload, so the CLI instead asserts that a fresh encode produces well-formed chunks under each vector's constraints and decodes back to the payload. Regenerating vectors (`cli/scripts/gen-vectors.mjs`) is only needed when the payload shape or envelope format changes.

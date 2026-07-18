@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { assembleAndDecode, chunkEncoded, encodePayload, type QrPayload } from "../src/qr/payload.js";
+import { assembleAndDecode, chunkEncoded, encodePayload, parseChunk, type QrPayload } from "../src/qr/payload.js";
 import { REPO_ROOT } from "./helpers.js";
 
 interface Vector {
@@ -26,9 +26,21 @@ describe("qr vectors", () => {
   });
 
   for (const { name, vector } of vectors) {
-    it(`${name}: encode(payload) reproduces the committed chunks`, () => {
+    it(`${name}: encode(payload) round-trips under the vector's constraints`, () => {
+      // Deliberately NOT compared byte-for-byte against the committed chunks:
+      // different Node/zlib builds emit different (equally valid) DEFLATE
+      // bytes for the same payload. The committed strings pin the decode side
+      // (below, and in VigilKit); encode is held to the contract that actually
+      // matters — well-formed chunks that decode back to the payload.
       const chunks = chunkEncoded(encodePayload(vector.payload), vector.sid, vector.maxChunk);
-      expect(chunks).toEqual(vector.chunks);
+      chunks.forEach((chunk, i) => {
+        const parsed = parseChunk(chunk);
+        expect(parsed.sid).toBe(vector.sid);
+        expect(parsed.index).toBe(i + 1);
+        expect(parsed.total).toBe(chunks.length);
+        expect(parsed.data.length).toBeLessThanOrEqual(vector.maxChunk);
+      });
+      expect(assembleAndDecode(chunks)).toEqual(vector.payload);
     });
 
     it(`${name}: committed chunks decode back to the payload`, () => {
