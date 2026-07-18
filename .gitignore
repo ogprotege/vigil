@@ -13,3 +13,6 @@ DerivedData/
 
 # OS noise
 .DS_Store
+
+# Xcode archive/export artifacts
+apps/apple/build/

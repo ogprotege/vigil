@@ -183,8 +183,12 @@ struct CopyableCommandView: View {
                 }
             } label: {
                 Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                    // 44pt minimum touch target (Apple HIG).
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
+            .accessibilityLabel(copied ? "Copied" : "Copy command")
         }
         .padding(10)
         .background(.background.secondary, in: RoundedRectangle(cornerRadius: 8))

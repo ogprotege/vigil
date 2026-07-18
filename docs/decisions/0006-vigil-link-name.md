@@ -13,4 +13,4 @@ The companion CLI publishes as `vigil-link` (unscoped).
 ## Consequences
 
 - Onboarding copy everywhere uses `npx vigil-link`.
-- Publish a 0.0.x placeholder early to reserve the name (requires the maintainer's npm login — see mac-checklist step 4).
+- ~~Publish a 0.0.x placeholder early to reserve the name~~ Done 2026-07-18 — the name was reserved by publishing the real CLI (`vigil-link@0.1.0`, patched to `0.1.1` the same day).
