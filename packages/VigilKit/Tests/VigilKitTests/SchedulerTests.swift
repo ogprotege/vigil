@@ -74,6 +74,24 @@ final class SchedulerTests: XCTestCase {
         await widgetScheduler.release(accountKey: key)
     }
 
+    func testClearForgetsLedgerStateForRelink() async throws {
+        let clock = ClockBox(Date(timeIntervalSince1970: 1_784_408_400))
+        let store = FileLedgerStore(directory: try TestSupport.tempDirectory())
+        let scheduler = makeScheduler(clock: clock, store: store)
+
+        _ = await scheduler.acquire(accountKey: key, policy: policy)
+        await scheduler.recordResult(accountKey: key, policy: policy, status: .ok)
+        let refused = await scheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertFalse(refused, "inside the min interval the fetch is refused")
+
+        // Account removed -> ledger forgotten -> an immediate re-link can run
+        // its live verify instead of inheriting the departed account's clock.
+        await scheduler.clear(accountKey: key)
+        let afterClear = await scheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertTrue(afterClear)
+        await scheduler.release(accountKey: key)
+    }
+
     func testJitterStaysWithinPolicyBound() async throws {
         let clock = ClockBox(Date(timeIntervalSince1970: 1_784_408_400))
         let store = FileLedgerStore(directory: try TestSupport.tempDirectory())

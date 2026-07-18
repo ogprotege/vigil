@@ -59,6 +59,18 @@ public struct AdditionalWindows: Sendable, Equatable {
     }
 }
 
+/// The subset of the provider's oauth block the app needs at runtime: the
+/// refresh grant. Mint/authorize flows stay in the CLI.
+public struct OAuthEndpoint: Sendable, Equatable {
+    public let tokenUrl: URL
+    public let clientId: String
+
+    public init(tokenUrl: URL, clientId: String) {
+        self.tokenUrl = tokenUrl
+        self.clientId = clientId
+    }
+}
+
 public struct ProviderSpec: Sendable, Equatable {
     public let id: String
     public let displayName: String
@@ -71,6 +83,8 @@ public struct ProviderSpec: Sendable, Equatable {
     public let planKey: String?
     public let additionalWindows: AdditionalWindows?
     public let windows: [WindowMapping]
+    /// Non-nil only for providers whose refresh grant is verified (Claude).
+    public let oauth: OAuthEndpoint?
 
     public init(
         id: String,
@@ -82,7 +96,8 @@ public struct ProviderSpec: Sendable, Equatable {
         responseFields: ResponseFields,
         planKey: String?,
         additionalWindows: AdditionalWindows?,
-        windows: [WindowMapping]
+        windows: [WindowMapping],
+        oauth: OAuthEndpoint? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -94,6 +109,7 @@ public struct ProviderSpec: Sendable, Equatable {
         self.planKey = planKey
         self.additionalWindows = additionalWindows
         self.windows = windows
+        self.oauth = oauth
     }
 }
 
@@ -120,7 +136,11 @@ public enum ProviderRegistry {
             WindowMapping(id: "weekly", sourceKey: "seven_day", resetFormat: .iso8601, windowSeconds: 604_800, secondary: false),
             WindowMapping(id: "weekly_sonnet", sourceKey: "seven_day_sonnet", resetFormat: .iso8601, windowSeconds: 604_800, secondary: true),
             WindowMapping(id: "weekly_opus", sourceKey: "seven_day_opus", resetFormat: .iso8601, windowSeconds: 604_800, secondary: true),
-        ]
+        ],
+        oauth: OAuthEndpoint(
+            tokenUrl: URL(string: "https://platform.claude.com/v1/oauth/token")!,
+            clientId: "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+        )
     )
 
     public static let codex = ProviderSpec(

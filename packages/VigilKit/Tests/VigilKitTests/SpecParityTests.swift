@@ -14,11 +14,17 @@ final class SpecParityTests: XCTestCase {
     private struct SpecProvider: Decodable {
         let displayName: String
         let usage: SpecUsage
+        let oauth: SpecOAuth?
         let poll: SpecPoll
         let responseFields: SpecResponseFields
         let planKey: String?
         let additionalWindows: SpecAdditional?
         let windows: [SpecWindow]
+    }
+
+    private struct SpecOAuth: Decodable {
+        let tokenUrl: String
+        let clientId: String
     }
 
     private struct SpecUsage: Decodable {
@@ -69,6 +75,12 @@ final class SpecParityTests: XCTestCase {
         XCTAssertEqual(swift.planKey, json.planKey, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.sourceKey, json.additionalWindows?.sourceKey, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.idKey, json.additionalWindows?.idKey, file: file, line: line)
+        // The Swift mirror carries oauth only for providers whose refresh
+        // grant is verified; when present it must match the JSON.
+        if let oauth = swift.oauth {
+            XCTAssertEqual(oauth.tokenUrl.absoluteString, json.oauth?.tokenUrl, file: file, line: line)
+            XCTAssertEqual(oauth.clientId, json.oauth?.clientId, file: file, line: line)
+        }
         XCTAssertEqual(swift.windows.count, json.windows.count, file: file, line: line)
         for (got, want) in zip(swift.windows, json.windows) {
             XCTAssertEqual(got.id, want.id, file: file, line: line)

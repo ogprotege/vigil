@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ThresholdEvent: Equatable, Sendable {
+public struct ThresholdEvent: Codable, Equatable, Sendable {
     public let windowId: String
     public let threshold: Int
     public let utilization: Double
@@ -21,12 +21,17 @@ public enum ThresholdEngine {
     /// between two consecutive snapshots. No previous snapshot -> no events
     /// (avoids a notification storm on first link). A window reset (usage
     /// dropping) never fires.
+    ///
+    /// A degraded `previous` (non-ok status) is still a valid baseline: failed
+    /// fetches carry the last good windows forward, so a crossing that spans a
+    /// blip (79 -> network error -> 81) must still fire. Only `current` needs
+    /// to be fresh truth.
     public static func crossings(
         previous: ProviderSnapshot?,
         current: ProviderSnapshot,
         thresholds: [Int] = defaultThresholds
     ) -> [ThresholdEvent] {
-        guard let previous, previous.status == .ok, current.status == .ok else { return [] }
+        guard let previous, current.status == .ok else { return [] }
         let previousById = Dictionary(uniqueKeysWithValues: previous.windows.map { ($0.id, $0) })
 
         var events: [ThresholdEvent] = []

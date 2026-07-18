@@ -80,6 +80,16 @@ public actor FetchScheduler {
         inFlight.remove(accountKey)
     }
 
+    /// Forgets an account's ledger state entirely. Call when the account is
+    /// removed so a later re-link performs a genuine live verify instead of
+    /// being refused by the departed account's poll clock.
+    public func clear(accountKey: String) {
+        var ledger = store.load()
+        ledger[accountKey] = nil
+        store.save(ledger)
+        inFlight.remove(accountKey)
+    }
+
     public func recordResult(accountKey: String, policy: PollPolicy, status: SnapshotStatus) {
         var ledger = store.load()
         var entry = ledger[accountKey] ?? LedgerEntry(nextAllowedAt: .distantPast, consecutive429: 0)
