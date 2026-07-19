@@ -1,12 +1,16 @@
 {
   "name": "vigil-link",
-  "version": "0.1.1",
-  "description": "Link your Claude and ChatGPT/Codex accounts to the Vigil usage monitor — and check your subscription usage from the terminal.",
+  "version": "0.2.0",
+  "description": "Link supported AI provider accounts to Vigil and check subscription usage, credits, and balances from the terminal.",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ogprotege/vigil.git",
     "directory": "cli"
+  },
+  "homepage": "https://github.com/ogprotege/vigil#readme",
+  "bugs": {
+    "url": "https://github.com/ogprotege/vigil/issues"
   },
   "type": "module",
   "bin": {
@@ -30,6 +34,6 @@
   "devDependencies": {
     "@types/node": "^22.10.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
+    "vitest": "^4.1.10"
   }
 }

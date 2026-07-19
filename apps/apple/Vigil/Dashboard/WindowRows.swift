@@ -106,3 +106,32 @@ enum UsageTint {
         return .green
     }
 }
+
+/// Scalar spend and balance values for providers that do not expose
+/// reset-based percentage windows. These remain amounts because inventing a
+/// percentage without a provider-supplied limit would misstate the account.
+struct UsageMetricRow: View {
+    let metric: UsageMetric
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: MetricFormat.symbol(for: metric.kind))
+                .frame(width: 24)
+                .foregroundStyle(MetricFormat.tint(for: metric.kind))
+                .accessibilityHidden(true)
+            Text(metric.label)
+                .font(.subheadline)
+            Spacer()
+            Text(formattedValue)
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .multilineTextAlignment(.trailing)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(metric.label))
+        .accessibilityValue(Text(formattedValue))
+    }
+
+    private var formattedValue: String {
+        MetricFormat.value(metric)
+    }
+}

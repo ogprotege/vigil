@@ -1,0 +1,7 @@
+{
+  "windows": [],
+  "metrics": [
+    { "id": "balance_usd", "label": "Balance (USD)", "kind": "balance", "value": 24.5, "unit": "USD", "secondary": false },
+    { "id": "balance_cny", "label": "Balance (CNY)", "kind": "balance", "value": 100.25, "unit": "CNY", "secondary": false }
+  ]
+}

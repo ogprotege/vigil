@@ -1,0 +1,9 @@
+{
+  "data": {
+    "label": "vigil-unlimited-test",
+    "usage": 3.75,
+    "limit": null,
+    "is_free_tier": false,
+    "limit_remaining": null
+  }
+}

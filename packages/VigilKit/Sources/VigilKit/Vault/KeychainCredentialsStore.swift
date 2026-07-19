@@ -44,7 +44,12 @@ public final class KeychainCredentialsStore: CredentialsStore, @unchecked Sendab
     public func save(_ credentials: Credentials, accountKey: String) throws {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
-        guard let data = try? encoder.encode(credentials) else { throw KeychainError.encodingFailed }
+        let data: Data
+        do {
+            data = try encoder.encode(credentials)
+        } catch {
+            throw KeychainError.encodingFailed
+        }
 
         var attributes = baseQuery(accountKey: accountKey)
         attributes[kSecValueData as String] = data
@@ -73,7 +78,10 @@ public final class KeychainCredentialsStore: CredentialsStore, @unchecked Sendab
         }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try? decoder.decode(Credentials.self, from: data)
+        // A corrupt item is different from a missing item. Propagate the
+        // decoding error so callers do not silently treat undeletable secret
+        // material as if no credentials existed.
+        return try decoder.decode(Credentials.self, from: data)
     }
 
     public func delete(accountKey: String) throws {

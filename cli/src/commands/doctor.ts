@@ -1,9 +1,10 @@
 import type { ProviderId, Registry } from "../spec/registry.js";
 import type { DiscoveryOptions } from "../discovery/paths.js";
-import { discoverClaude } from "../discovery/claude.js";
-import { discoverCodex } from "../discovery/codex.js";
+import { discoverProvider } from "../discovery/index.js";
 import type { HttpOptions } from "../http.js";
+import { inspectPollState, pollingStateDescription, type PollGateOptions } from "../polling.js";
 import { getSnapshot } from "../service.js";
+import { sanitizeTerminalText } from "../util/terminal.js";
 
 export interface DoctorDeps {
   registry: Registry;
@@ -11,6 +12,7 @@ export interface DoctorDeps {
   http?: HttpOptions;
   now?: () => Date;
   live?: boolean;
+  poll?: PollGateOptions | false;
 }
 
 function expiryLine(expiresAt: number | undefined, nowSeconds: number): string {
@@ -24,43 +26,100 @@ function expiryLine(expiresAt: number | undefined, nowSeconds: number): string {
 export async function doctorReport(deps: DoctorDeps, providers: ProviderId[]): Promise<string> {
   const now = deps.now ?? (() => new Date());
   const nowSeconds = Math.floor(now().getTime() / 1000);
-  const lines: string[] = [];
+  const poll =
+    deps.poll === false
+      ? undefined
+      : {
+          homeDir: deps.discovery?.homeDir,
+          env: deps.discovery?.env,
+          ...deps.poll,
+          now,
+        };
 
-  for (const providerId of providers) {
+  const sections = await Promise.all(providers.map(async (providerId) => {
+    const lines: string[] = [];
     const spec = deps.registry.providers[providerId];
-    lines.push(`${spec.displayName}`);
+    if (!spec) {
+      lines.push(sanitizeTerminalText(providerId));
+      lines.push("  ✗ provider is missing from the loaded registry");
+      return lines;
+    }
+    lines.push(
+      sanitizeTerminalText(spec.displayName + (spec.experimental ? " (experimental)" : ""))
+    );
 
-    if (providerId === "claude") {
-      const result = await discoverClaude(spec, deps.discovery);
-      if (result.credentials) {
-        lines.push(`  ✓ credentials found (${result.location})`);
-        lines.push(`  ${expiryLine(result.credentials.expiresAt, nowSeconds)}`);
+    let result;
+    try {
+      result = await discoverProvider(providerId, spec, deps.discovery);
+    } catch {
+      lines.push("  ✗ credential discovery failed");
+      return lines;
+    }
+
+    if (result.unsupported) {
+      const adapter = spec.discovery.adapter ?? providerId;
+      lines.push(`  ✗ no credential discovery adapter named "${sanitizeTerminalText(adapter)}"`);
+    } else if (result.credentials) {
+      lines.push(
+        `  ✓ credentials found (${sanitizeTerminalText(result.location ?? "configured source")})`
+      );
+      lines.push(`  ${expiryLine(result.credentials.expiresAt, nowSeconds)}`);
+      if (spec.oauth && result.credentials.refreshToken !== undefined) {
         lines.push(`  refresh token: ${result.credentials.refreshToken ? "present" : "missing"}`);
-        if (result.credentials.plan) lines.push(`  plan: ${result.credentials.plan}`);
-      } else {
-        lines.push(`  ✗ nothing at ${result.filePath} (or macOS Keychain) — is Claude Code signed in?`);
       }
-      if (deps.live && result.credentials) {
-        const { snapshot } = await getSnapshot(deps.registry, result.credentials, { ...deps.http, now });
-        lines.push(`  live check: ${snapshot.status}`);
+      if (spec.usage.headers && Object.values(spec.usage.headers).some((value) => value.includes("{account_id}"))) {
+        lines.push(`  account id: ${result.credentials.accountId ? "present" : "missing"}`);
+      }
+      if (result.credentials.plan) {
+        lines.push(`  plan: ${sanitizeTerminalText(result.credentials.plan)}`);
       }
     } else {
-      const result = await discoverCodex(spec, deps.discovery);
-      if (result.credentials) {
-        lines.push(`  ✓ credentials found (file)`);
-        lines.push(`  ${expiryLine(result.credentials.expiresAt, nowSeconds)}`);
-        lines.push(`  account id: ${result.credentials.accountId ? "present" : "missing"}`);
-        if (result.credentials.plan) lines.push(`  plan: ${result.credentials.plan}`);
-      } else {
-        lines.push(`  ✗ nothing at ${result.filePath} — is the Codex CLI signed in?`);
-      }
-      if (deps.live && result.credentials) {
-        const { snapshot } = await getSnapshot(deps.registry, result.credentials, { ...deps.http, now });
-        lines.push(`  live check: ${snapshot.status}`);
+      const checked =
+        result.checkedLocations.length > 0
+          ? result.checkedLocations.map((location) => sanitizeTerminalText(location)).join(" and ")
+          : "configured sources";
+      lines.push(`  ✗ nothing at ${checked}`);
+    }
+    if (poll) {
+      const pollState = await inspectPollState(providerId, poll);
+      if (pollState.status === "corrupt" || pollState.status === "unreadable") {
+        lines.push(
+          `  ✗ poll-state file is ${pollState.status}: ${sanitizeTerminalText(pollState.path)}`
+        );
+        lines.push(
+          "    polls stay deferred (fail-closed); delete that file to reset this provider's poll clock"
+        );
       }
     }
-    lines.push("");
-  }
-  lines.push("vigil-link is stateless: it never writes credentials to disk (ADR-0004).");
+    if (deps.live && result.credentials) {
+      const { snapshot, pollSafetyWarning } = await getSnapshot(deps.registry, result.credentials, {
+        ...deps.http,
+        now,
+        poll,
+      });
+      const retry =
+        snapshot.status === "deferred" && snapshot.retryAt ? ` (next allowed ${snapshot.retryAt})` : "";
+      lines.push(`  live check: ${snapshot.status}${retry}`);
+      if (pollSafetyWarning) {
+        lines.push(
+          `  ⚠ poll safety result could not be saved (${pollSafetyWarning.reason}); ` +
+            `conservative pause remains until ${pollSafetyWarning.retryAt}`
+        );
+      }
+    }
+    return lines;
+  }));
+  const lines = sections.flatMap((section, index) =>
+    index < sections.length - 1 ? [...section, ""] : section
+  );
+  lines.push("");
+  const statePath = pollingStateDescription(poll ?? {
+    homeDir: deps.discovery?.homeDir,
+    env: deps.discovery?.env,
+  });
+  lines.push("vigil-link is credential-stateless: it never writes credentials or usage values to disk (ADR-0004).");
+  lines.push(
+    `Poll safety state: ${sanitizeTerminalText(statePath)} (timestamps and 429 counters only).`
+  );
   return lines.join("\n").trimEnd() + "\n";
 }

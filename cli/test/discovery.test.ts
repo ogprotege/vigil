@@ -1,11 +1,48 @@
 import { describe, expect, it } from "vitest";
-import { loadRegistry } from "../src/spec/registry.js";
+import { loadRegistry, providerIds } from "../src/spec/registry.js";
 import { discoverClaude } from "../src/discovery/claude.js";
 import { discoverCodex } from "../src/discovery/codex.js";
+import { discoverProvider } from "../src/discovery/index.js";
 import { decodeJwtPayload } from "../src/util/jwt.js";
 import { CLAUDE_CREDS_FILE, codexCredsFile, makeFakeHome, makeJwt } from "./helpers.js";
 
 const registry = loadRegistry();
+
+describe("provider registry selection", () => {
+  it("defaults to enabled providers but accepts opt-in registry entries explicitly", () => {
+    expect(providerIds(registry)).toEqual(["claude", "codex"]);
+    expect(providerIds(registry, true)).toEqual([
+      "claude",
+      "codex",
+      "openrouter",
+      "deepseek",
+      "moonshot",
+      "moonshot_cn",
+      "minimax",
+      "minimax_cn",
+      "openai",
+      "github",
+      "xai",
+      "zai",
+      "cursor",
+    ]);
+  });
+
+  it("every opt-in gateway is discoverable from its environment variables", () => {
+    for (const [id, spec] of Object.entries(registry.providers)) {
+      if (spec.defaultEnabled !== false) continue;
+      expect(spec.discovery.adapter, id).toBe("environment");
+      expect(spec.discovery.environment?.accessToken, id).toBeTruthy();
+    }
+  });
+
+  it("providers whose URL needs an account id declare an account-id env var", () => {
+    for (const [id, spec] of Object.entries(registry.providers)) {
+      if (!spec.usage.url.includes("{account_id}")) continue;
+      expect(spec.discovery.environment?.accountId, id).toBeTruthy();
+    }
+  });
+});
 
 describe("claude discovery", () => {
   it("reads ~/.claude/.credentials.json and normalizes expiresAt ms->s", async () => {
@@ -82,6 +119,26 @@ describe("codex discovery", () => {
     const { homeDir } = await makeFakeHome({ codex });
     const result = await discoverCodex(registry.providers.codex, { homeDir, env: {} });
     expect(result.credentials?.accountId).toBe("acct_test123");
+  });
+});
+
+describe("registry-selected discovery adapters", () => {
+  it("discovers an opt-in provider from its configured environment variable", async () => {
+    const result = await discoverProvider("openrouter", registry.providers.openrouter, {
+      env: { OPENROUTER_API_KEY: "sk-or-v1-test" },
+    });
+    expect(result.credentials).toMatchObject({
+      providerId: "openrouter",
+      accessToken: "sk-or-v1-test",
+      source: "environment",
+    });
+    expect(result.location).toContain("OPENROUTER_API_KEY");
+  });
+
+  it("reports the exact environment variable checked without exposing a value", async () => {
+    const result = await discoverProvider("deepseek", registry.providers.deepseek, { env: {} });
+    expect(result.credentials).toBeNull();
+    expect(result.checkedLocations).toEqual(["environment variable DEEPSEEK_API_KEY"]);
   });
 });
 

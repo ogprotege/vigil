@@ -1,0 +1,6 @@
+{
+  "windows": [],
+  "metrics": [
+    { "id": "balance_usd", "label": "Balance (USD)", "kind": "balance", "value": 8.125, "unit": "USD", "secondary": false }
+  ]
+}

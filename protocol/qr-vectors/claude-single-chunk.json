@@ -12,7 +12,8 @@
         "c": {
           "at": "sk-ant-oat01-VECTORFIXTUREACCESSTOKENVECTORFIXTUREACCESSTOKEN",
           "rt": "sk-ant-ort01-VECTORFIXTUREREFRESHTOKEN",
-          "exp": 1784412000
+          "exp": 1784412000,
+          "src": "mint"
         },
         "meta": {
           "plan": "max"
@@ -21,6 +22,6 @@
     ]
   },
   "chunks": [
-    "vigil1:1/1:AB2C:dY7LCsIwFAV_Rc5KIYVECpbspKQogoW0iiAurjELsS_aVAol_y6KgiBuh2GYEXdIwXAlBykWURjyKOScgYyp-8p1kMcRDSRMQf3FgqGgsy0gEb_AZFrSMAODgRzxrKC7BVS5oCbHRbBXcZ7qZH3Id1ot41hlWZ5u1PYfB0P7HWl_IlolWmWrj22H5n0u5pxzz1BaR8-ZpqAKEiUN8P7kHw"
+    "vigil1:1/1:AB2C:dY7BCoJAFEV_Je6qQGEMIXEXw0gRJKhFEC1ekwtJR9ExBJl_b4yCIFpdOFwOZ8QDoeegIG13Ffg-C3zGHJCUda90h_A8okEIWVJ_y-GgpGteWsBfYDavaFhYLBGOmCzo7i4p7dakmeceBc_iJNqeskMi1pyLNM3indj_49bUfkvaH0kiokSkm887H5p3ubdkU3nX2hRUhdIwDqpc01TWlKQmTAOMuZgn"
   ]
 }

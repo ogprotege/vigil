@@ -8,6 +8,7 @@ import {
   parseChunk,
   validateAge,
   MAX_CHUNK,
+  MAX_CHUNKS,
 } from "../src/qr/payload.js";
 import type { Credentials } from "../src/providers/types.js";
 
@@ -87,10 +88,34 @@ describe("envelope validation", () => {
     expect(() => parseChunk("https://example.com/not-a-vigil-code")).toThrow(/unrecognized/);
   });
 
+  it("rejects oversized chunks, totals, and semantic fields", () => {
+    expect(() => parseChunk(`vigil1:1/1:AB2C:${"a".repeat(MAX_CHUNK + 1)}`)).toThrow();
+    expect(() => parseChunk(`vigil1:1/${MAX_CHUNKS + 1}:AB2C:abcd`)).toThrow();
+    expect(() =>
+      encodePayload({
+        v: 1,
+        iat: 1,
+        accounts: [
+          {
+            p: "claude",
+            label: "bad\nlabel",
+            c: { at: "token" },
+          },
+        ],
+      })
+    ).toThrow(/invalid payload/);
+  });
+
   it("enforces the 10-minute age limit", () => {
     const payload = buildPayload([claudeCreds], 1784408400);
     expect(() => validateAge(payload, 1784408400 + 599)).not.toThrow();
     expect(() => validateAge(payload, 1784408400 + 601)).toThrow(/expired/);
+  });
+
+  it("allows modest clock skew but rejects payloads dated too far in the future", () => {
+    const payload = buildPayload([claudeCreds], 1784408400);
+    expect(() => validateAge(payload, 1784408400 - 60)).not.toThrow();
+    expect(() => validateAge(payload, 1784408400 - 61)).toThrow(/future/);
   });
 });
 

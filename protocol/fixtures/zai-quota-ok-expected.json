@@ -1,0 +1,19 @@
+{
+  "planLabel": "pro",
+  "windows": [
+    {
+      "id": "session",
+      "utilization": 37.5,
+      "resetsAt": null,
+      "windowSeconds": null,
+      "secondary": false
+    },
+    {
+      "id": "monthly",
+      "utilization": 12,
+      "resetsAt": null,
+      "windowSeconds": null,
+      "secondary": true
+    }
+  ]
+}

@@ -32,10 +32,19 @@ public enum ThresholdEngine {
         thresholds: [Int] = defaultThresholds
     ) -> [ThresholdEvent] {
         guard let previous, current.status == .ok else { return [] }
-        let previousById = Dictionary(uniqueKeysWithValues: previous.windows.map { ($0.id, $0) })
+        // Provider-defined additional windows can repeat an ID or collide
+        // with a built-in window. Never use uniqueKeysWithValues here because
+        // duplicate untrusted IDs would trap the process. Mappers put primary
+        // windows first, so preserving the first value also prevents an
+        // additional lane from replacing the session or weekly baseline.
+        var previousById: [String: UsageWindow] = [:]
+        for window in previous.windows where previousById[window.id] == nil {
+            previousById[window.id] = window
+        }
 
         var events: [ThresholdEvent] = []
-        for window in current.windows {
+        var currentIDs = Set<String>()
+        for window in current.windows where currentIDs.insert(window.id).inserted {
             guard let before = previousById[window.id] else { continue }
             guard window.utilization > before.utilization else { continue }
             for threshold in thresholds.sorted() {

@@ -1,0 +1,20 @@
+{
+  "usageItems": [
+    {
+      "date": "2026-07-02",
+      "product": "copilot",
+      "sku": "ai_credits",
+      "netAmount": 1.25,
+      "netQuantity": 125,
+      "discountQuantity": 50
+    },
+    {
+      "date": "2026-07-10",
+      "product": "copilot",
+      "sku": "ai_credits",
+      "netAmount": 0.75,
+      "netQuantity": 75,
+      "discountQuantity": 0
+    }
+  ]
+}

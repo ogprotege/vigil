@@ -4,8 +4,8 @@
 
 <h1 align="center">Vigil</h1>
 
-<p align="center"><b>Know exactly where you stand against your AI subscription limits.</b><br/>
-Claude and ChatGPT/Codex session &amp; weekly windows — on your phone, your Mac's menu bar, and your terminal. No servers, ever.</p>
+<p align="center"><b>Know exactly where you stand against your AI limits, spend, and balances.</b><br/>
+Claude and ChatGPT/Codex windows, plus opt-in OpenRouter and DeepSeek gateway metrics, on your phone, your Mac, and your terminal. No Vigil server.</p>
 
 <p align="center">
   <a href="https://github.com/ogprotege/vigil/actions/workflows/cli.yml"><img src="https://github.com/ogprotege/vigil/actions/workflows/cli.yml/badge.svg" alt="cli CI" /></a>
@@ -38,12 +38,38 @@ Existing token monitors look nice but go stale, throttle themselves into useless
 | **macOS menu bar** | `C 42% · X 71%` always in view. Build from source today (the macOS `xcodebuild` line under [Development](#development)); distribution is on the roadmap. |
 
 ```sh
-npx vigil-link status   # see your Claude / Codex usage in the terminal
+npx vigil-link status   # see default-provider usage in the terminal
 npx vigil-link doctor   # check what credentials Vigil can find
 npx vigil-link          # link your accounts to the app via QR
 ```
 
-`vigil-link` finds the sign-ins your existing tools already created (Claude Code, Codex CLI), or mints Vigil its own token pair via browser OAuth so token refreshes never fight your other tools (ADR-0005). It is stateless: it never writes anything to disk (ADR-0004).
+`vigil-link` finds Claude Code and Codex CLI sign-ins. For Claude, it can mint Vigil a separate browser-OAuth token pair so refreshes do not fight another client. Optional API-key providers use environment variables:
+
+```sh
+OPENROUTER_API_KEY='...' npx vigil-link --provider openrouter
+DEEPSEEK_API_KEY='...' npx vigil-link --provider deepseek
+MOONSHOT_API_KEY='...' npx vigil-link --provider moonshot
+MINIMAX_CODING_API_KEY='...' npx vigil-link --provider minimax
+OPENAI_ADMIN_KEY='...' npx vigil-link --provider openai
+GITHUB_BILLING_TOKEN='...' GITHUB_BILLING_USER='you' npx vigil-link --provider github
+
+# Link several providers in one QR session.
+OPENROUTER_API_KEY='...' DEEPSEEK_API_KEY='...' \
+  npx vigil-link --provider claude,codex,openrouter,deepseek
+```
+
+Thirteen providers are in the registry: Claude and ChatGPT/Codex subscription windows by default, plus opt-in Moonshot/Kimi and DeepSeek balances, MiniMax Coding Plan windows, OpenAI API and GitHub Copilot spend, OpenRouter credits, and — clearly labeled experimental — xAI, Z.ai/GLM, and Cursor. The full tiering, per-provider credential sources, and the researched backlog live in the [support matrix](docs/provider-spec.md#support-and-stability-matrix). A plain `npx vigil-link` selects only Claude and Codex. The CLI never persists credentials or usage values. It does persist poll timestamps and 429 counters under the user cache directory to prevent accidental rapid polling. See [ADR-0004](docs/decisions/0004-stateless-cli.md).
+
+## Provider support
+
+| Provider | Data | Activation | Stability |
+|---|---|---|---|
+| Claude | Session, weekly, Sonnet, Opus windows | Claude Code discovery or Vigil-owned OAuth mint | Supported, but the consumer usage endpoint is undocumented |
+| ChatGPT / Codex | Session, weekly, additional windows | Codex CLI discovery; account ID required | Supported, but the consumer usage endpoint is undocumented and Vigil cannot refresh it independently |
+| OpenRouter | Spend, credit limit, remaining credits | `OPENROUTER_API_KEY` plus `--provider openrouter` | Opt-in preview; documented endpoint, fixture-tested |
+| DeepSeek | Balance by currency | `DEEPSEEK_API_KEY` plus `--provider deepseek` | Opt-in preview; documented endpoint, fixture-tested |
+
+“Fixture-tested” does not mean vendor-certified. CI does not call production provider APIs. See the full [support matrix and activation notes](docs/provider-spec.md#support-and-stability-matrix).
 
 ## How it works
 
@@ -61,9 +87,9 @@ npx vigil-link          # link your accounts to the app via QR
 └────────────────────────────────────────┘        └──────────────────────────────────────┘
 ```
 
-There is no Vigil server. The phone talks directly to provider endpoints with credentials handed off from your computer — see [docs/architecture.md](docs/architecture.md) for the reliability mechanisms and [docs/qr-protocol.md](docs/qr-protocol.md) for the `vigil1` handoff format.
+There is no Vigil server. The phone talks directly to provider endpoints with credentials handed off from your computer. See [docs/architecture.md](docs/architecture.md) for the reliability mechanisms and [docs/qr-protocol.md](docs/qr-protocol.md) for the `vigil1` handoff format.
 
-**Cross-language lockstep:** [`protocol/providers.json`](protocol/providers.json) is the single machine-readable contract — endpoints, headers, poll policy, response mappings. The TypeScript CLI and Swift VigilKit each implement a thin mapper over it, and CI holds both to the same fixtures and QR test vectors. Adding a provider is a registry entry, two fixtures, and two small mappers — see [docs/provider-spec.md](docs/provider-spec.md).
+**Cross-language lockstep:** [`protocol/providers.json`](protocol/providers.json) is the machine-readable contract for endpoints, headers, poll policy, discovery metadata, and response mappings. TypeScript and Swift consume the contract differently, and the Swift runtime still hand-mirrors its constants. Adding a provider also requires credential discovery or OAuth work, fixture coverage, Swift parity constants, UI review, and documentation. See the [provider contribution guide](docs/provider-contribution.md).
 
 ## Repo map
 
@@ -73,16 +99,16 @@ There is no Vigil server. The phone talks directly to provider endpoints with cr
 | [`cli/`](cli/) | [`vigil-link`](https://www.npmjs.com/package/vigil-link) — credential discovery, OAuth mint, QR handoff, `status`/`doctor` (TypeScript, Node ≥ 20) |
 | [`packages/VigilKit/`](packages/VigilKit/) | Swift core: models, provider clients, fetch scheduler + shared ledger, Keychain vault, QR decoder, threshold engine, token refresher |
 | [`apps/apple/`](apps/apple/) | The SwiftUI app (iOS 17 / macOS 14) + widget extension, generated by XcodeGen from `project.yml` |
-| [`docs/`](docs/) | Architecture, provider spec, QR protocol, privacy, release runbook, decision records (ADRs) |
+| [`docs/`](docs/) | Architecture, provider support, troubleshooting, threat model, release runbook, and decision records |
 
 ## Development
 
 ```sh
 # CLI
-cd cli && npm install && npm run build && npm test        # 60 tests
+cd cli && npm install && npm run build && npm test
 
 # Swift core
-swift test --package-path packages/VigilKit               # 35 tests
+swift test --package-path packages/VigilKit
 
 # App (needs Xcode 16+, brew install xcodegen)
 cd apps/apple && xcodegen generate
@@ -91,9 +117,12 @@ xcodebuild -project Vigil.xcodeproj -scheme Vigil \
 
 # macOS app + menu bar (build then find Vigil.app in DerivedData, or run from Xcode)
 xcodebuild -project Vigil.xcodeproj -scheme Vigil -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO
+
+# App reliability tests on the macOS host
+xcodebuild -project Vigil.xcodeproj -scheme Vigil -destination 'platform=macOS' test CODE_SIGNING_ALLOWED=NO
 ```
 
-CI runs all three on every push (`cli.yml`, `apple.yml`). Releasing to TestFlight is documented in [docs/release.md](docs/release.md). Project conventions for AI-assisted development live in [CLAUDE.md](CLAUDE.md).
+CI builds and tests the CLI, runs VigilKit tests, compiles the iOS Simulator app, and runs the app reliability suite against the macOS target. The final on-device and widget walk remains a release requirement. Releasing to TestFlight is documented in [docs/release.md](docs/release.md). Project conventions for AI-assisted development live in [CLAUDE.md](CLAUDE.md).
 
 ## Status
 
@@ -106,11 +135,14 @@ CI runs all three on every push (`cli.yml`, `apple.yml`). Releasing to TestFligh
 | M7 · macOS menu bar | ✅ built (source) |
 | M8 · TestFlight | ✅ build 0.9.0 in internal testing |
 | On-device validation walk | ⏳ [docs/mac-checklist.md](docs/mac-checklist.md) |
-| v1.1 | Live Activity · encrypted QR (`vigil1e`) · Codex refresh · API-spend tier · more providers (Copilot, Kimi, Qwen, Hugging Face) — see the [expansion map](docs/provider-spec.md) |
+| Current remediation | Locked cross-process leases, CLI poll safety, per-account widgets, surfaced storage failures, scalar metrics, OpenRouter, and DeepSeek |
+| Next | On-device regression walk, encrypted QR (`vigil1e`), Codex refresh, and provider expansion guided by documented API availability |
+
+Read [CHANGELOG.md](CHANGELOG.md) before testing an existing installation. It records the account-key, widget, and CLI cache migration notes.
 
 ## Privacy
 
-One sentence: **your credentials and usage data never leave your devices.** The full model — and why the App Store privacy label is truthfully "Data Not Collected" — is in [docs/privacy.md](docs/privacy.md).
+One sentence: **Vigil sends credentials and usage requests only between your devices and the providers you activate.** It has no collection server or analytics. The precise claim, including local caches and QR risks, is in [docs/privacy.md](docs/privacy.md) and [docs/threat-model.md](docs/threat-model.md).
 
 ## License
 

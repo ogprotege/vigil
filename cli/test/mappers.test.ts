@@ -14,6 +14,14 @@ interface ExpectedFile {
     windowSeconds: number;
     secondary: boolean;
   }>;
+  metrics?: Array<{
+    id: string;
+    label: string;
+    kind: "balance" | "spend" | "limit" | "remaining";
+    value: number;
+    unit: string | null;
+    secondary: boolean;
+  }>;
 }
 
 const registry = loadRegistry();
@@ -32,7 +40,7 @@ const parityCases = readdirSync(fixtureDir)
 describe("fixture parity", () => {
   it("has at least one case per provider", () => {
     const providers = new Set(parityCases.map((c) => c.providerId));
-    expect(providers).toEqual(new Set(["claude", "codex"]));
+    expect(providers).toEqual(new Set(Object.keys(registry.providers)));
   });
 
   for (const { fixture, expected, providerId } of parityCases) {
@@ -44,6 +52,7 @@ describe("fixture parity", () => {
       expect(mapped!.windows).toEqual(
         want.windows.map((w) => ({ ...w, windowSeconds: w.windowSeconds ?? null }))
       );
+      expect(mapped!.metrics).toEqual(want.metrics ?? []);
       expect(mapped!.planLabel).toBe(want.planLabel ?? null);
     });
   }
@@ -97,5 +106,75 @@ describe("schema-drift tolerance", () => {
     });
     expect(mapped!.windows.map((w) => w.id)).toEqual(["session", "nested-lane"]);
     expect(mapped!.windows[1]!.utilization).toBe(7);
+  });
+
+  it("deduplicates provider window and metric IDs without replacing primary values", () => {
+    const windows = mapUsageResponse(registry.providers.codex, {
+      rate_limit: {
+        primary_window: { used_percent: 10, reset_at: 1784408400, limit_window_seconds: 18000 },
+      },
+      additional_rate_limits: [
+        { name: "session", used_percent: 99, reset_at: 1784408400, limit_window_seconds: 60 },
+        { name: "lane", used_percent: 5, reset_at: 1784408400, limit_window_seconds: 60 },
+        { name: "lane", used_percent: 90, reset_at: 1784408400, limit_window_seconds: 60 },
+      ],
+    });
+    expect(windows!.windows.map((window) => [window.id, window.utilization])).toEqual([
+      ["session", 10],
+      ["lane", 5],
+    ]);
+
+    const metrics = mapUsageResponse(registry.providers.deepseek, {
+      balance_infos: [
+        { currency: "USD", total_balance: "10" },
+        { currency: "usd", total_balance: "999" },
+      ],
+    });
+    expect(metrics!.metrics).toHaveLength(1);
+    expect(metrics!.metrics[0]!.value).toBe(10);
+  });
+
+  it("rejects oversized reset dates and ignores unsafe window durations", () => {
+    expect(
+      mapUsageResponse(registry.providers.codex, {
+        rate_limit: {
+          primary_window: {
+            used_percent: 10,
+            reset_at: 1e300,
+            limit_window_seconds: 1e300,
+          },
+        },
+      })
+    ).toBeNull();
+
+    const mapped = mapUsageResponse(registry.providers.codex, {
+      rate_limit: {
+        primary_window: {
+          used_percent: 10,
+          reset_at: 1784408400,
+          limit_window_seconds: 1e300,
+        },
+      },
+    });
+    expect(mapped!.windows[0]!.windowSeconds).toBeNull();
+  });
+
+  it("drops oversized or control-bearing provider labels", () => {
+    const windows = mapUsageResponse(registry.providers.codex, {
+      rate_limit: {
+        primary_window: { used_percent: 10, reset_at: 1784408400 },
+      },
+      additional_rate_limits: [
+        { name: "bad\u001b[2J", used_percent: 99, reset_at: 1784408400 },
+        { name: "x".repeat(129), used_percent: 99, reset_at: 1784408400 },
+      ],
+    });
+    expect(windows!.windows.map((window) => window.id)).toEqual(["session"]);
+
+    expect(
+      mapUsageResponse(registry.providers.deepseek, {
+        balance_infos: [{ currency: "USD\n", total_balance: "10" }],
+      })
+    ).toBeNull();
   });
 });

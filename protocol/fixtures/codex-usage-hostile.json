@@ -1,0 +1,23 @@
+{
+  "plan_type": "pro",
+  "rate_limit": {
+    "primary_window": {
+      "used_percent": 40,
+      "reset_at": 1784408400,
+      "limit_window_seconds": 9223372036854775808
+    },
+    "secondary_window": {
+      "used_percent": true,
+      "reset_at": 1784530800,
+      "limit_window_seconds": 604800
+    }
+  },
+  "additional_rate_limits": [
+    {
+      "name": "配额跟踪测试配额跟踪测试配额跟踪测试配额跟踪测试配额跟踪测试配额跟踪测试配额跟踪测试配额跟踪测试配额跟踪测试配额跟踪测试",
+      "used_percent": 12.5,
+      "reset_at": 1784530800,
+      "limit_window_seconds": 604800
+    }
+  ]
+}

@@ -13,6 +13,7 @@ public enum QRDecodeError: Error, Equatable {
     case inflateFailed
     case invalidPayload
     case expired
+    case futureDated
 }
 
 public struct QRChunk: Equatable, Sendable {
@@ -53,6 +54,12 @@ public struct LinkPayload: Codable, Equatable, Sendable {
 public enum QRDecoder {
     public static let protocolToken = "vigil1"
     public static let maxAgeSeconds = 600
+    public static let maximumChunkCharacters = 700
+    public static let maximumChunkCount = 64
+    public static let maximumAccounts = 32
+    /// Small clock differences are normal. Larger future dates can otherwise
+    /// bypass the ten-minute expiry check indefinitely.
+    public static let maximumFutureSkewSeconds = 60
 
     public static func parseChunk(_ string: String) throws -> QRChunk {
         let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -67,14 +74,19 @@ public enum QRDecoder {
         guard indexParts.count == 2,
               let index = Int(indexParts[0]),
               let total = Int(indexParts[1]),
-              index >= 1, total >= 1, index <= total
+              index >= 1,
+              total >= 1,
+              total <= maximumChunkCount,
+              index <= total
         else { throw QRDecodeError.unrecognized }
         let sid = parts[2]
         guard sid.count == 4, sid.allSatisfy({ ("A"..."Z").contains($0) || ("2"..."7").contains($0) }) else {
             throw QRDecodeError.unrecognized
         }
         let data = parts[3]
-        guard data.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }) else {
+        guard data.count <= maximumChunkCharacters,
+              data.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" })
+        else {
             throw QRDecodeError.unrecognized
         }
         return QRChunk(index: index, total: total, sid: sid, data: data)
@@ -138,8 +150,59 @@ public enum QRDecoder {
         guard let payload = try? JSONDecoder().decode(LinkPayload.self, from: json), payload.v == 1 else {
             throw QRDecodeError.invalidPayload
         }
-        let age = Int(now.timeIntervalSince1970) - payload.iat
-        guard age <= maxAgeSeconds else { throw QRDecodeError.expired }
+        try validatePayload(payload)
+        let age = now.timeIntervalSince1970 - TimeInterval(payload.iat)
+        guard age.isFinite else { throw QRDecodeError.invalidPayload }
+        guard age >= -TimeInterval(maximumFutureSkewSeconds) else {
+            throw QRDecodeError.futureDated
+        }
+        guard age <= TimeInterval(maxAgeSeconds) else { throw QRDecodeError.expired }
         return payload
+    }
+
+    static func validatePayload(_ payload: LinkPayload) throws {
+        guard !payload.accounts.isEmpty, payload.accounts.count <= maximumAccounts else {
+            throw QRDecodeError.invalidPayload
+        }
+        for account in payload.accounts {
+            guard account.p.utf8.count <= 64,
+                  account.p.range(
+                    of: #"^[a-z0-9][a-z0-9._-]{0,63}$"#,
+                    options: .regularExpression
+                  ) != nil,
+                  !account.label.isEmpty,
+                  account.label.utf8.count <= 256,
+                  !containsControlCharacters(account.label),
+                  !account.c.at.isEmpty,
+                  account.c.at.utf8.count <= 65_536,
+                  !containsControlCharacters(account.c.at)
+            else {
+                throw QRDecodeError.invalidPayload
+            }
+            if let refreshToken = account.c.rt,
+               refreshToken.utf8.count > 65_536 || containsControlCharacters(refreshToken) {
+                throw QRDecodeError.invalidPayload
+            }
+            if let accountID = account.c.acct,
+               accountID.utf8.count > 128 || containsControlCharacters(accountID) {
+                throw QRDecodeError.invalidPayload
+            }
+            if let source = account.c.src,
+               source.utf8.count > 32 || containsControlCharacters(source) {
+                throw QRDecodeError.invalidPayload
+            }
+            if let plan = account.meta?.plan,
+               plan.utf8.count > 128 || containsControlCharacters(plan) {
+                throw QRDecodeError.invalidPayload
+            }
+            if let expiry = account.c.exp,
+               expiry < 0 || expiry > 253_402_300_799 {
+                throw QRDecodeError.invalidPayload
+            }
+        }
+    }
+
+    private static func containsControlCharacters(_ value: String) -> Bool {
+        value.rangeOfCharacter(from: .controlCharacters) != nil
     }
 }

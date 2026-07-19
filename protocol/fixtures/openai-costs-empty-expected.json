@@ -1,0 +1,13 @@
+{
+  "windows": [],
+  "metrics": [
+    {
+      "id": "spend_month",
+      "label": "Spend (month to date)",
+      "kind": "spend",
+      "value": 0,
+      "unit": "USD",
+      "secondary": false
+    }
+  ]
+}

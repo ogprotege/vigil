@@ -1,0 +1,29 @@
+{
+  "windows": [],
+  "metrics": [
+    {
+      "id": "balance",
+      "label": "Balance",
+      "kind": "balance",
+      "value": -5.25,
+      "unit": "CNY",
+      "secondary": false
+    },
+    {
+      "id": "balance_cash",
+      "label": "Cash balance",
+      "kind": "balance",
+      "value": -5.25,
+      "unit": "CNY",
+      "secondary": true
+    },
+    {
+      "id": "balance_voucher",
+      "label": "Voucher balance",
+      "kind": "balance",
+      "value": 0,
+      "unit": "CNY",
+      "secondary": true
+    }
+  ]
+}

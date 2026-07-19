@@ -21,8 +21,8 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    CURRENT_PROJECT_VERSION: 1
-    MARKETING_VERSION: 0.9.0
+    CURRENT_PROJECT_VERSION: 2
+    MARKETING_VERSION: 0.10.0
     # Local/simulator builds need no team; device runs set DEVELOPMENT_TEAM in
     # Xcode's Signing pane (mac-checklist §M4 step 7).
     CODE_SIGN_STYLE: Automatic
@@ -59,6 +59,7 @@ targets:
         CFBundleDisplayName: Vigil
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        VigilKeychainAccessGroup: $(AppIdentifierPrefix)app.vigil.shared
         ITSAppUsesNonExemptEncryption: false
         UIBackgroundModes:
           - fetch
@@ -84,17 +85,41 @@ targets:
             CFBundleURLSchemes: [vigil1]
         LSApplicationCategoryType: public.app-category.utilities
     scheme:
-      testTargets: []
-      gatherCoverageData: false
+      testTargets:
+        - VigilTests
+      gatherCoverageData: true
+
+  VigilTests:
+    type: bundle.unit-test
+    supportedDestinations: [iOS, macOS]
+    sources:
+      - path: VigilTests
+    dependencies:
+      - target: Vigil
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.vigil.tests
+        GENERATE_INFOPLIST_FILE: YES
+        # Keep iOS app-hosted. On macOS, run the bundle under xctest instead
+        # of LaunchServices so CI does not need a signed GUI test host.
+        "TEST_HOST[sdk=macosx*]": ""
+        "BUNDLE_LOADER[sdk=macosx*]": ""
+        "OTHER_LDFLAGS[sdk=macosx*]": "$(inherited) $(BUILT_PRODUCTS_DIR)/Vigil.app/Contents/MacOS/Vigil.debug.dylib"
+        "LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]": "$(inherited) $(BUILT_PRODUCTS_DIR)/Vigil.app/Contents/MacOS"
 
   VigilWidgets:
     type: app-extension
     supportedDestinations: [iOS]
     sources:
+      # VigilWidgets/ also carries PrivacyInfo.xcprivacy — XcodeGen places it
+      # in the extension's resources phase, mirroring how the app target picks
+      # up Vigil/Resources/PrivacyInfo.xcprivacy (both targets compile
+      # required-reason API users: file timestamps + UserDefaults).
       - path: VigilWidgets
       # Shared with the app target: container resolution + the gated fetch
       # pipeline, so the widget obeys the same ledger.
       - path: Vigil/Support/SharedContainer.swift
+      - path: Vigil/Support/SnapshotFreshness.swift
       - path: Vigil/Support/UsageService.swift
     dependencies:
       - package: VigilKit
@@ -112,5 +137,6 @@ targets:
         CFBundleDisplayName: Vigil
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        VigilKeychainAccessGroup: $(AppIdentifierPrefix)app.vigil.shared
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension

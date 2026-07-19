@@ -9,6 +9,14 @@ struct MenuBarContentView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            // A menu-bar-only session never opens DashboardView, so its
+            // storage alert would otherwise stay invisible. Surface the
+            // current notice read-only; dismissal stays with the Dashboard
+            // alert so the durable-error queue is consumed exactly once.
+            if let storageMessage = model.storageErrorMessage {
+                MenuBarStorageNoticeRow(message: storageMessage)
+            }
+
             if model.accounts.isEmpty {
                 Text("No accounts linked — open Vigil to add one.")
                     .font(.callout)
@@ -55,6 +63,9 @@ private struct MenuBarAccountRow: View {
             HStack {
                 Text(account.displayName)
                     .font(.subheadline.weight(.semibold))
+                if ProviderPresentation.isExperimental(providerId: account.providerId) {
+                    ExperimentalBadge()
+                }
                 Spacer()
                 if let snapshot, snapshot.status != .ok {
                     Text(statusText(snapshot.status))
@@ -75,6 +86,27 @@ private struct MenuBarAccountRow: View {
                             .font(.caption.monospacedDigit())
                             .frame(width: 36, alignment: .trailing)
                     }
+                }
+                // Metrics-only providers (OpenRouter/DeepSeek) expose scalar
+                // balances or spend instead of windows — show their values,
+                // formatted exactly like the Dashboard's metric rows.
+                ForEach(visibleMetrics, id: \.id) { metric in
+                    HStack(spacing: 6) {
+                        Image(systemName: MetricFormat.symbol(for: metric.kind))
+                            .font(.caption)
+                            .foregroundStyle(MetricFormat.tint(for: metric.kind))
+                            .frame(width: 16)
+                            .accessibilityHidden(true)
+                        Text(metric.label)
+                            .font(.caption)
+                            .lineLimit(1)
+                        Spacer(minLength: 6)
+                        Text(MetricFormat.value(metric))
+                            .font(.caption.weight(.semibold).monospacedDigit())
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(metric.label))
+                    .accessibilityValue(Text(MetricFormat.value(metric)))
                 }
                 HStack(spacing: 4) {
                     if snapshot.fetchedAt > .distantPast {
@@ -98,6 +130,15 @@ private struct MenuBarAccountRow: View {
         }
     }
 
+    /// Dashboard convention (AccountCardView): primary metrics inline; if a
+    /// provider only reports secondary metrics, show those rather than
+    /// nothing — the menu bar has no disclosure group to hide them behind.
+    private var visibleMetrics: [UsageMetric] {
+        guard let snapshot else { return [] }
+        let primary = snapshot.metrics.filter { !$0.secondary }
+        return primary.isEmpty ? snapshot.metrics : primary
+    }
+
     private func statusText(_ status: SnapshotStatus) -> String {
         switch status {
         case .ok: return ""
@@ -106,6 +147,34 @@ private struct MenuBarAccountRow: View {
         case .schemaChanged: return "provider changed"
         case .network: return "offline"
         }
+    }
+}
+
+/// A visible, read-only mirror of the app's storage alert for menu-bar-only
+/// sessions. Persistence failures are product failures (CLAUDE.md) — they
+/// must not be invisible just because the main window never opened.
+private struct MenuBarStorageNoticeRow: View {
+    let message: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Label("Vigil couldn't save data", systemImage: "exclamationmark.triangle.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.orange)
+            Text(message)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Open the Vigil window to review and dismiss.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Storage problem"))
+        .accessibilityValue(Text("\(message) Open the Vigil window to review and dismiss."))
     }
 }
 #endif

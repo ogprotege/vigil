@@ -74,24 +74,30 @@ describe("claude mint (PKCE loopback)", () => {
     expect(typeof body["code_verifier"]).toBe("string");
   });
 
-  it("aborts on state mismatch (interception guard)", async () => {
+  it("ignores a mismatched callback and still accepts the legitimate callback", async () => {
     server = await startFixtureServer({
-      "/v1/oauth/token": json(200, { access_token: "nope" }),
+      "/v1/oauth/token": json(200, { access_token: "sk-ant-oat01-VALID" }),
     });
-    await expect(
-      mintClaude(oauth, {
-        port: 54612,
-        timeoutMs: 5000,
-        tokenUrlOverride: `${server.url}/v1/oauth/token`,
-        openBrowser: (url) => {
+    const creds = await mintClaude(oauth, {
+      port: 54612,
+      timeoutMs: 5000,
+      tokenUrlOverride: `${server.url}/v1/oauth/token`,
+      openBrowser: (url) => {
+        void (async () => {
           const authorize = new URL(url);
           const redirect = new URL(authorize.searchParams.get("redirect_uri")!);
           redirect.searchParams.set("code", "auth-code-123");
           redirect.searchParams.set("state", "WRONG");
-          void fetch(redirect.toString().replace("localhost", "127.0.0.1"));
-        },
-      })
-    ).rejects.toThrow(/state mismatch/);
+          const rejected = await fetch(
+            redirect.toString().replace("localhost", "127.0.0.1")
+          );
+          expect(rejected.status).toBe(400);
+          redirect.searchParams.set("state", authorize.searchParams.get("state")!);
+          await fetch(redirect.toString().replace("localhost", "127.0.0.1"));
+        })();
+      },
+    });
+    expect(creds.accessToken).toBe("sk-ant-oat01-VALID");
   });
 
   it("recovers via paste when the browser can't reach the loopback", async () => {

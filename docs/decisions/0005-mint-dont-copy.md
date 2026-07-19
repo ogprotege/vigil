@@ -18,3 +18,8 @@ Unverified specifics (validated live at the M2 smoke step): the exact allowed lo
 
 - One extra browser-approve step at link time (only for mint; copy remains instant).
 - Vigil-side 401s never require touching the computer's Claude Code install.
+
+## Amendments
+
+- **Link-time verification never refreshes.** The app's live verify during linking runs with credential refresh disabled (`allowCredentialRefresh: false`), so linking never consumes a refresh-token rotation — a rotation burned mid-link could strand the freshly minted pair before it is durably stored. An expired minted token therefore fails linking as `authExpired`, and the user re-mints.
+- **Unsolicited loopback callbacks cannot cancel a mint.** The CLI's loopback server answers a callback whose `state` does not match the pending PKCE state with HTTP 400 and keeps waiting for the real one — an unsolicited local request must not be able to abort a live authorization.

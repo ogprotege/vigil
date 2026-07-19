@@ -27,7 +27,7 @@ Moves credentials from the computer (where CLIs like Claude Code and Codex keep 
 
 - Keys are deliberately short (`p` provider id, `c` credentials, `at`/`rt` access/refresh token, `exp` access-token expiry unix seconds, `acct` account id, `src` credential origin).
 - `c.src` is `"mint"` only for token pairs Vigil minted itself — the app may refresh those on 401. Absent `src` means copied credentials, which the app must never rotate (ADR-0005). Receivers treat unknown `src` values as non-refreshable.
-- `iat` is unix seconds at payload creation. **Receivers MUST reject payloads older than 10 minutes.**
+- `iat` is unix seconds at payload creation. **Receivers MUST reject payloads older than 10 minutes or more than 60 seconds in the future.**
 - Codex `id_token` JWTs are never included (dead weight; the plan label is precomputed into `meta.plan`).
 
 ## Envelope (what each QR encodes)
@@ -40,6 +40,8 @@ vigil1:<index>/<total>:<sid>:<data>
 - `<index>/<total>` — 1-based chunk position, e.g. `2/3`.
 - `<sid>` — 4-character random session id (A–Z, 2–7). All chunks of one link session share it; receivers MUST refuse to mix sids.
 - `<data>` — a ≤700-char slice of `base64url( deflateRaw( JSON ) )`.
+- One session may contain at most 64 chunks and 32 accounts. Receivers also
+  bound credential and metadata fields before allocating durable storage.
 
 Encoding pipeline: `JSON.stringify` → raw DEFLATE (no zlib header — Node `zlib.deflateRawSync`, Apple Compression `COMPRESSION_ZLIB`) → base64url (RFC 4648 §5, no padding) → split into 700-char chunks.
 
@@ -56,10 +58,15 @@ QR capacity at version 25 / EC level M is 997 bytes; codes past ~v25 scan unreli
 
 1. Parse envelope; verify token is `vigil1`; verify all chunks share one `sid`; assemble in index order.
 2. base64url-decode → raw-inflate → parse JSON.
-3. Validate `v == 1` and `now - iat ≤ 600 s` (reject stale).
-4. For each account: run a **live verify fetch immediately** (the provider's usage endpoint). Persist to Keychain **only on success**; on network failure offer "save anyway, verify later".
+3. Validate `v == 1`, `now - iat ≤ 600 s`, and `iat - now ≤ 60 s`.
+4. For each account: reserve the provider poll budget, then run a **live verify
+   fetch** when allowed. Persist to Keychain **only on success**. On a network
+   failure or a local safety-cooldown deferral, offer "save anyway, verify
+   later".
 
-The paste path (`vigil-link --json` output pasted into the app) is the identical single string `vigil1:1/1:<sid>:<data…>` — same decoder, no camera.
+The paste path (`vigil-link --json` output pasted into the app) uses the same
+envelope and decoder. Small payloads produce one line. Larger payloads produce
+multiple `vigil1:` lines, all of which must be pasted.
 
 ## Security posture (ADR-0003)
 
@@ -67,7 +74,7 @@ v1 payloads are **compressed plaintext**, with guardrails:
 
 - The CLI shows an explicit consent prompt before rendering ("anyone who can see or record your screen can capture these credentials").
 - The terminal is cleared after linking (`--no-clear` opts out).
-- Receivers reject payloads older than 10 minutes.
+- Receivers reject payloads older than 10 minutes or more than 60 seconds in the future.
 
 Rationale: the QR is displayed on the user's own screen and scanned in person; the realistic threats are shoulder-surfing and screen capture. True encryption requires an out-of-band key exchange (typing a code from the phone into the CLI on every link), taxing the product's #1 goal. The same tokens already sit unencrypted in `~/.claude/.credentials.json`. 
 

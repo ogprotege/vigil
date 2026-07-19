@@ -14,6 +14,12 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Reject tracked signing secrets
+        run: |
+          if git ls-files | grep -E '\.(p12|p8|mobileprovision)$'; then
+            echo "Signing credentials or profiles must not be tracked."
+            exit 1
+          fi
       - name: Swift version
         run: swift --version
       - name: VigilKit tests
@@ -29,4 +35,15 @@ jobs:
           xcodebuild -project Vigil.xcodeproj -scheme Vigil
           -destination 'generic/platform=iOS Simulator'
           build CODE_SIGNING_ALLOWED=NO
+        working-directory: apps/apple
+      - name: Test app and build menu bar target (macOS)
+        run: >
+          xcodebuild -project Vigil.xcodeproj -scheme Vigil
+          -destination 'platform=macOS'
+          test CODE_SIGNING_ALLOWED=NO
+        working-directory: apps/apple
+      - name: Validate property lists and entitlements
+        run: |
+          plutil -lint Vigil/Info.plist VigilWidgets/Info.plist
+          plutil -lint Entitlements/*.entitlements
         working-directory: apps/apple

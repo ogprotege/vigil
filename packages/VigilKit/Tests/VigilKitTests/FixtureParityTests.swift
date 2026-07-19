@@ -16,6 +16,16 @@ final class FixtureParityTests: XCTestCase {
     private struct ExpectedFile: Decodable {
         let planLabel: String?
         let windows: [ExpectedWindow]
+        let metrics: [ExpectedMetric]?
+    }
+
+    private struct ExpectedMetric: Decodable {
+        let id: String
+        let label: String
+        let kind: UsageMetricKind
+        let value: Double
+        let unit: String?
+        let secondary: Bool
     }
 
     func testEveryFixturePairMapsToItsExpectedOutput() throws {
@@ -59,9 +69,23 @@ final class FixtureParityTests: XCTestCase {
                     XCTAssertNil(got.resetsAt, "\(expectedName) \(want.id)")
                 }
             }
+            let expectedMetrics = expected.metrics ?? []
+            XCTAssertEqual(mapped.metrics.count, expectedMetrics.count, expectedName)
+            for (got, want) in zip(mapped.metrics, expectedMetrics) {
+                XCTAssertEqual(got.id, want.id, expectedName)
+                XCTAssertEqual(got.label, want.label, expectedName)
+                XCTAssertEqual(got.kind, want.kind, expectedName)
+                XCTAssertEqual(got.value, want.value, accuracy: 0.0001, expectedName)
+                XCTAssertEqual(got.unit, want.unit, expectedName)
+                XCTAssertEqual(got.secondary, want.secondary, expectedName)
+            }
         }
 
-        XCTAssertEqual(providersSeen, Set(["claude", "codex"]), "every provider needs fixture coverage")
+        XCTAssertEqual(
+            providersSeen,
+            Set(ProviderRegistry.all.map(\.id)),
+            "every provider needs fixture coverage"
+        )
     }
 
     func testSchemaDriftReturnsNil() {
@@ -104,29 +128,185 @@ final class FixtureParityTests: XCTestCase {
         XCTAssertEqual(mapped?.windows[1].utilization, 7)
     }
 
-    func testClassifyTaxonomy() {
+    func testScalarMetricsAcceptDecimalStringsButWindowsStayStrict() {
+        let body = Data(#"""
+        {
+          "is_available": true,
+          "balance_infos": [
+            { "currency": "USD", "total_balance": "12.50" },
+            { "currency": "CNY", "total_balance": "not-a-number" }
+          ]
+        }
+        """#.utf8)
+        let mapped = UsageMapper.map(spec: ProviderRegistry.deepSeek, body: body)
+        XCTAssertEqual(mapped?.windows, [])
+        XCTAssertEqual(mapped?.metrics.count, 1)
+        XCTAssertEqual(mapped?.metrics.first?.id, "balance_usd")
+        XCTAssertEqual(mapped?.metrics.first?.value, 12.5)
+    }
+
+    func testDuplicateProviderIDsKeepFirstPrimaryValue() {
+        let windows = Data(#"""
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 10,
+              "reset_at": 1784408400,
+              "limit_window_seconds": 18000
+            }
+          },
+          "additional_rate_limits": [
+            { "name": "session", "used_percent": 99, "reset_at": 1784408400 },
+            { "name": "lane", "used_percent": 5, "reset_at": 1784408400 },
+            { "name": "lane", "used_percent": 90, "reset_at": 1784408400 }
+          ]
+        }
+        """#.utf8)
+        let mappedWindows = UsageMapper.map(spec: ProviderRegistry.codex, body: windows)
+        XCTAssertEqual(mappedWindows?.windows.map(\.id), ["session", "lane"])
+        XCTAssertEqual(mappedWindows?.windows.map(\.utilization), [10, 5])
+
+        let metrics = Data(#"""
+        {
+          "balance_infos": [
+            { "currency": "USD", "total_balance": "10" },
+            { "currency": "usd", "total_balance": "999" }
+          ]
+        }
+        """#.utf8)
+        let mappedMetrics = UsageMapper.map(spec: ProviderRegistry.deepSeek, body: metrics)
+        XCTAssertEqual(mappedMetrics?.metrics.count, 1)
+        XCTAssertEqual(mappedMetrics?.metrics.first?.value, 10)
+    }
+
+    func testOversizedProviderNumbersCannotTrapMapper() {
+        let invalidReset = Data(#"""
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 10,
+              "reset_at": 1e300,
+              "limit_window_seconds": 1e300
+            }
+          }
+        }
+        """#.utf8)
+        XCTAssertNil(UsageMapper.map(spec: ProviderRegistry.codex, body: invalidReset))
+
+        let invalidDuration = Data(#"""
+        {
+          "rate_limit": {
+            "primary_window": {
+              "used_percent": 10,
+              "reset_at": 1784408400,
+              "limit_window_seconds": 1e300
+            }
+          }
+        }
+        """#.utf8)
+        XCTAssertNil(
+            UsageMapper.map(spec: ProviderRegistry.codex, body: invalidDuration)?
+                .windows.first?.windowSeconds
+        )
+    }
+
+    func testOversizedOrControlBearingProviderLabelsAreDropped() {
+        let windows = Data(#"""
+        {
+          "rate_limit": {
+            "primary_window": { "used_percent": 10, "reset_at": 1784408400 }
+          },
+          "additional_rate_limits": [
+            { "name": "bad\u001b[2J", "used_percent": 99, "reset_at": 1784408400 },
+            { "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "used_percent": 99, "reset_at": 1784408400 }
+          ]
+        }
+        """#.utf8)
+        XCTAssertEqual(
+            UsageMapper.map(spec: ProviderRegistry.codex, body: windows)?.windows.map(\.id),
+            ["session"]
+        )
+
+        let metrics = Data(#"""
+        {
+          "balance_infos": [
+            { "currency": "USD\n", "total_balance": "10" }
+          ]
+        }
+        """#.utf8)
+        XCTAssertNil(UsageMapper.map(spec: ProviderRegistry.deepSeek, body: metrics))
+    }
+
+    func testClassifyTaxonomy() throws {
         let ok = Data(#"{"five_hour": {"utilization": 5, "resets_at": null}}"#.utf8)
         XCTAssertEqual(UsageClient.classify(data: ok, statusCode: 200, spec: ProviderRegistry.claude).status, .ok)
         XCTAssertEqual(UsageClient.classify(data: ok, statusCode: 401, spec: ProviderRegistry.claude).status, .authExpired)
         XCTAssertEqual(UsageClient.classify(data: ok, statusCode: 429, spec: ProviderRegistry.claude).status, .rateLimited)
         XCTAssertEqual(UsageClient.classify(data: ok, statusCode: 502, spec: ProviderRegistry.claude).status, .network)
         XCTAssertEqual(UsageClient.classify(data: Data("<html>".utf8), statusCode: 200, spec: ProviderRegistry.claude).status, .schemaChanged)
+
+        // The real Anthropic 429 error body (protocol/fixtures/claude-429.json,
+        // the one fixture without an -expected pair — the CLI consumes it in
+        // status/http tests; this is its Swift-side twin).
+        let errorBody = try Data(
+            contentsOf: TestSupport.repoRoot.appendingPathComponent("protocol/fixtures/claude-429.json")
+        )
+        XCTAssertEqual(
+            UsageClient.classify(data: errorBody, statusCode: 429, spec: ProviderRegistry.claude).status,
+            .rateLimited
+        )
+        // The same error body on a 200 must read as schemaChanged, not crash
+        // or produce a phantom window.
+        XCTAssertEqual(
+            UsageClient.classify(data: errorBody, statusCode: 200, spec: ProviderRegistry.claude).status,
+            .schemaChanged
+        )
     }
 
-    func testRequestBuilderSubstitutesAndOmitsHeaders() {
-        let claude = RequestBuilder.usageRequest(
+    func testRequestBuilderSubstitutesAndOmitsHeaders() throws {
+        let claude = try XCTUnwrap(RequestBuilder.usageRequest(
             spec: ProviderRegistry.claude,
             credentials: Credentials(providerId: "claude", accessToken: "sk-ant-oat01-X")
-        )
+        ))
         XCTAssertEqual(claude.value(forHTTPHeaderField: "Authorization"), "Bearer sk-ant-oat01-X")
         XCTAssertEqual(claude.value(forHTTPHeaderField: "anthropic-beta"), "oauth-2025-04-20")
         XCTAssertNotNil(claude.value(forHTTPHeaderField: "User-Agent"))
+        XCTAssertEqual(claude.timeoutInterval, RequestBuilder.timeoutInterval)
 
-        let codexNoAccount = RequestBuilder.usageRequest(
+        let codexNoAccount = try XCTUnwrap(RequestBuilder.usageRequest(
             spec: ProviderRegistry.codex,
             credentials: Credentials(providerId: "codex", accessToken: "tok")
-        )
+        ))
         XCTAssertNil(codexNoAccount.value(forHTTPHeaderField: "ChatGPT-Account-Id"))
         XCTAssertEqual(codexNoAccount.value(forHTTPHeaderField: "Authorization"), "Bearer tok")
+    }
+
+    func testRequestBuilderTemplatesURLsAndComputedQueryParams() throws {
+        // A URL that needs {account_id} refuses to build without one.
+        XCTAssertNil(RequestBuilder.usageRequest(
+            spec: ProviderRegistry.gitHub,
+            credentials: Credentials(providerId: "github", accessToken: "tok")
+        ))
+
+        // 2026-07-19T00:00:00Z; month start is 2026-07-01T00:00:00Z.
+        let now = Date(timeIntervalSince1970: 1_784_419_200)
+        let github = try XCTUnwrap(RequestBuilder.usageRequest(
+            spec: ProviderRegistry.gitHub,
+            credentials: Credentials(providerId: "github", accessToken: "tok", accountId: "octo cat"),
+            now: now
+        ))
+        let githubURL = try XCTUnwrap(github.url?.absoluteString)
+        XCTAssertTrue(githubURL.contains("/users/octo%20cat/settings/billing/ai_credit/usage"), githubURL)
+        XCTAssertTrue(githubURL.contains("year=2026"), githubURL)
+        XCTAssertTrue(githubURL.contains("month=7"), githubURL)
+
+        let openai = try XCTUnwrap(RequestBuilder.usageRequest(
+            spec: ProviderRegistry.openAI,
+            credentials: Credentials(providerId: "openai", accessToken: "admin"),
+            now: now
+        ))
+        let openaiURL = try XCTUnwrap(openai.url?.absoluteString)
+        XCTAssertTrue(openaiURL.contains("start_time=1782864000"), "month start must be 2026-07-01T00:00:00Z — \(openaiURL)")
+        XCTAssertTrue(openaiURL.contains("bucket_width=1d"), openaiURL)
     }
 }

@@ -1,18 +1,29 @@
 import type { ProviderId, Registry } from "../spec/registry.js";
 import type { DiscoveryOptions } from "../discovery/paths.js";
 import type { HttpOptions } from "../http.js";
+import type { PollGateOptions } from "../polling.js";
 import type { Credentials } from "../providers/types.js";
 import { collectCredentials } from "./status.js";
 import { getSnapshot } from "../service.js";
-import { mintClaude, type MintOptions } from "../oauth/claudeMint.js";
+import { hasMintAdapter, mintProvider } from "../oauth/index.js";
+import type { MintOptions } from "../oauth/claudeMint.js";
 import { buildPayload, chunkEncoded, encodePayload, makeSid } from "../qr/payload.js";
 import { renderQr } from "../qr/render.js";
+import { redactedMessage } from "../util/redact.js";
+import { sanitizeTerminalText } from "../util/terminal.js";
 
 export interface LinkOptions {
   providers: ProviderId[];
   /** "mint" (default): mint Claude its own pair; "copy": reuse existing CLI creds. */
   mode: "mint" | "copy";
   json: boolean;
+  /**
+   * Explicit consent (--yes) to emit credential-bearing output without an
+   * interactive confirmation. Required in --json mode and whenever stdin is
+   * not a TTY (no `confirm` callback); the threat model promises consent is
+   * always obtained before credentials are displayed.
+   */
+  yes: boolean;
   loop: boolean;
   big: boolean;
   clear: boolean;
@@ -20,6 +31,7 @@ export interface LinkOptions {
   registry: Registry;
   discovery?: DiscoveryOptions;
   http?: HttpOptions;
+  poll?: PollGateOptions | false;
   mint?: MintOptions;
   now?: () => Date;
   out: (text: string) => void;
@@ -35,15 +47,23 @@ export async function collectLinkAccounts(opts: LinkOptions): Promise<Credential
   const copyProviders: ProviderId[] = [];
 
   for (const providerId of opts.providers) {
-    if (providerId === "claude" && opts.mode === "mint") {
-      const spec = opts.registry.providers.claude;
-      if (!spec.oauth) throw new Error("claude oauth spec missing");
+    const spec = opts.registry.providers[providerId];
+    if (!spec) {
+      opts.err(`Provider "${providerId}" is missing from the loaded registry. Skipping.`);
+      continue;
+    }
+    if (opts.mode === "mint" && hasMintAdapter(providerId, spec)) {
       try {
-        opts.err("Opening your browser to authorize Vigil with Claude (its own token — never fights Claude Code's)...");
-        accounts.push(await mintClaude(spec.oauth, opts.mint));
+        opts.err(
+          `Opening your browser to authorize Vigil with ${spec.displayName} (its own token, separate from the provider CLI)...`
+        );
+        accounts.push(await mintProvider(providerId, spec, opts.mint));
         continue;
       } catch (mintError) {
-        opts.err(`Mint flow failed (${(mintError as Error).message}); falling back to copying existing credentials.`);
+        opts.err(
+          `Mint flow failed (${sanitizeTerminalText(redactedMessage(mintError))}); ` +
+            "falling back to discovering existing credentials."
+        );
       }
     }
     copyProviders.push(providerId);
@@ -52,8 +72,11 @@ export async function collectLinkAccounts(opts: LinkOptions): Promise<Credential
   if (copyProviders.length > 0) {
     const { found, missing } = await collectCredentials(opts.registry, copyProviders, opts.discovery);
     accounts.push(...found);
-    for (const providerId of missing) {
-      opts.err(`No ${opts.registry.providers[providerId].displayName} credentials found on this machine — skipping.`);
+    for (const item of missing) {
+      const displayName = sanitizeTerminalText(
+        opts.registry.providers[item.providerId]?.displayName ?? item.providerId
+      );
+      opts.err(`No ${displayName} credentials found on this machine. Skipping.`);
     }
   }
   return accounts;
@@ -61,15 +84,55 @@ export async function collectLinkAccounts(opts: LinkOptions): Promise<Credential
 
 async function verifyAccounts(opts: LinkOptions, accounts: Credentials[]): Promise<Credentials[]> {
   const verified: Credentials[] = [];
-  for (const creds of accounts) {
-    const { snapshot, credentials } = await getSnapshot(opts.registry, creds, { ...opts.http, now: opts.now });
+  const now = opts.now ?? (() => new Date());
+  const poll =
+    opts.poll === false
+      ? undefined
+      : {
+          homeDir: opts.discovery?.homeDir,
+          env: opts.discovery?.env,
+          ...opts.poll,
+          now,
+        };
+  const results = await Promise.all(accounts.map(async (creds) => {
+    const spec = opts.registry.providers[creds.providerId];
+    if (!spec) {
+      return {
+        credentials: null,
+        messages: [
+          `✗ ${sanitizeTerminalText(creds.providerId)}: missing registry entry. Not including in link payload.`,
+        ],
+      };
+    }
+    const { snapshot, credentials, pollSafetyWarning } = await getSnapshot(opts.registry, creds, {
+      ...opts.http,
+      now,
+      poll,
+    });
+    const displayName = sanitizeTerminalText(spec.displayName);
+    const messages: string[] = [];
+    if (pollSafetyWarning) {
+      messages.push(
+        `⚠ ${displayName}: poll safety result could not be saved ` +
+          `(${pollSafetyWarning.reason}); conservative pause remains until ${pollSafetyWarning.retryAt}`
+      );
+    }
     if (snapshot.status === "ok" || snapshot.status === "rateLimited") {
       // rateLimited still proves the credential reaches the provider.
-      verified.push(credentials);
-      opts.err(`✓ ${opts.registry.providers[creds.providerId].displayName}: verified (${snapshot.status})`);
+      messages.push(`✓ ${displayName}: verified (${snapshot.status})`);
+      return { credentials, messages };
     } else {
-      opts.err(`✗ ${opts.registry.providers[creds.providerId].displayName}: ${snapshot.status} — not including in link payload`);
+      const retry =
+        snapshot.status === "deferred" && snapshot.retryAt ? ` until ${snapshot.retryAt}` : "";
+      messages.push(
+        `✗ ${displayName}: ${snapshot.status}${retry}. Not including in link payload.`
+      );
+      return { credentials: null, messages };
     }
+  }));
+  for (const result of results) {
+    for (const message of result.messages) opts.err(message);
+    if (result.credentials) verified.push(result.credentials);
   }
   return verified;
 }
@@ -80,9 +143,23 @@ const CONSENT =
 
 export async function runLink(opts: LinkOptions): Promise<number> {
   const now = opts.now ?? (() => new Date());
+
+  // Consent gate, checked before any discovery or minting: without an
+  // interactive prompt available, credential-bearing output requires --yes.
+  if (!opts.yes && (opts.json || !opts.confirm)) {
+    opts.err(
+      opts.json
+        ? "Refusing to print credentials: --json emits credential-bearing lines without an interactive confirmation. Re-run with --yes to consent."
+        : "Refusing to print credentials without --yes when stdin is not interactive. Re-run with --yes to consent, or run from a terminal."
+    );
+    return 1;
+  }
+
   let accounts = await collectLinkAccounts(opts);
   if (accounts.length === 0) {
-    opts.err("Nothing to link. Sign in to Claude Code and/or the Codex CLI first, then re-run.");
+    opts.err(
+      "Nothing to link. Configure credentials for at least one selected provider, then re-run `vigil-link doctor`."
+    );
     return 1;
   }
   if (opts.verify) {
@@ -98,13 +175,17 @@ export async function runLink(opts: LinkOptions): Promise<number> {
   const sid = opts.sid ?? makeSid();
 
   if (opts.json) {
-    opts.err("⚠ The following line contains credentials. Paste it into the Vigil app, then clear your scroll-back.");
-    const [single] = chunkEncoded(encoded, sid, Math.max(encoded.length, 1));
-    opts.out(single!);
+    opts.err("⚠ The following line(s) contain credentials. Paste them into the Vigil app, then clear your scroll-back.");
+    opts.out(chunkEncoded(encoded, sid).join("\n"));
+    // Intentional: --json usually feeds a pipe, and the CLI cannot clear a
+    // piped stream, so the caution above is the only mitigation we can offer.
+    opts.err("vigil-link cannot clear a piped stream — clear your terminal scroll-back yourself once the app has the code.");
     return 0;
   }
 
-  if (opts.confirm && !(await opts.confirm(CONSENT))) {
+  if (opts.yes) {
+    opts.err("⚠ --yes: skipping the credential-display confirmation. The codes below contain your account credentials.");
+  } else if (opts.confirm && !(await opts.confirm(CONSENT))) {
     opts.err("Cancelled — nothing was shown.");
     return 1;
   }

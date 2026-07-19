@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import type { OAuthSpec } from "../spec/registry.js";
 import type { Credentials } from "../providers/types.js";
@@ -10,11 +11,12 @@ export interface MintOptions {
   promptPaste?: (authorizeUrl: string) => Promise<string>;
   port?: number;
   timeoutMs?: number;
+  /** Timeout for the final token exchange. Defaults to 15 seconds. */
+  tokenTimeoutMs?: number;
   tokenUrlOverride?: string;
 }
 
-async function defaultOpenBrowser(url: string): Promise<void> {
-  const { spawn } = await import("node:child_process");
+function defaultOpenBrowser(url: string): void {
   const platform = process.platform;
   const [command, args] =
     platform === "darwin"
@@ -22,7 +24,12 @@ async function defaultOpenBrowser(url: string): Promise<void> {
       : platform === "win32"
         ? ["cmd", ["/c", "start", "", url]]
         : ["xdg-open", [url]];
-  spawn(command, args as string[], { stdio: "ignore", detached: true }).unref();
+  const child = spawn(command, args as string[], { stdio: "ignore", detached: true });
+  // Missing desktop opener is recoverable because the CLI prints a manual URL
+  // and accepts a pasted callback. Do not let an unhandled ChildProcess error
+  // terminate the credential flow.
+  child.on("error", () => {});
+  child.unref();
 }
 
 function authorizeUrl(oauth: OAuthSpec, redirectUri: string, challenge: string, state: string): string {
@@ -49,6 +56,7 @@ async function exchangeCode(
   const response = await fetchImpl(opts.tokenUrlOverride ?? oauth.tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    signal: AbortSignal.timeout(Math.max(1, opts.tokenTimeoutMs ?? 15_000)),
     body: JSON.stringify({
       grant_type: "authorization_code",
       code: params.code,
@@ -66,7 +74,13 @@ async function exchangeCode(
   if (typeof accessToken !== "string" || accessToken.length === 0) {
     throw new Error("token exchange returned no access_token");
   }
-  const expiresIn = typeof body["expires_in"] === "number" ? (body["expires_in"] as number) : undefined;
+  const expiresValue = body["expires_in"];
+  const expiresIn =
+    typeof expiresValue === "number" &&
+    Number.isFinite(expiresValue) &&
+    expiresValue > 0
+      ? expiresValue
+      : undefined;
   return {
     providerId: "claude",
     accessToken,
@@ -96,7 +110,10 @@ export function parsePastedCallback(input: string, fallbackState: string): { cod
   return { code: bare[1]!, state: bare[2] ?? fallbackState };
 }
 
-function listenLoopback(port: number): Promise<{ server: Server; codePromise: Promise<{ code: string; state: string }> }> {
+function listenLoopback(
+  port: number,
+  expectedState: string
+): Promise<{ server: Server; codePromise: Promise<{ code: string; state: string }> }> {
   return new Promise((resolveListen, rejectListen) => {
     let resolveCode: (v: { code: string; state: string }) => void;
     let rejectCode: (e: Error) => void;
@@ -114,13 +131,36 @@ function listenLoopback(port: number): Promise<{ server: Server; codePromise: Pr
       const code = url.searchParams.get("code");
       const state = url.searchParams.get("state");
       const error = url.searchParams.get("error");
-      res.writeHead(200, { "Content-Type": "text/html" });
+      const headers = {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+        Pragma: "no-cache",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+      };
+      if (state !== expectedState) {
+        // Ignore unsolicited or stale callbacks so they cannot cancel the
+        // legitimate authorization still in progress.
+        res.writeHead(400, headers);
+        res.end("<html><body><h2>Invalid authorization state.</h2></body></html>");
+        return;
+      }
+      if (error) {
+        res.writeHead(400, headers);
+        res.end("<html><body><h2>Authorization was not completed.</h2></body></html>");
+        rejectCode(new Error(`authorization denied: ${error}`));
+        return;
+      }
+      if (!code) {
+        res.writeHead(400, headers);
+        res.end("<html><body><h2>Authorization code is missing.</h2></body></html>");
+        return;
+      }
+      res.writeHead(200, headers);
       res.end(
         "<html><body style=\"font-family:system-ui;padding:2rem\"><h2>Vigil is linked.</h2><p>You can close this tab and return to your terminal.</p></body></html>"
       );
-      if (error) rejectCode(new Error(`authorization denied: ${error}`));
-      else if (code && state) resolveCode({ code, state });
-      else rejectCode(new Error("callback missing code/state"));
+      resolveCode({ code, state });
     });
 
     server.once("error", rejectListen);
@@ -142,7 +182,7 @@ export async function mintClaude(oauth: OAuthSpec, opts: MintOptions = {}): Prom
 
   let loopback: Awaited<ReturnType<typeof listenLoopback>> | null = null;
   try {
-    loopback = await listenLoopback(port);
+    loopback = await listenLoopback(port, pkce.state);
   } catch {
     loopback = null; // port busy or sandboxed — manual fallback below
   }

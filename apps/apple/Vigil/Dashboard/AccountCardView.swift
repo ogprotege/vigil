@@ -24,16 +24,27 @@ struct AccountCardView: View {
         snapshot?.windows.filter(\.secondary) ?? []
     }
 
+    private var primaryMetrics: [UsageMetric] {
+        snapshot?.metrics.filter { !$0.secondary } ?? []
+    }
+
+    private var secondaryMetrics: [UsageMetric] {
+        snapshot?.metrics.filter(\.secondary) ?? []
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
             statusBanner
-            if let snapshot, !snapshot.windows.isEmpty {
+            if let snapshot, (!snapshot.windows.isEmpty || !snapshot.metrics.isEmpty) {
                 if let session {
                     WindowGaugeRow(title: "Session", window: session, prominent: true)
                 }
                 if let weekly {
                     WindowBarRow(title: "Weekly", window: weekly)
+                }
+                ForEach(primaryMetrics, id: \.id) { metric in
+                    UsageMetricRow(metric: metric)
                 }
                 if !secondaryWindows.isEmpty {
                     DisclosureGroup(isExpanded: $showSecondary) {
@@ -45,6 +56,20 @@ struct AccountCardView: View {
                         .padding(.top, 6)
                     } label: {
                         Text("Model limits")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if !secondaryMetrics.isEmpty {
+                    DisclosureGroup {
+                        VStack(spacing: 8) {
+                            ForEach(secondaryMetrics, id: \.id) { metric in
+                                UsageMetricRow(metric: metric)
+                            }
+                        }
+                        .padding(.top, 6)
+                    } label: {
+                        Text("Account details")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -64,6 +89,9 @@ struct AccountCardView: View {
         HStack {
             Text(account.displayName)
                 .font(.headline)
+            if ProviderPresentation.isExperimental(providerId: account.providerId) {
+                ExperimentalBadge()
+            }
             if let plan = snapshot?.planLabel ?? account.plan {
                 Text(plan.capitalized)
                     .font(.caption.weight(.semibold))

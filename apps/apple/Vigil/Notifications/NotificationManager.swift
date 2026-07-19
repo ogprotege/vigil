@@ -1,19 +1,39 @@
 import Foundation
+import OSLog
 import UserNotifications
 import VigilKit
 
 /// Turns ThresholdEngine crossings into local notifications. The engine is
 /// pure; every side effect lives here.
 final class NotificationManager: Sendable {
+    private static let log = Logger(subsystem: "app.vigil", category: "notifications")
+    private static var hasApplicationBundle: Bool {
+        Bundle.main.bundleURL.pathExtension.lowercased() == "app"
+    }
+
     func requestAuthorizationIfNeeded() async {
+        // UNUserNotificationCenter raises an Objective-C exception when used
+        // from a headless XCTest or preview host without an application
+        // bundle. There is no notification destination in that environment.
+        guard Self.hasApplicationBundle else { return }
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .notDetermined else { return }
-        _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+        do {
+            _ = try await center.requestAuthorization(options: [.alert, .sound, .badge])
+        } catch {
+            Self.log.error(
+                "Notification authorization request failed: \(error.localizedDescription, privacy: .public)"
+            )
+        }
     }
 
-    func deliver(events: [ThresholdEvent], account: AccountRef) async {
+    /// Returns events the operating system did not accept. Callers keep those
+    /// events in durable storage and retry later.
+    func deliver(events: [ThresholdEvent], account: AccountRef) async -> [ThresholdEvent] {
+        guard Self.hasApplicationBundle else { return events }
         let center = UNUserNotificationCenter.current()
+        var failed: [ThresholdEvent] = []
         for event in events {
             let content = UNMutableNotificationContent()
             content.title = "\(account.displayName) \(windowName(event.windowId)) at \(Int(event.utilization.rounded()))%"
@@ -26,8 +46,16 @@ final class NotificationManager: Sendable {
                 content: content,
                 trigger: nil
             )
-            try? await center.add(request)
+            do {
+                try await center.add(request)
+            } catch {
+                failed.append(event)
+                Self.log.error(
+                    "Could not schedule threshold notification: \(error.localizedDescription, privacy: .public)"
+                )
+            }
         }
+        return failed
     }
 
     private func windowName(_ id: String) -> String {
