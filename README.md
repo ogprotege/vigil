@@ -19,9 +19,9 @@ Claude and ChatGPT/Codex windows, plus opt-in OpenRouter and DeepSeek gateway me
 
 Existing token monitors look nice but go stale, throttle themselves into uselessness, or make you dig OAuth tokens out of JSON files by hand. Vigil is built around the three things that actually make a monitor trustworthy:
 
-1. **Setup in seconds.** Run `npx vigil-link` on your computer, scan a QR with your phone, done. No Vigil account or cloud relay. Paste and manual entry remain available.
-2. **Honest freshness.** Provider endpoints rate-limit hard. Every Apple-surface fetch draws from an atomically locked, shared polling ledger. The CLI keeps a separate timestamp-only poll gate. Reset countdowns tick client-side between fetches. When data is stale or a provider changes something, Vigil says so.
-3. **No Vigil collection service.** The app persists credentials in the device Keychain and sends requests directly to providers you activate. Vigil has no analytics or cloud relay. See [docs/privacy.md](docs/privacy.md).
+1. **Setup in seconds.** Run `npx vigil-link` on your computer, scan a QR with your phone, done. No accounts, no cloud, no copy-pasting tokens (unless you want to — paste and manual entry work too).
+2. **Honest freshness.** Provider endpoints rate-limit hard (Claude 429-jails anything polling faster than ~5 minutes). Every fetch — app, widget, menu bar, background — draws from one shared polling ledger, and reset countdowns tick client-side so the UI is live between fetches. When data is stale or a provider changes something, Vigil says so instead of silently lying.
+3. **On-device only.** Credentials live in your device's Keychain and nowhere else. No servers, no analytics, nothing phones home. See [docs/privacy.md](docs/privacy.md).
 
 <p align="center">
   <img src="docs/assets/screenshot-dashboard.png" width="280" alt="Dashboard: session ring, weekly bar, model limits, staleness tint" />
