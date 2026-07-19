@@ -29,10 +29,9 @@ struct VigilApp: App {
 
     var body: some Scene {
         WindowGroup {
-            NavigationStack {
-                DashboardView()
-            }
+            RootView()
             .environment(model)
+            .preferredColorScheme(.dark)
             .overlay {
                 if locked {
                     AppLockView { locked = false }
@@ -84,6 +83,7 @@ struct VigilApp: App {
                 SettingsView()
             }
             .environment(model)
+            .preferredColorScheme(.dark)
         }
 
         // M7 — the always-fresh surface: percentages in the menu bar while no
@@ -91,6 +91,7 @@ struct VigilApp: App {
         MenuBarExtra {
             MenuBarContentView()
                 .environment(model)
+                .preferredColorScheme(.dark)
         } label: {
             Text(model.menuBarTitle)
                 .monospacedDigit()

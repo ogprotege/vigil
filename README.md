@@ -24,9 +24,9 @@ Existing token monitors look nice but go stale, throttle themselves into useless
 3. **On-device only.** Credentials live in your device's Keychain and nowhere else. No servers, no analytics, nothing phones home. See [docs/privacy.md](docs/privacy.md).
 
 <p align="center">
-  <img src="docs/assets/screenshot-dashboard.png" width="280" alt="Dashboard: session ring, weekly bar, model limits, staleness tint" />
+  <img src="docs/assets/screenshot-dashboard.png" width="280" alt="Limits dashboard with Watchline, explicit percent left, reset timing, and inline model quotas" />
   &nbsp;&nbsp;
-  <img src="docs/assets/screenshot-empty.png" width="280" alt="Empty state before linking an account" />
+  <img src="docs/assets/screenshot-empty.png" width="280" alt="Vigil empty state with pair or add account action" />
 </p>
 
 ## Get Vigil
@@ -35,7 +35,7 @@ Existing token monitors look nice but go stale, throttle themselves into useless
 |---|---|
 | **iPhone** | TestFlight (internal testing today; public beta next). Home-screen and lock-screen widgets included. |
 | **Terminal** | `npx vigil-link status` — your real usage with reset countdowns, right now, no install. |
-| **macOS menu bar** | `C 42% · X 71%` always in view. Build from source today (the macOS `xcodebuild` line under [Development](#development)); distribution is on the roadmap. |
+| **macOS menu bar** | `C 42% left · X 71% left` always in view. Build from source today (the macOS `xcodebuild` line under [Development](#development)); distribution is on the roadmap. |
 
 ```sh
 npx vigil-link status   # see default-provider usage in the terminal

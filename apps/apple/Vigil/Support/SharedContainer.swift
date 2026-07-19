@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import os
 import OSLog
@@ -62,10 +63,35 @@ enum SharedContainer {
                 withIntermediateDirectories: true,
                 attributes: [.posixPermissions: 0o700]
             )
-            try FileManager.default.setAttributes(
-                [.posixPermissions: 0o700],
-                ofItemAtPath: dir.path
-            )
+            // Foundation's attribute bridge reads every extended attribute.
+            // On some macOS group containers, provenance metadata can block
+            // that read and even a redundant chmod. POSIX lstat reads only
+            // the mode, so already-secure directories skip the risky no-op.
+            var fileInfo = stat()
+            if Darwin.lstat(dir.path, &fileInfo) != 0 {
+                let code = errno
+                throw NSError(
+                    domain: NSPOSIXErrorDomain,
+                    code: Int(code),
+                    userInfo: [
+                        NSFilePathErrorKey: dir.path,
+                        NSLocalizedDescriptionKey: String(cString: strerror(code)),
+                    ]
+                )
+            }
+            let permissions = fileInfo.st_mode & mode_t(0o777)
+            if permissions != mode_t(0o700),
+               Darwin.chmod(dir.path, mode_t(0o700)) != 0 {
+                let code = errno
+                throw NSError(
+                    domain: NSPOSIXErrorDomain,
+                    code: Int(code),
+                    userInfo: [
+                        NSFilePathErrorKey: dir.path,
+                        NSLocalizedDescriptionKey: String(cString: strerror(code)),
+                    ]
+                )
+            }
         } catch {
             log.error(
                 "Could not create shared container: \(error.localizedDescription, privacy: .private(mask: .hash))"

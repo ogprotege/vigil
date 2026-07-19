@@ -1,17 +1,26 @@
 import SwiftUI
 import VigilKit
 
-/// The escape hatch: type tokens by hand (docs/local-next-steps.md Phase 3,
-/// path c). Verification still runs before anything is stored.
+/// Direct provider setup. The provider arrives preselected from the catalog,
+/// so the form shows only the credential fields that are actually relevant.
 struct ManualEntryView: View {
     let onSubmit: (Credentials) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var providerId = "claude"
+    @State private var providerId: String
     @State private var accessToken = ""
     @State private var refreshToken = ""
     @State private var accountId = ""
     @State private var label = ""
+    @State private var revealAccessToken = false
+
+    init(
+        providerId: String = "claude",
+        onSubmit: @escaping (Credentials) -> Void
+    ) {
+        self.onSubmit = onSubmit
+        _providerId = State(initialValue: providerId)
+    }
 
     private var selectedSpec: ProviderSpec? {
         ProviderRegistry.spec(for: providerId)
@@ -22,7 +31,7 @@ struct ManualEntryView: View {
     }
 
     private var credentialLabel: String {
-        selectedSpec?.auth == "api_key_bearer" ? "API key" : "Access token"
+        selectedSpec.map(ProviderPresentation.setupLabel) ?? "Credential"
     }
 
     private var canSubmit: Bool {
@@ -35,44 +44,191 @@ struct ManualEntryView: View {
     }
 
     var body: some View {
-        Form {
-            Picker("Provider", selection: $providerId) {
-                ForEach(ProviderRegistry.all, id: \.id) { spec in
-                    Text(ProviderPresentation.pickerTitle(for: spec)).tag(spec.id)
+        ZStack {
+            VigilScreenBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: VigilSpacing.large) {
+                    providerHeader
+                    guidance
+                    credentialForm
+                    submitButton
                 }
+                .frame(maxWidth: 620, alignment: .leading)
+                .padding(VigilSpacing.medium)
+                .padding(.bottom, VigilSpacing.xLarge)
+                .frame(maxWidth: .infinity)
             }
-            if selectedSpec?.experimental == true {
-                StatusBannerView(
-                    icon: "testtube.2",
-                    tint: .orange,
-                    text: "Experimental — a community-documented endpoint, not a vendor-supported integration. It may break without notice."
+        }
+        .navigationTitle("Direct setup")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(VigilPalette.canvas.opacity(0.96), for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        #endif
+    }
+
+    private var providerHeader: some View {
+        HStack(spacing: 14) {
+            if let selectedSpec {
+                VigilProviderMark(
+                    providerId: selectedSpec.id,
+                    displayName: selectedSpec.displayName,
+                    size: 52
                 )
             }
+            VStack(alignment: .leading, spacing: 5) {
+                VigilEyebrow(text: "Provider")
+                Picker("Provider", selection: $providerId) {
+                    ForEach(ProviderRegistry.all, id: \.id) { spec in
+                        Text(ProviderPresentation.pickerTitle(for: spec))
+                            .tag(spec.id)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .tint(VigilPalette.ink)
+                if let selectedSpec {
+                    HStack(spacing: 7) {
+                        Text(ProviderPresentation.setupLabel(for: selectedSpec))
+                            .font(.caption)
+                            .foregroundStyle(VigilPalette.inkMuted)
+                        if selectedSpec.experimental {
+                            ExperimentalBadge()
+                        }
+                    }
+                }
+            }
+            Spacer()
+        }
+        .vigilCard(padding: VigilSpacing.medium)
+        .onChange(of: providerId) {
+            accessToken = ""
+            refreshToken = ""
+            accountId = ""
+        }
+    }
 
-            Section {
-                SecureField(credentialLabel, text: $accessToken)
-                if selectedSpec?.oauth != nil {
-                    SecureField("Refresh token (optional)", text: $refreshToken)
+    @ViewBuilder
+    private var guidance: some View {
+        if let selectedSpec {
+            VStack(alignment: .leading, spacing: 10) {
+                VigilSectionHeading("What you need", eyebrow: "Setup guide")
+                Text(
+                    selectedSpec.manualEntryHint
+                        ?? "Enter a credential accepted by this provider."
+                )
+                .font(.callout)
+                .foregroundStyle(VigilPalette.inkMuted)
+                .textSelection(.enabled)
+
+                if selectedSpec.experimental {
+                    StatusBannerView(
+                        icon: "testtube.2",
+                        tint: VigilPalette.caution,
+                        text: "This integration uses a community-documented endpoint. It may change without notice."
+                    )
                 }
-                if let spec = selectedSpec, ProviderPresentation.needsAccountId(spec) {
-                    TextField(ProviderPresentation.accountIdLabel(for: spec), text: $accountId)
-                        #if os(iOS)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        #endif
+            }
+            .vigilCard(padding: VigilSpacing.medium)
+        }
+    }
+
+    private var credentialForm: some View {
+        VStack(alignment: .leading, spacing: VigilSpacing.medium) {
+            VigilSectionHeading("Credentials", eyebrow: "Stored in Keychain")
+
+            VStack(alignment: .leading, spacing: 7) {
+                requiredLabel(credentialLabel)
+                HStack(spacing: 4) {
+                    Group {
+                        if revealAccessToken {
+                            TextField(credentialLabel, text: $accessToken)
+                        } else {
+                            SecureField(credentialLabel, text: $accessToken)
+                        }
+                    }
+                    .textFieldStyle(.plain)
+                    .font(.body.monospaced())
+                    #if os(iOS)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    #endif
+
+                    Button {
+                        revealAccessToken.toggle()
+                    } label: {
+                        Image(
+                            systemName: revealAccessToken
+                                ? "eye.slash"
+                                : "eye"
+                        )
+                        .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(VigilPalette.inkMuted)
+                    .accessibilityLabel(
+                        revealAccessToken ? "Hide \(credentialLabel)" : "Show \(credentialLabel)"
+                    )
                 }
-                TextField("Label (optional)", text: $label)
-            } header: {
-                Text("Credentials")
-            } footer: {
-                Text(selectedSpec?.manualEntryHint ?? "Enter a credential accepted by this provider.")
+                .padding(.leading, 12)
+                .padding(.trailing, 2)
+                .vigilInsetSurface(cornerRadius: VigilRadius.small)
             }
 
-            Button("Verify & add") {
-                let trimmedRefresh = refreshToken.trimmingCharacters(in: .whitespacesAndNewlines)
-                let trimmedAccount = accountId.trimmingCharacters(in: .whitespacesAndNewlines)
-                let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
-                onSubmit(Credentials(
+            if selectedSpec?.oauth != nil {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("Refresh token")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(VigilPalette.inkMuted)
+                    SecureField("Optional refresh token", text: $refreshToken)
+                        .textFieldStyle(.plain)
+                        .font(.body.monospaced())
+                        .padding(13)
+                        .vigilInsetSurface(cornerRadius: VigilRadius.small)
+                    Text("Optional. Vigil refreshes only token pairs it owns.")
+                        .font(.caption2)
+                        .foregroundStyle(VigilPalette.inkFaint)
+                }
+            }
+
+            if let spec = selectedSpec, ProviderPresentation.needsAccountId(spec) {
+                VStack(alignment: .leading, spacing: 7) {
+                    requiredLabel(ProviderPresentation.accountIdLabel(for: spec))
+                    TextField(
+                        ProviderPresentation.accountIdLabel(for: spec),
+                        text: $accountId
+                    )
+                    .textFieldStyle(.plain)
+                    .font(.body.monospaced())
+                    .padding(13)
+                    .vigilInsetSurface(cornerRadius: VigilRadius.small)
+                    #if os(iOS)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    #endif
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text("Account label")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(VigilPalette.inkMuted)
+                TextField("Optional, such as Personal or Work", text: $label)
+                    .textFieldStyle(.plain)
+                    .padding(13)
+                    .vigilInsetSurface(cornerRadius: VigilRadius.small)
+            }
+        }
+        .vigilCard(padding: VigilSpacing.medium)
+    }
+
+    private var submitButton: some View {
+        Button("Verify and add account") {
+            let trimmedRefresh = refreshToken.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedAccount = accountId.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
+            onSubmit(
+                Credentials(
                     providerId: providerId,
                     accessToken: accessToken.trimmingCharacters(in: .whitespacesAndNewlines),
                     refreshToken: selectedSpec?.oauth != nil && !trimmedRefresh.isEmpty
@@ -82,14 +238,27 @@ struct ManualEntryView: View {
                         ? trimmedAccount
                         : nil,
                     label: trimmedLabel.isEmpty ? nil : trimmedLabel
-                ))
-                dismiss()
-            }
-            .disabled(!canSubmit)
+                )
+            )
+            dismiss()
         }
-        .navigationTitle("Manual entry")
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
+        .font(.headline)
+        .frame(maxWidth: .infinity)
+        .frame(minHeight: 50)
+        .buttonStyle(.borderedProminent)
+        .tint(VigilPalette.signal)
+        .foregroundStyle(VigilPalette.canvas)
+        .disabled(!canSubmit)
+        .accessibilityHint("Verifies the credential before saving it to Keychain")
+    }
+
+    private func requiredLabel(_ text: String) -> some View {
+        HStack(spacing: 4) {
+            Text(text)
+            Text("Required")
+                .foregroundStyle(VigilPalette.caution)
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(VigilPalette.inkMuted)
     }
 }

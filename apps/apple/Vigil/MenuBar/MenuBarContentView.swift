@@ -18,17 +18,22 @@ struct MenuBarContentView: View {
             }
 
             if model.accounts.isEmpty {
-                Text("No accounts linked — open Vigil to add one.")
+                Text("No accounts linked · open Vigil to add one.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(model.accounts) { account in
-                    MenuBarAccountRow(
-                        account: account,
-                        snapshot: model.snapshots[account.key],
-                        nextAllowed: model.nextAllowed[account.key]
-                    )
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 10) {
+                        ForEach(model.accounts) { account in
+                            MenuBarAccountRow(
+                                account: account,
+                                snapshot: model.snapshots[account.key],
+                                nextAllowed: model.nextAllowed[account.key]
+                            )
+                        }
+                    }
                 }
+                .frame(maxHeight: 420)
             }
 
             Divider()
@@ -44,7 +49,7 @@ struct MenuBarContentView: View {
             .controlSize(.small)
         }
         .padding(12)
-        .frame(width: 300)
+        .frame(width: 320)
         .task {
             // The menu bar app is effectively always-running — keep the
             // ledger-gated timer alive even with no windows open.
@@ -61,31 +66,54 @@ private struct MenuBarAccountRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(account.displayName)
+                Text(UsagePresentation.accountTitle(account))
                     .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
                 if ProviderPresentation.isExperimental(providerId: account.providerId) {
                     ExperimentalBadge()
                 }
                 Spacer()
-                if let snapshot, snapshot.status != .ok {
-                    Text(statusText(snapshot.status))
+                if let snapshot, SnapshotFreshness.isDegraded(
+                    status: snapshot.status,
+                    fetchedAt: snapshot.fetchedAt
+                ) {
+                    Text(
+                        snapshot.status == .ok
+                            ? "stale"
+                            : statusText(snapshot.status)
+                    )
                         .font(.caption2)
                         .foregroundStyle(.orange)
                 }
             }
             if let snapshot {
-                ForEach(snapshot.windows.filter { !$0.secondary }, id: \.id) { window in
+                ForEach(UsagePresentation.sortedWindows(snapshot.windows), id: \.id) { window in
                     HStack(spacing: 6) {
-                        Text(window.id == "session" ? "Session" : "Weekly")
+                        Text(UsagePresentation.compactTitle(for: window))
                             .font(.caption)
-                            .frame(width: 52, alignment: .leading)
-                        Gauge(value: min(max(window.utilization, 0), 100), in: 0...100) { EmptyView() }
+                            .lineLimit(1)
+                            .frame(width: 78, alignment: .leading)
+                        Gauge(
+                            value: UsagePresentation.remainingPercent(for: window),
+                            in: 0...100
+                        ) {
+                            EmptyView()
+                        }
                             .gaugeStyle(.accessoryLinearCapacity)
                             .tint(UsageTint.color(for: window.utilization))
-                        Text("\(Int(window.utilization.rounded()))%")
+                        Text(
+                            "\(Int(UsagePresentation.remainingPercent(for: window).rounded()))% left"
+                        )
                             .font(.caption.monospacedDigit())
-                            .frame(width: 36, alignment: .trailing)
+                            .frame(width: 58, alignment: .trailing)
                     }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(
+                        Text(
+                            "\(UsagePresentation.title(for: window)), "
+                                + "\(Int(UsagePresentation.remainingPercent(for: window).rounded())) percent left"
+                        )
+                    )
                 }
                 // Metrics-only providers (OpenRouter/DeepSeek) expose scalar
                 // balances or spend instead of windows — show their values,

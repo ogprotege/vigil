@@ -47,7 +47,7 @@ vigil-link doctor --live    Add a provider request to the diagnostics
 
 Use `--provider` with comma-separated provider IDs. A command without that option selects only the default providers.
 
-The normal Claude link flow mints a separate token for Vigil. Use `--copy` only when you intentionally want to transfer credentials owned by another CLI. Use `--json` for a paste code when QR scanning is unavailable.
+The normal Claude link flow mints a separate token for Vigil. Use `--copy` only when you intentionally want to transfer credentials owned by another CLI. Use `--json --yes` for a credential-bearing paste code when QR scanning is unavailable, then clear your terminal scrollback.
 
 Run `npx vigil-link --help` for every option.
 
@@ -76,4 +76,3 @@ Use `--no-clear` only when you accept leaving the QR in terminal history. Revoke
 - [Troubleshooting](https://github.com/ogprotege/vigil/blob/main/docs/troubleshooting.md)
 - [Security policy](https://github.com/ogprotege/vigil/blob/main/SECURITY.md)
 - [Threat model](https://github.com/ogprotege/vigil/blob/main/docs/threat-model.md)
-
