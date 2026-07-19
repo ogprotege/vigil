@@ -6,7 +6,11 @@ Anything that changes shipped behavior gets an entry here: `vigil-link` npm vers
 
 ## Unreleased
 
-This remediation changes reliability behavior and expands the provider model. Existing users should read the migration notes before testing.
+- Nothing yet.
+
+## 0.10.0 (2) — TestFlight internal, 2026-07-19
+
+This release carries the audit remediation, the follow-up fix wave, and the 13-provider expansion (PR #6). The CLI half of these changes is versioned `vigil-link` 0.2.0 and is not yet published to npm; the npm release is a separate step. Existing users should read the migration notes before testing.
 
 ### Added
 
