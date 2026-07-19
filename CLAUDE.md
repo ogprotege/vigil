@@ -50,7 +50,7 @@ CI: `.github/workflows/cli.yml` uses Node 22 and runs typechecking, build, tests
 
 1. **Fixture parity** — for every pair in `protocol/fixtures/` (`foo.json` + `foo-expected.json`), both mappers must produce the expected normalized output.
 2. **Spec parity** — Swift's `ProviderRegistry` hand-mirrors `providers.json` constants for runtime independence; `SpecParityTests` fails CI if either side drifts.
-3. **QR vector parity** — `protocol/qr-vectors/`: the CLI asserts the encode direction, VigilKit asserts decode.
+3. **QR vector parity** — `protocol/qr-vectors/`: both sides assert byte-exact decode of the committed chunks; the CLI additionally asserts that a fresh encode round-trips (encode bytes are not pinned — zlib builds differ across Node versions).
 
 **Adding or changing a provider is not registry-only work.** It may require a discovery adapter, a mint adapter, response mapping support, fixtures, Swift mirrored constants, manual-entry copy, widget and menu-bar behavior, and support-matrix updates. Follow `docs/provider-contribution.md`.
 

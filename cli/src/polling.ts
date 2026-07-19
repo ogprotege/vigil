@@ -24,12 +24,16 @@ export interface PollGateOptions {
   random?: () => number;
 }
 
+export type PollDeferReason = "cooldown" | "busy" | "stateUnavailable" | "corruptState";
+
 export type PollDecision =
   | { allowed: true; fallbackRetryAt: string }
   | {
       allowed: false;
       retryAt: string;
-      reason: "cooldown" | "busy" | "stateUnavailable";
+      reason: PollDeferReason;
+      /** Present when reason is "corruptState": the malformed or unreadable poll-state file. */
+      statePath?: string;
     };
 
 const LOCK_STALE_MS = 60_000;
@@ -52,6 +56,18 @@ function statePath(providerId: ProviderId, options: PollGateOptions): string {
 
 function isNodeError(error: unknown, code: string): boolean {
   return error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === code;
+}
+
+/**
+ * Raised when a poll-state file exists but cannot be read or fails validation.
+ * The gate stays fail-closed (the file is never deleted automatically), but
+ * callers can surface the offending path so a human can reset it deliberately.
+ */
+class CorruptPollStateError extends Error {
+  constructor(public readonly statePath: string) {
+    super(`poll state at ${statePath} is unreadable or malformed`);
+    this.name = "CorruptPollStateError";
+  }
 }
 
 function parseState(raw: string): PollState | null {
@@ -83,15 +99,16 @@ function parseState(raw: string): PollState | null {
 }
 
 async function readState(filePath: string): Promise<PollState | null> {
+  let raw: string;
   try {
-    const raw = await readFile(filePath, "utf8");
-    const state = parseState(raw);
-    if (!state) throw new Error("poll state is malformed");
-    return state;
+    raw = await readFile(filePath, "utf8");
   } catch (error) {
     if (isNodeError(error, "ENOENT")) return null;
-    throw error;
+    throw new CorruptPollStateError(filePath);
   }
+  const state = parseState(raw);
+  if (!state) throw new CorruptPollStateError(filePath);
+  return state;
 }
 
 async function writeState(filePath: string, state: PollState): Promise<void> {
@@ -196,12 +213,14 @@ export async function reservePoll(
       retryAt: new Date(nowMs + 1000).toISOString(),
       reason: "busy",
     };
-  } catch {
-    return {
-      allowed: false,
-      retryAt: new Date(nowMs + Math.max(1, policy.minSeconds) * 1000).toISOString(),
-      reason: "stateUnavailable",
-    };
+  } catch (error) {
+    const retryAt = new Date(nowMs + Math.max(1, policy.minSeconds) * 1000).toISOString();
+    if (error instanceof CorruptPollStateError) {
+      // Fail closed on a bad record (never auto-delete), but tell the caller
+      // exactly which file to remove to reset this provider's poll clock.
+      return { allowed: false, retryAt, reason: "corruptState", statePath: error.statePath };
+    }
+    return { allowed: false, retryAt, reason: "stateUnavailable" };
   }
 }
 
@@ -257,4 +276,28 @@ export async function recordPollResult(
 
 export function pollingStateDescription(options: PollGateOptions = {}): string {
   return stateDirectory(options);
+}
+
+export interface PollStateInspection {
+  path: string;
+  status: "absent" | "ok" | "corrupt" | "unreadable";
+}
+
+/**
+ * Read-only diagnostic for `vigil-link doctor`: reports whether a provider's
+ * poll-state file is healthy without taking the lock or mutating anything.
+ */
+export async function inspectPollState(
+  providerId: ProviderId,
+  options: PollGateOptions = {}
+): Promise<PollStateInspection> {
+  const filePath = statePath(providerId, options);
+  let raw: string;
+  try {
+    raw = await readFile(filePath, "utf8");
+  } catch (error) {
+    if (isNodeError(error, "ENOENT")) return { path: filePath, status: "absent" };
+    return { path: filePath, status: "unreadable" };
+  }
+  return { path: filePath, status: parseState(raw) ? "ok" : "corrupt" };
 }

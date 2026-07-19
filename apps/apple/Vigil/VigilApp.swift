@@ -13,6 +13,7 @@ struct VigilApp: App {
 
     enum DeepLinkState {
         case failed(String)
+        case confirmAdd(LinkPayload, [String])
         case confirmUnverified(LinkPayload, String)
         case confirmReplace(LinkPayload, [String])
     }
@@ -48,6 +49,9 @@ struct VigilApp: App {
                 )
             ) {
                 switch deepLink {
+                case .confirmAdd(let payload, _):
+                    Button("Add") { add(payload, allowUnverified: false, allowReplace: false) }
+                    Button("Cancel", role: .cancel) {}
                 case .confirmUnverified(let payload, _):
                     Button("Save anyway") { add(payload, allowUnverified: true, allowReplace: true) }
                     Button("Cancel", role: .cancel) {}
@@ -97,6 +101,7 @@ struct VigilApp: App {
 
     private var deepLinkAlertTitle: String {
         switch deepLink {
+        case .confirmAdd: return "Add account?"
         case .confirmUnverified: return "Couldn't verify"
         case .confirmReplace: return "Replace account?"
         default: return "Link code"
@@ -106,6 +111,8 @@ struct VigilApp: App {
     private var deepLinkAlertMessage: String {
         switch deepLink {
         case .failed(let message): return message
+        case .confirmAdd(_, let labels):
+            return "This link adds \(labels.joined(separator: ", ")). Only continue if you just created it with vigil-link on your own computer."
         case .confirmUnverified(_, let message):
             return message
         case .confirmReplace(_, let labels):
@@ -116,11 +123,15 @@ struct VigilApp: App {
 
     /// Stock-camera deep link: a single-chunk vigil1 envelope IS a URL with
     /// the (registered) `vigil1:` scheme — scanning with the iPhone camera
-    /// opens Vigil directly with the payload.
+    /// opens Vigil directly with the payload. Because ANY app or webpage can
+    /// invoke a registered scheme, a URL-delivered payload never verifies or
+    /// persists anything until the user explicitly confirms the add — unlike
+    /// the in-app scanner, which the user opened on purpose.
     private func handleDeepLink(_ url: URL) {
         do {
             let payload = try QRDecoder.decodePayload([url.absoluteString], now: Date())
-            add(payload, allowUnverified: false, allowReplace: false)
+            let labels = payload.accounts.map(\.label)
+            deepLink = .confirmAdd(payload, labels)
         } catch QRDecodeError.incomplete {
             deepLink = .failed("That's one code of a multi-part link — open Vigil and use Add Account → Scan to capture all of them.")
         } catch QRDecodeError.expired {

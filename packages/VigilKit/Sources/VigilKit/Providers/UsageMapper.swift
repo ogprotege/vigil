@@ -25,22 +25,23 @@ public enum UsageMapper {
     }
 
     private static func number(_ raw: Any?) -> Double? {
-        if let value = raw as? Double { return value.isFinite ? value : nil }
-        if let value = raw as? Int { return Double(value) }
-        if let value = raw as? NSNumber {
-            // Reject booleans masquerading as numbers.
-            if CFGetTypeID(value) == CFBooleanGetTypeID() { return nil }
-            return value.doubleValue.isFinite ? value.doubleValue : nil
-        }
-        return nil
+        // Every JSON number (and boolean) arrives as an NSNumber, and an
+        // `as? Double` cast would happily bridge JSON true to 1.0 — the
+        // boolean check must run before any numeric bridging.
+        guard let value = raw as? NSNumber else { return nil }
+        if CFGetTypeID(value) == CFBooleanGetTypeID() { return nil }
+        return value.doubleValue.isFinite ? value.doubleValue : nil
     }
 
     /// Balance APIs commonly encode exact decimal amounts as JSON strings.
     /// Accept those for scalar metrics while keeping window percentages strict.
+    /// Surrounding whitespace is tolerated to match JavaScript Number().
     private static func metricNumber(_ raw: Any?) -> Double? {
         if let number = number(raw) { return number }
-        guard let string = raw as? String,
-              let value = Double(string),
+        guard let string = raw as? String else { return nil }
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let value = Double(trimmed),
               value.isFinite
         else { return nil }
         return value
@@ -87,12 +88,16 @@ public enum UsageMapper {
 
         var windowSeconds = specWindowSeconds
         if let key = fields.windowSeconds,
-           let fromResponse = number(value(at: key, in: source)) {
-            if fromResponse > 0,
-               fromResponse <= Double(Int.max),
-               fromResponse.rounded(.towardZero) == fromResponse {
-                windowSeconds = Int(fromResponse)
-            }
+           let fromResponse = number(value(at: key, in: source)),
+           // Int(exactly:) rejects non-integral values and anything outside
+           // Int64 — a plain Int(_:) would trap on 2^63, which slips past a
+           // `<= Double(Int.max)` comparison because Int.max rounds UP to
+           // 2^63 as a Double. The explicit cap matches JavaScript's
+           // Number.isSafeInteger so both mappers accept the same range.
+           let intValue = Int(exactly: fromResponse),
+           intValue > 0,
+           intValue <= 9_007_199_254_740_991 {
+            windowSeconds = intValue
         }
 
         return UsageWindow(
@@ -105,15 +110,23 @@ public enum UsageMapper {
     }
 
     private static func normalizedMetricID(_ raw: String, prefix: String) -> String {
-        let safe = raw.lowercased().map { character -> Character in
-            character.isLetter || character.isNumber ? character : "_"
+        // Mirrors the TS regex `[^a-z0-9]` applied per UTF-16 code unit:
+        // non-ASCII letters (e.g. currency names like 元) normalize to "_"
+        // on both sides instead of surviving only in Swift.
+        let safe = raw.lowercased().utf16.map { unit -> Character in
+            if (0x61...0x7A).contains(unit) || (0x30...0x39).contains(unit) {
+                return Character(UnicodeScalar(unit)!)
+            }
+            return "_"
         }
         return "\(prefix)_\(String(safe))"
     }
 
-    private static func boundedProviderText(_ raw: String, maximumBytes: Int) -> String? {
+    private static func boundedProviderText(_ raw: String, maximumLength: Int) -> String? {
+        // UTF-16 code units, matching JavaScript String.length so both
+        // mappers accept or reject the same provider-supplied identifiers.
         guard !raw.isEmpty,
-              raw.utf8.count <= maximumBytes,
+              raw.utf16.count <= maximumLength,
               raw.rangeOfCharacter(from: .controlCharacters) == nil
         else { return nil }
         return raw
@@ -144,7 +157,7 @@ public enum UsageMapper {
             for entry in entries.prefix(128) {
                 guard let record = entry as? [String: Any],
                       let rawID = record[additional.idKey] as? String,
-                      let id = boundedProviderText(rawID, maximumBytes: 128)
+                      let id = boundedProviderText(rawID, maximumLength: 128)
                 else { continue }
                 if let window = readBucket(
                     spec: spec,
@@ -181,12 +194,12 @@ public enum UsageMapper {
             for entry in entries.prefix(128) {
                 guard let record = entry as? [String: Any],
                       let rawID = value(at: collection.idKey, in: record) as? String,
-                      let safeID = boundedProviderText(rawID, maximumBytes: 128),
+                      let safeID = boundedProviderText(rawID, maximumLength: 128),
                       let amount = metricNumber(value(at: collection.valueKey, in: record))
                 else { continue }
                 let unit = collection.unitKey
                     .flatMap { value(at: $0, in: record) as? String }
-                    .flatMap { boundedProviderText($0, maximumBytes: 32) }
+                    .flatMap { boundedProviderText($0, maximumLength: 32) }
                 let suffix = unit ?? safeID
                 let metric = UsageMetric(
                     id: normalizedMetricID(safeID, prefix: collection.kind.rawValue),
@@ -207,7 +220,7 @@ public enum UsageMapper {
         var planLabel: String?
         if let planKey = spec.planKey,
            let plan = value(at: planKey, in: root) as? String {
-            planLabel = boundedProviderText(plan, maximumBytes: 128)
+            planLabel = boundedProviderText(plan, maximumLength: 128)
         }
         return Mapped(planLabel: planLabel, windows: windows, metrics: metrics)
     }

@@ -1,4 +1,5 @@
 import type { ProviderId, UsageMetricKind } from "../spec/registry.js";
+import type { PollDeferReason } from "../polling.js";
 
 export interface UsageWindow {
   id: string;
@@ -33,6 +34,10 @@ export interface ProviderSnapshot {
   status: SnapshotStatus;
   /** Present when a local poll gate deferred the live request. */
   retryAt?: string;
+  /** Present when status is "deferred": why the local gate refused the request. */
+  deferredReason?: PollDeferReason;
+  /** Present when deferredReason is "corruptState": the malformed or unreadable poll-state file. */
+  pollStatePath?: string;
   windows: UsageWindow[];
   metrics: UsageMetric[];
 }

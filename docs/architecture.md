@@ -34,7 +34,7 @@ The CLI does not share the Apple App Group. It uses its own provider-level, cros
 
 - `mapper(fixture) == expected` for every fixture pair in `protocol/fixtures/`
 - Swift's compiled-in registry constants match `providers.json` (Swift hand-mirrors values for runtime independence; the test keeps them honest)
-- QR vectors in `protocol/qr-vectors/` reassemble/decode identically (CLI asserts the encode side, VigilKit the decode side)
+- QR vectors in `protocol/qr-vectors/` reassemble/decode identically (both sides assert byte-exact decode of the committed chunks; the CLI also asserts a fresh encode round-trips — encode bytes themselves are zlib-version-dependent and deliberately unpinned)
 
 Adding a provider is not a data-only change. Credential discovery, OAuth, response shapes, UI behavior, fixtures, Swift parity constants, and user documentation may all require code. See [provider-contribution.md](provider-contribution.md).
 

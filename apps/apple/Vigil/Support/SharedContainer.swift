@@ -1,4 +1,5 @@
 import Foundation
+import os
 import OSLog
 import VigilKit
 
@@ -10,19 +11,49 @@ enum SharedContainer {
     static let appGroupID = "group.app.vigil.shared"
     static let refreshTaskID = "app.vigil.refresh"
 
+    private static let fallbackState = OSAllocatedUnfairLock(initialState: false)
+
+    /// True when `directory` last resolved to the per-process Application
+    /// Support fallback instead of the App Group container. In that state the
+    /// app and widget processes each keep their own polling ledger, so the
+    /// cross-process no-double-poll guarantee is degraded — the app surfaces
+    /// this through the storage-error alert path at startup (AppModel), and
+    /// the widget process logs it below.
+    static var isUsingFallbackStorage: Bool {
+        fallbackState.withLock { $0 }
+    }
+
+    /// Pure resolution, separated so the fallback decision is unit-testable.
+    static func resolveDirectory(
+        groupContainer: URL?,
+        applicationSupport: URL
+    ) -> (url: URL, usedFallback: Bool) {
+        let base = groupContainer ?? applicationSupport
+        return (
+            base.appendingPathComponent("VigilShared", isDirectory: true),
+            groupContainer == nil
+        )
+    }
+
     /// Falls back to Application Support when the app-group entitlement is
     /// unavailable (SwiftUI previews, unsigned local builds) so the app still
-    /// functions — sharing just degrades to per-process.
+    /// functions — sharing just degrades to per-process. Never silently: the
+    /// fallback is recorded in `isUsingFallbackStorage` for the app to surface.
     static var directory: URL {
         let groupContainer = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: appGroupID
         )
-        if groupContainer == nil {
-            log.warning("App Group container unavailable; using Application Support fallback")
+        let resolved = resolveDirectory(
+            groupContainer: groupContainer,
+            applicationSupport: FileManager.default.urls(
+                for: .applicationSupportDirectory, in: .userDomainMask
+            ).first!
+        )
+        fallbackState.withLock { $0 = resolved.usedFallback }
+        if resolved.usedFallback {
+            log.warning("App Group container unavailable; using Application Support fallback — cross-process poll sharing is disabled")
         }
-        let base = groupContainer
-            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let dir = base.appendingPathComponent("VigilShared", isDirectory: true)
+        let dir = resolved.url
         // Creating this early improves startup diagnostics. The stores also
         // validate and create their directories before each durable write.
         do {

@@ -60,6 +60,24 @@ final class AppModel {
         self.accountIndexURL = directory.appendingPathComponent("account-index.json")
         self.lockEnabled = UserDefaults.standard.bool(forKey: "app.vigil.lockEnabled")
         loadFromDisk()
+        surfaceSharedStorageFallbackIfNeeded()
+    }
+
+    /// The App Group container being unavailable silently disables the
+    /// cross-process no-double-poll guarantee — surface it once at startup
+    /// through the same storage-error path as every other persistence
+    /// failure. App-process only: XCTest and previews build models against
+    /// temporary directories where the fallback is expected, and the widget
+    /// process cannot present UI (SharedContainer already logs there).
+    private func surfaceSharedStorageFallbackIfNeeded() {
+        guard NSClassFromString("XCTestCase") == nil,
+              ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1",
+              SharedContainer.isUsingFallbackStorage
+        else { return }
+        reportStorageError(
+            "Vigil couldn't open its shared App Group storage and is using app-private storage instead. The app and its widgets can't share the polling ledger, so each may poll providers separately. This usually indicates a signing or entitlement problem — reinstalling Vigil may fix it.",
+            priority: 3
+        )
     }
 
     /// Instant render on relaunch: accounts + last snapshots, zero network.
@@ -569,8 +587,10 @@ final class AppModel {
         let parts = accounts.map { account -> String in
             let letter = account.providerId == "claude" ? "C" : account.providerId == "codex" ? "X" : String(account.displayName.prefix(1))
             guard let snapshot = snapshots[account.key] else { return "\(letter) –" }
-            let degraded = snapshot.status != .ok
-                || Date().timeIntervalSince(snapshot.fetchedAt) > 1800
+            let degraded = SnapshotFreshness.isDegraded(
+                status: snapshot.status,
+                fetchedAt: snapshot.fetchedAt
+            )
             let mark = degraded ? "⚠︎" : ""
             if let session = snapshot.windows.first(where: { $0.id == "session" }) {
                 return "\(letter) \(Int(session.utilization.rounded()))%\(mark)"

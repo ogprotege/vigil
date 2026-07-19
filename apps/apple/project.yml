@@ -111,10 +111,15 @@ targets:
     type: app-extension
     supportedDestinations: [iOS]
     sources:
+      # VigilWidgets/ also carries PrivacyInfo.xcprivacy — XcodeGen places it
+      # in the extension's resources phase, mirroring how the app target picks
+      # up Vigil/Resources/PrivacyInfo.xcprivacy (both targets compile
+      # required-reason API users: file timestamps + UserDefaults).
       - path: VigilWidgets
       # Shared with the app target: container resolution + the gated fetch
       # pipeline, so the widget obeys the same ledger.
       - path: Vigil/Support/SharedContainer.swift
+      - path: Vigil/Support/SnapshotFreshness.swift
       - path: Vigil/Support/UsageService.swift
     dependencies:
       - package: VigilKit

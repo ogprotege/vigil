@@ -116,6 +116,11 @@ final class SchedulerTests: XCTestCase {
     func testExpiredLeaseCanBeReplacedAndStaleOwnerCannotClearReplacement() async throws {
         let clock = ClockBox(Date(timeIntervalSince1970: 1_784_408_400))
         let directory = try TestSupport.tempDirectory()
+        // A deliberately short policy: acquire clamps the lease to the poll
+        // floor, so exercising a 30-second lease needs a floor below it.
+        let policy = PollPolicy(
+            minSeconds: 20, jitterSeconds: 0, backoff429BaseSeconds: 60, backoffMaxSeconds: 120
+        )
         let crashedScheduler = makeScheduler(
             clock: clock,
             store: FileLedgerStore(directory: directory),
@@ -174,6 +179,40 @@ final class SchedulerTests: XCTestCase {
         XCTAssertTrue(replacementRelease)
         XCTAssertTrue(observerAcquire)
         await observerScheduler.release(accountKey: key)
+    }
+
+    func testCrashLeaseNeverExpiresFasterThanThePollFloor() async throws {
+        let clock = ClockBox(Date(timeIntervalSince1970: 1_784_408_400))
+        let directory = try TestSupport.tempDirectory()
+        // A hostile/buggy caller asks for a 1-second lease against the real
+        // Claude policy. acquire must clamp to the 300-second poll floor so a
+        // crash-looping process cannot poll faster than 5 minutes.
+        let crashedScheduler = makeScheduler(
+            clock: clock,
+            store: FileLedgerStore(directory: directory),
+            leaseDuration: 1
+        )
+        let retryScheduler = makeScheduler(
+            clock: clock,
+            store: FileLedgerStore(directory: directory),
+            leaseDuration: 1
+        )
+
+        let initialAcquire = await crashedScheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertTrue(initialAcquire)
+        // Simulated crash: no release, no recordResult.
+
+        clock.advance(by: 60)
+        let tooSoon = await retryScheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertFalse(
+            tooSoon,
+            "a crashed fetch's lease must hold for the full poll floor, not the requested lease"
+        )
+
+        clock.advance(by: 241) // 301 seconds total
+        let afterFloor = await retryScheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertTrue(afterFloor)
+        await retryScheduler.release(accountKey: key)
     }
 
     func testLegacyLedgerWithoutLeaseFieldsStillDecodes() async throws {

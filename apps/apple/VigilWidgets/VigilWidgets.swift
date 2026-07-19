@@ -104,7 +104,10 @@ struct SmallUsageView: View {
                 }
                 Text(snapshot.fetchedAt, style: .relative)
                     .font(.caption2)
-                    .foregroundStyle(entry.date.timeIntervalSince(snapshot.fetchedAt) > 1800 ? .orange : .secondary)
+                    .foregroundStyle(
+                        SnapshotFreshness.isStale(fetchedAt: snapshot.fetchedAt, at: entry.date)
+                            ? .orange : .secondary
+                    )
             }
         } else {
             VStack(spacing: 6) {
@@ -130,25 +133,59 @@ struct SmallUsageView: View {
     }
 }
 
-/// Lock-screen circular: session percentage ring.
+/// Lock-screen circular: session percentage ring. Failed fetches deliberately
+/// preserve the last good windows, so this family carries the same degradation
+/// signals as systemSmall (status != ok, or data older than the shared
+/// 30-minute staleness threshold): degraded tint, a compact warning marker,
+/// and an accessibility label that says the data may be out of date.
 struct CircularUsageView: View {
     let entry: UsageEntry
+
+    private var degraded: Bool {
+        guard let snapshot = entry.snapshot else { return false }
+        return SnapshotFreshness.isDegraded(
+            status: snapshot.status,
+            fetchedAt: snapshot.fetchedAt,
+            at: entry.date
+        )
+    }
+
+    private var degradedSuffix: String {
+        degraded ? ", data may be out of date" : ""
+    }
 
     var body: some View {
         if let session = entry.snapshot?.windows.first(where: { $0.id == "session" }) {
             Gauge(value: min(max(session.utilization, 0), 100), in: 0...100) {
                 Text(providerLetter)
             } currentValueLabel: {
-                Text("\(Int(session.utilization.rounded()))")
+                // The marker lives in the center label because the capacity
+                // gauge style is the only part guaranteed to render at every
+                // lock-screen rendering mode.
+                VStack(spacing: 0) {
+                    Text("\(Int(session.utilization.rounded()))")
+                    if degraded {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 7, weight: .bold))
+                    }
+                }
             }
             .gaugeStyle(.accessoryCircularCapacity)
+            .tint(degraded ? Color.orange : nil)
             .widgetAccentable()
-            .accessibilityLabel(Text("\(entry.account?.displayName ?? "Vigil") session, \(Int(session.utilization.rounded())) percent used"))
+            .accessibilityLabel(Text("\(entry.account?.displayName ?? "Vigil") session, \(Int(session.utilization.rounded())) percent used\(degradedSuffix)"))
         } else if let metric = entry.snapshot?.metrics.first(where: { !$0.secondary })
             ?? entry.snapshot?.metrics.first {
             VStack(spacing: 0) {
-                Text(providerLetter)
-                    .font(.caption2)
+                HStack(spacing: 1) {
+                    Text(providerLetter)
+                        .font(.caption2)
+                    if degraded {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 7, weight: .bold))
+                    }
+                }
+                .foregroundStyle(degraded ? AnyShapeStyle(.orange) : AnyShapeStyle(.primary))
                 Text(compactMetricValue(metric))
                     .font(.caption.weight(.semibold).monospacedDigit())
                     .minimumScaleFactor(0.55)
@@ -156,7 +193,7 @@ struct CircularUsageView: View {
             }
             .widgetAccentable()
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text("\(entry.account?.displayName ?? "Vigil"), \(metric.label)"))
+            .accessibilityLabel(Text("\(entry.account?.displayName ?? "Vigil"), \(metric.label)\(degradedSuffix)"))
             .accessibilityValue(Text(metricValue(metric)))
         } else {
             Gauge(value: 0, in: 0...100) {

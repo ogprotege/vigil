@@ -1,10 +1,10 @@
 # ADR-0003: v1 QR payloads are compressed plaintext with guardrails
 
-**Status:** accepted
+**Status:** accepted (amended 2026-07-19: future-skew rejection is normative)
 
 ## Decision
 
-The `vigil1` handoff payload is deflate-compressed, base64url-encoded plaintext. Guardrails: consent prompt before rendering, terminal auto-clear after linking, receivers reject payloads older than 10 minutes. An opt-in encrypted variant (`vigil1e`: 6-digit code typed into the CLI → HKDF-SHA256 → ChaCha20-Poly1305) ships in v1.1.
+The `vigil1` handoff payload is deflate-compressed, base64url-encoded plaintext. Guardrails: consent prompt before rendering, terminal auto-clear after linking, receivers reject payloads older than 10 minutes **and reject payloads whose issue time is more than 60 seconds in the future** (a forged far-future `iat` would otherwise never age out; 60 s absorbs ordinary clock skew, making the maximum effective validity window 660 s). Both decoders — VigilKit and the CLI's — enforce the same two bounds. An opt-in encrypted variant (`vigil1e`: 6-digit code typed into the CLI → HKDF-SHA256 → ChaCha20-Poly1305) ships in v1.1.
 
 ## Context
 

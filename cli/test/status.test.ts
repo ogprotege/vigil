@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { loadRegistry } from "../src/spec/registry.js";
 import { statusReport } from "../src/commands/status.js";
 import { doctorReport } from "../src/commands/doctor.js";
@@ -19,10 +22,22 @@ const registry = loadRegistry();
 const NOW = () => new Date("2026-07-18T20:01:00Z");
 
 let server: FixtureServer | null = null;
+const tempDirs: string[] = [];
 afterEach(async () => {
   await server?.close();
   server = null;
+  await Promise.all(
+    tempDirs.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))
+  );
 });
+
+async function corruptPollStateDir(providerId: string): Promise<{ stateDir: string; stateFile: string }> {
+  const stateDir = await mkdtemp(path.join(tmpdir(), "vigil-corrupt-poll-"));
+  tempDirs.push(stateDir);
+  const stateFile = path.join(stateDir, `${providerId}.poll.json`);
+  await writeFile(stateFile, "not-json\n");
+  return { stateDir, stateFile };
+}
 
 describe("status", () => {
   it("renders both providers' windows (golden)", async () => {
@@ -112,6 +127,24 @@ describe("status", () => {
     expect(report).toContain("12.5 USD");
     expect(report).toContain("Credits remaining");
   });
+
+  it("names the corrupt poll-state file and gives the recovery hint when deferred", async () => {
+    const { homeDir } = await makeFakeHome({ claude: CLAUDE_CREDS_FILE });
+    const { stateDir, stateFile } = await corruptPollStateDir("claude");
+    const report = await statusReport(
+      {
+        registry,
+        discovery: { homeDir, platform: "linux", env: {} },
+        poll: { stateDir },
+        now: NOW,
+      },
+      ["claude"]
+    );
+    expect(report).toContain("live check deferred locally");
+    expect(report).toContain("poll-state file is corrupt or unreadable");
+    expect(report).toContain(stateFile);
+    expect(report).toContain("delete that file to reset this provider's poll clock");
+  });
 });
 
 describe("doctor", () => {
@@ -140,6 +173,24 @@ describe("doctor", () => {
     expect(report).toContain("✗ nothing at");
     expect(report).toContain(".claude/.credentials.json");
     expect(report).toContain(".codex/auth.json");
+  });
+
+  it("flags a corrupt poll-state file with the path and recovery guidance", async () => {
+    const { homeDir } = await makeFakeHome({ claude: CLAUDE_CREDS_FILE });
+    const { stateDir, stateFile } = await corruptPollStateDir("claude");
+    const report = await doctorReport(
+      {
+        registry,
+        discovery: { homeDir, platform: "linux", env: {} },
+        poll: { stateDir },
+        now: NOW,
+      },
+      ["claude", "codex"]
+    );
+    expect(report).toContain(`✗ poll-state file is corrupt: ${stateFile}`);
+    expect(report).toContain("delete that file to reset this provider's poll clock");
+    // Codex has no state file, so only the corrupt provider is flagged.
+    expect(report).not.toContain("codex.poll.json");
   });
 });
 

@@ -62,6 +62,14 @@ export function renderSnapshot(snapshot: ProviderSnapshot, displayName: string, 
           }`
         : STATUS_LINES[snapshot.status];
     lines.push(`  ⚠ ${message}`);
+    if (snapshot.status === "deferred" && snapshot.deferredReason === "corruptState" && snapshot.pollStatePath) {
+      lines.push(
+        `  ⚠ poll-state file is corrupt or unreadable: ${sanitizeTerminalText(snapshot.pollStatePath)}`
+      );
+      lines.push(
+        "  recovery: delete that file to reset this provider's poll clock (vigil-link fails closed instead of guessing)"
+      );
+    }
     return lines.join("\n");
   }
   if (snapshot.windows.length === 0 && snapshot.metrics.length === 0) {

@@ -2,7 +2,7 @@ import type { ProviderId, Registry } from "../spec/registry.js";
 import type { DiscoveryOptions } from "../discovery/paths.js";
 import { discoverProvider } from "../discovery/index.js";
 import type { HttpOptions } from "../http.js";
-import { pollingStateDescription, type PollGateOptions } from "../polling.js";
+import { inspectPollState, pollingStateDescription, type PollGateOptions } from "../polling.js";
 import { getSnapshot } from "../service.js";
 import { sanitizeTerminalText } from "../util/terminal.js";
 
@@ -77,6 +77,17 @@ export async function doctorReport(deps: DoctorDeps, providers: ProviderId[]): P
           ? result.checkedLocations.map((location) => sanitizeTerminalText(location)).join(" and ")
           : "configured sources";
       lines.push(`  ✗ nothing at ${checked}`);
+    }
+    if (poll) {
+      const pollState = await inspectPollState(providerId, poll);
+      if (pollState.status === "corrupt" || pollState.status === "unreadable") {
+        lines.push(
+          `  ✗ poll-state file is ${pollState.status}: ${sanitizeTerminalText(pollState.path)}`
+        );
+        lines.push(
+          "    polls stay deferred (fail-closed); delete that file to reset this provider's poll clock"
+        );
+      }
     }
     if (deps.live && result.credentials) {
       const { snapshot, pollSafetyWarning } = await getSnapshot(deps.registry, result.credentials, {

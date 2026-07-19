@@ -237,13 +237,30 @@ final class FixtureParityTests: XCTestCase {
         XCTAssertNil(UsageMapper.map(spec: ProviderRegistry.deepSeek, body: metrics))
     }
 
-    func testClassifyTaxonomy() {
+    func testClassifyTaxonomy() throws {
         let ok = Data(#"{"five_hour": {"utilization": 5, "resets_at": null}}"#.utf8)
         XCTAssertEqual(UsageClient.classify(data: ok, statusCode: 200, spec: ProviderRegistry.claude).status, .ok)
         XCTAssertEqual(UsageClient.classify(data: ok, statusCode: 401, spec: ProviderRegistry.claude).status, .authExpired)
         XCTAssertEqual(UsageClient.classify(data: ok, statusCode: 429, spec: ProviderRegistry.claude).status, .rateLimited)
         XCTAssertEqual(UsageClient.classify(data: ok, statusCode: 502, spec: ProviderRegistry.claude).status, .network)
         XCTAssertEqual(UsageClient.classify(data: Data("<html>".utf8), statusCode: 200, spec: ProviderRegistry.claude).status, .schemaChanged)
+
+        // The real Anthropic 429 error body (protocol/fixtures/claude-429.json,
+        // the one fixture without an -expected pair — the CLI consumes it in
+        // status/http tests; this is its Swift-side twin).
+        let errorBody = try Data(
+            contentsOf: TestSupport.repoRoot.appendingPathComponent("protocol/fixtures/claude-429.json")
+        )
+        XCTAssertEqual(
+            UsageClient.classify(data: errorBody, statusCode: 429, spec: ProviderRegistry.claude).status,
+            .rateLimited
+        )
+        // The same error body on a 200 must read as schemaChanged, not crash
+        // or produce a phantom window.
+        XCTAssertEqual(
+            UsageClient.classify(data: errorBody, statusCode: 200, spec: ProviderRegistry.claude).status,
+            .schemaChanged
+        )
     }
 
     func testRequestBuilderSubstitutesAndOmitsHeaders() {

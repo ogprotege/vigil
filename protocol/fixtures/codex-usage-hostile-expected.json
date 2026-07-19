@@ -1,0 +1,19 @@
+{
+  "planLabel": "pro",
+  "windows": [
+    {
+      "id": "session",
+      "utilization": 40,
+      "resetsAt": "2026-07-18T21:00:00Z",
+      "windowSeconds": null,
+      "secondary": false
+    },
+    {
+      "id": "配额跟踪测试配额跟踪测试配额跟踪测试配额跟踪测试配额跟踪测试配额跟踪测试配额跟踪测试配额跟踪测试配额跟踪测试配额跟踪测试",
+      "utilization": 12.5,
+      "resetsAt": "2026-07-20T07:00:00Z",
+      "windowSeconds": 604800,
+      "secondary": true
+    }
+  ]
+}

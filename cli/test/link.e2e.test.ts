@@ -36,6 +36,7 @@ describe("link --copy --json end-to-end", () => {
       providers: ["claude", "codex"],
       mode: "copy",
       json: true,
+      yes: true,
       loop: false,
       big: false,
       clear: true,
@@ -51,6 +52,8 @@ describe("link --copy --json end-to-end", () => {
     expect(code).toBe(0);
     expect(err.join("\n")).toContain("✓ Claude: verified (ok)");
     expect(err.join("\n")).toContain("✓ ChatGPT / Codex: verified (ok)");
+    expect(err.join("\n")).toContain("contain credentials");
+    expect(err.join("\n")).toContain("cannot clear a piped stream");
 
     const lines = out.join("").trim().split("\n");
     expect(lines[0]).toMatch(/^vigil1:1\/\d+:[A-Z2-7]{4}:/);
@@ -80,6 +83,7 @@ describe("link --copy --json end-to-end", () => {
       providers: ["claude"],
       mode: "copy",
       json: true,
+      yes: true,
       loop: false,
       big: false,
       clear: true,
@@ -102,6 +106,7 @@ describe("link --copy --json end-to-end", () => {
       providers: ["claude", "codex"],
       mode: "copy",
       json: true,
+      yes: true,
       loop: false,
       big: false,
       clear: true,
@@ -130,6 +135,7 @@ describe("link --copy --json end-to-end", () => {
       providers: ["claude"],
       mode: "copy",
       json: true,
+      yes: true,
       loop: false,
       big: false,
       clear: true,
@@ -145,5 +151,108 @@ describe("link --copy --json end-to-end", () => {
     expect(code).toBe(1);
     expect(server.requests).toHaveLength(1);
     expect(err.join("\n")).toContain("deferred");
+  });
+});
+
+describe("credential-display consent gate", () => {
+  it("refuses --json output without --yes and emits nothing to stdout", async () => {
+    const { homeDir } = await makeFakeHome({ claude: CLAUDE_CREDS_FILE });
+    const out: string[] = [];
+    const err: string[] = [];
+    const code = await runLink({
+      providers: ["claude"],
+      mode: "copy",
+      json: true,
+      yes: false,
+      loop: false,
+      big: false,
+      clear: true,
+      verify: false,
+      registry,
+      discovery: { homeDir, platform: "linux", env: {} },
+      out: (t) => out.push(t),
+      err: (t) => err.push(t),
+    });
+    expect(code).toBe(1);
+    expect(out).toHaveLength(0);
+    expect(err.join("\n")).toContain("Refusing to print credentials");
+    expect(err.join("\n")).toContain("--yes");
+  });
+
+  it("refuses QR output without --yes when no interactive confirmation exists", async () => {
+    const { homeDir } = await makeFakeHome({ claude: CLAUDE_CREDS_FILE });
+    const out: string[] = [];
+    const err: string[] = [];
+    const code = await runLink({
+      providers: ["claude"],
+      mode: "copy",
+      json: false,
+      yes: false,
+      loop: false,
+      big: false,
+      clear: true,
+      verify: false,
+      registry,
+      discovery: { homeDir, platform: "linux", env: {} },
+      out: (t) => out.push(t),
+      err: (t) => err.push(t),
+      // confirm deliberately omitted: stdin is not a TTY.
+    });
+    expect(code).toBe(1);
+    expect(out).toHaveLength(0);
+    expect(err.join("\n")).toContain("Refusing to print credentials without --yes");
+  });
+
+  it("renders QR codes non-interactively when --yes grants consent", async () => {
+    const { homeDir } = await makeFakeHome({ claude: CLAUDE_CREDS_FILE });
+    const out: string[] = [];
+    const err: string[] = [];
+    const code = await runLink({
+      providers: ["claude"],
+      mode: "copy",
+      json: false,
+      yes: true,
+      loop: false,
+      big: false,
+      clear: false,
+      verify: false,
+      registry,
+      discovery: { homeDir, platform: "linux", env: {} },
+      out: (t) => out.push(t),
+      err: (t) => err.push(t),
+    });
+    expect(code).toBe(0);
+    expect(out.join("\n")).toContain("Vigil link — code 1 of");
+    expect(err.join("\n")).toContain("--yes: skipping the credential-display confirmation");
+  });
+
+  it("still asks the interactive prompt when --yes is absent and honors a decline", async () => {
+    const { homeDir } = await makeFakeHome({ claude: CLAUDE_CREDS_FILE });
+    const out: string[] = [];
+    const err: string[] = [];
+    const questions: string[] = [];
+    const code = await runLink({
+      providers: ["claude"],
+      mode: "copy",
+      json: false,
+      yes: false,
+      loop: false,
+      big: false,
+      clear: true,
+      verify: false,
+      registry,
+      discovery: { homeDir, platform: "linux", env: {} },
+      out: (t) => out.push(t),
+      err: (t) => err.push(t),
+      confirm: async (question) => {
+        questions.push(question);
+        return false;
+      },
+    });
+    expect(code).toBe(1);
+    expect(questions).toHaveLength(1);
+    expect(questions[0]).toContain("credentials");
+    expect(out).toHaveLength(0);
+    expect(err.join("\n")).toContain("Cancelled — nothing was shown.");
   });
 });

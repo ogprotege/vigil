@@ -20,6 +20,8 @@ Link options:
   --mint             Mint Vigil its own Claude token via browser sign-in (default)
   --copy             Copy existing CLI credentials instead of minting
   --json             Print the paste-code to stdout instead of rendering QRs
+  --yes              Consent to credential-bearing output without a prompt
+                     (required with --json or when stdin is not a terminal)
   --loop             Auto-cycle multi-chunk QRs every 3s (hands-free scanning)
   --big              Render larger QR blocks (finicky terminals)
   --no-clear         Don't clear the terminal after linking
@@ -51,6 +53,7 @@ async function main(): Promise<number> {
       mint: { type: "boolean" },
       copy: { type: "boolean" },
       json: { type: "boolean" },
+      yes: { type: "boolean" },
       loop: { type: "boolean" },
       big: { type: "boolean" },
       "no-clear": { type: "boolean" },
@@ -91,6 +94,7 @@ async function main(): Promise<number> {
       providers,
       mode: values.copy ? "copy" : "mint",
       json: values.json ?? false,
+      yes: values.yes ?? false,
       loop: values.loop ?? false,
       big: values.big ?? false,
       clear: !(values["no-clear"] ?? false),

@@ -590,6 +590,38 @@ final class TokenRefresherTests: XCTestCase {
             )
         )
         XCTAssertEqual(updated.accessToken, "new")
-        XCTAssertEqual(updated.expiresAt, credentials.expiresAt)
+        XCTAssertNil(
+            updated.expiresAt,
+            "an invalid expires_in must clear the expiry — the old date described the replaced token"
+        )
+    }
+
+    func testApplyRejectsBooleanExpiryAndControlCharacterTokens() throws {
+        let credentials = Credentials(
+            providerId: "claude",
+            accessToken: "old",
+            expiresAt: Date(timeIntervalSince1970: 100)
+        )
+
+        // JSON true bridges to NSNumber(1) — without the CFBoolean screen it
+        // would mint a one-second expiry.
+        let booleanExpiry = Data(#"{"access_token":"new","expires_in":true}"#.utf8)
+        let updated = try XCTUnwrap(TokenRefresher.apply(responseBody: booleanExpiry, to: credentials))
+        XCTAssertNil(updated.expiresAt)
+
+        let controlToken = Data("{\"access_token\":\"bad\\u0000token\"}".utf8)
+        XCTAssertNil(
+            TokenRefresher.apply(responseBody: controlToken, to: credentials),
+            "tokens carrying control characters must be refused like QR decode refuses them"
+        )
+
+        // A malformed rotated refresh token is dropped, keeping the previous
+        // one, while the access token still applies.
+        let controlRefresh = Data("{\"access_token\":\"new\",\"refresh_token\":\"r\\u0007t\"}".utf8)
+        var withRefresh = credentials
+        withRefresh.refreshToken = "keep-me"
+        let applied = try XCTUnwrap(TokenRefresher.apply(responseBody: controlRefresh, to: withRefresh))
+        XCTAssertEqual(applied.accessToken, "new")
+        XCTAssertEqual(applied.refreshToken, "keep-me")
     }
 }

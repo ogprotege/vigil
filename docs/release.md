@@ -19,12 +19,24 @@ How a Vigil iOS build gets from this repo to TestFlight. First executed
   builds use manual distribution signing — an Apple Distribution certificate
   plus the profiles **"Vigil AppStore"** and **"VigilWidgets AppStore"**,
   wired into `apps/apple/project.yml` under `[sdk=iphoneos*]` settings so
-  simulator and macOS builds stay signing-free. Recreate them any time with:
+  simulator and macOS builds stay signing-free.
+
+  **Signing material never lives under the repo tree.** The exported
+  certificate (`.p12`), CSR, and profile files live in
+  `~/private_keys/vigil-signing/` (`0700` directories, `0600` files) — a repo
+  checkout must stay safe to tar, back up, or `git add -f` without carrying a
+  distribution private key. The build itself only needs the cert in the login
+  keychain and the profiles installed under
+  `~/Library/MobileDevice/Provisioning Profiles/` (fastlane installs them);
+  the files on disk are backups. Recreate them any time with (the `umask` and
+  output paths are load-bearing — without them fastlane drops world-readable
+  keys into the current directory):
 
   ```sh
-  fastlane cert --development false --api_key_path ~/private_keys/asc-key-inline.json --team_id 4KBWH9KYSD
-  fastlane sigh --app_identifier app.vigil.app         --provisioning_name "Vigil AppStore"        --api_key_path ~/private_keys/asc-key-inline.json --team_id 4KBWH9KYSD
-  fastlane sigh --app_identifier app.vigil.app.widgets --provisioning_name "VigilWidgets AppStore" --api_key_path ~/private_keys/asc-key-inline.json --team_id 4KBWH9KYSD
+  umask 077
+  fastlane cert --development false --api_key_path ~/private_keys/asc-key-inline.json --team_id 4KBWH9KYSD --output_path ~/private_keys/vigil-signing/certs
+  fastlane sigh --app_identifier app.vigil.app         --provisioning_name "Vigil AppStore"        --api_key_path ~/private_keys/asc-key-inline.json --team_id 4KBWH9KYSD --output_path ~/private_keys/vigil-signing/profiles
+  fastlane sigh --app_identifier app.vigil.app.widgets --provisioning_name "VigilWidgets AppStore" --api_key_path ~/private_keys/asc-key-inline.json --team_id 4KBWH9KYSD --output_path ~/private_keys/vigil-signing/profiles
   ```
 
 - **App Store Connect record:** "Vigil — AI Usage Monitor", App ID

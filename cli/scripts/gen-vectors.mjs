@@ -1,6 +1,9 @@
 // Regenerates protocol/qr-vectors/*.json from the built CLI encoder.
 // Deterministic inputs only — vectors are the cross-language contract:
-// the CLI asserts the encode direction, VigilKit asserts the decode direction.
+// both sides byte-exactly assert decode of the committed chunks; the CLI also
+// asserts a fresh encode round-trips (encode bytes vary across zlib builds).
+// Regenerating REWRITES the contract — do it only when the payload shape or
+// envelope changes, and update the Swift QRVectorTests expectations to match.
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

@@ -17,6 +17,13 @@ export interface LinkOptions {
   /** "mint" (default): mint Claude its own pair; "copy": reuse existing CLI creds. */
   mode: "mint" | "copy";
   json: boolean;
+  /**
+   * Explicit consent (--yes) to emit credential-bearing output without an
+   * interactive confirmation. Required in --json mode and whenever stdin is
+   * not a TTY (no `confirm` callback); the threat model promises consent is
+   * always obtained before credentials are displayed.
+   */
+  yes: boolean;
   loop: boolean;
   big: boolean;
   clear: boolean;
@@ -136,6 +143,18 @@ const CONSENT =
 
 export async function runLink(opts: LinkOptions): Promise<number> {
   const now = opts.now ?? (() => new Date());
+
+  // Consent gate, checked before any discovery or minting: without an
+  // interactive prompt available, credential-bearing output requires --yes.
+  if (!opts.yes && (opts.json || !opts.confirm)) {
+    opts.err(
+      opts.json
+        ? "Refusing to print credentials: --json emits credential-bearing lines without an interactive confirmation. Re-run with --yes to consent."
+        : "Refusing to print credentials without --yes when stdin is not interactive. Re-run with --yes to consent, or run from a terminal."
+    );
+    return 1;
+  }
+
   let accounts = await collectLinkAccounts(opts);
   if (accounts.length === 0) {
     opts.err(
@@ -158,10 +177,15 @@ export async function runLink(opts: LinkOptions): Promise<number> {
   if (opts.json) {
     opts.err("⚠ The following line(s) contain credentials. Paste them into the Vigil app, then clear your scroll-back.");
     opts.out(chunkEncoded(encoded, sid).join("\n"));
+    // Intentional: --json usually feeds a pipe, and the CLI cannot clear a
+    // piped stream, so the caution above is the only mitigation we can offer.
+    opts.err("vigil-link cannot clear a piped stream — clear your terminal scroll-back yourself once the app has the code.");
     return 0;
   }
 
-  if (opts.confirm && !(await opts.confirm(CONSENT))) {
+  if (opts.yes) {
+    opts.err("⚠ --yes: skipping the credential-display confirmation. The codes below contain your account credentials.");
+  } else if (opts.confirm && !(await opts.confirm(CONSENT))) {
     opts.err("Cancelled — nothing was shown.");
     return 1;
   }

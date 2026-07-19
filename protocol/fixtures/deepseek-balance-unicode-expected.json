@@ -1,0 +1,21 @@
+{
+  "windows": [],
+  "metrics": [
+    {
+      "id": "balance__",
+      "label": "Balance (元)",
+      "kind": "balance",
+      "value": 12,
+      "unit": "元",
+      "secondary": false
+    },
+    {
+      "id": "balance_usd",
+      "label": "Balance (USD)",
+      "kind": "balance",
+      "value": 5,
+      "unit": "USD",
+      "secondary": false
+    }
+  ]
+}

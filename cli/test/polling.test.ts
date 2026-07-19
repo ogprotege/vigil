@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { recordPollResult, reservePoll } from "../src/polling.js";
+import { inspectPollState, recordPollResult, reservePoll } from "../src/polling.js";
 import type { PollSpec } from "../src/spec/registry.js";
 
 const policy: PollSpec = {
@@ -116,17 +116,86 @@ describe("cross-process poll gate", () => {
     });
   });
 
-  it("fails closed when an existing poll record is malformed", async () => {
+  it("fails closed when an existing poll record is malformed, naming the corrupt file", async () => {
     const directory = await stateDir();
-    await writeFile(path.join(directory, "claude.poll.json"), "not-json\n");
+    const stateFile = path.join(directory, "claude.poll.json");
+    await writeFile(stateFile, "not-json\n");
     const result = await reservePoll("claude", policy, {
       stateDir: directory,
       now: () => new Date("2026-07-18T20:00:00Z"),
       random: () => 0,
     });
-    expect(result.allowed).toBe(false);
+    expect(result).toEqual({
+      allowed: false,
+      retryAt: "2026-07-18T20:05:00.000Z",
+      reason: "corruptState",
+      statePath: stateFile,
+    });
 
+    // Fail-closed: the corrupt record is reported, never auto-deleted.
     const names = await readdir(directory);
     expect(names).toContain("claude.poll.json");
+  });
+
+  it("reports corruptState with the path when the record is unreadable", async () => {
+    const directory = await stateDir();
+    const stateFile = path.join(directory, "claude.poll.json");
+    // A directory where the file should be makes readFile fail deterministically.
+    await mkdir(stateFile);
+    const result = await reservePoll("claude", policy, {
+      stateDir: directory,
+      now: () => new Date("2026-07-18T20:00:00Z"),
+      random: () => 0,
+    });
+    expect(result).toEqual({
+      allowed: false,
+      retryAt: "2026-07-18T20:05:00.000Z",
+      reason: "corruptState",
+      statePath: stateFile,
+    });
+  });
+
+  it("keeps reason cooldown for an intact record inside its window", async () => {
+    const directory = await stateDir();
+    const options = {
+      stateDir: directory,
+      now: () => new Date("2026-07-18T20:00:00Z"),
+      random: () => 0,
+    };
+    await reservePoll("claude", policy, options);
+    await recordPollResult("claude", policy, "ok", options);
+    const repeated = await reservePoll("claude", policy, options);
+    expect(repeated).toMatchObject({ allowed: false, reason: "cooldown" });
+    expect(repeated).not.toHaveProperty("statePath");
+  });
+});
+
+describe("inspectPollState", () => {
+  it("distinguishes absent, ok, and corrupt records", async () => {
+    const directory = await stateDir();
+    const options = { stateDir: directory, now: () => new Date("2026-07-18T20:00:00Z"), random: () => 0 };
+
+    await expect(inspectPollState("claude", options)).resolves.toEqual({
+      path: path.join(directory, "claude.poll.json"),
+      status: "absent",
+    });
+
+    await reservePoll("claude", policy, options);
+    await expect(inspectPollState("claude", options)).resolves.toMatchObject({ status: "ok" });
+
+    await writeFile(path.join(directory, "claude.poll.json"), "{ definitely not json");
+    await expect(inspectPollState("claude", options)).resolves.toEqual({
+      path: path.join(directory, "claude.poll.json"),
+      status: "corrupt",
+    });
+  });
+
+  it("reports unreadable when the record cannot be read at all", async () => {
+    const directory = await stateDir();
+    await mkdir(path.join(directory, "codex.poll.json"));
+    await expect(inspectPollState("codex", { stateDir: directory })).resolves.toEqual({
+      path: path.join(directory, "codex.poll.json"),
+      status: "unreadable",
+    });
   });
 });

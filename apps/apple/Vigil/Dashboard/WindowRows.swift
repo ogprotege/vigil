@@ -115,9 +115,9 @@ struct UsageMetricRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: symbol)
+            Image(systemName: MetricFormat.symbol(for: metric.kind))
                 .frame(width: 24)
-                .foregroundStyle(tint)
+                .foregroundStyle(MetricFormat.tint(for: metric.kind))
                 .accessibilityHidden(true)
             Text(metric.label)
                 .font(.subheadline)
@@ -132,32 +132,6 @@ struct UsageMetricRow: View {
     }
 
     private var formattedValue: String {
-        if let unit = metric.unit, unit.count == 3 {
-            return metric.value.formatted(
-                .currency(code: unit)
-                    .precision(.fractionLength(0...4))
-            )
-        }
-        let number = metric.value.formatted(
-            .number.precision(.fractionLength(0...4))
-        )
-        return metric.unit.map { "\(number) \($0)" } ?? number
-    }
-
-    private var symbol: String {
-        switch metric.kind {
-        case .balance: return "wallet.pass"
-        case .spend: return "creditcard"
-        case .limit: return "gauge.with.needle"
-        case .remaining: return "banknote"
-        }
-    }
-
-    private var tint: Color {
-        switch metric.kind {
-        case .remaining, .balance: return .green
-        case .spend: return .orange
-        case .limit: return .secondary
-        }
+        MetricFormat.value(metric)
     }
 }

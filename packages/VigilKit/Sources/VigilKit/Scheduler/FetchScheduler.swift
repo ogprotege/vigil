@@ -285,7 +285,12 @@ public actor FetchScheduler {
                 }
 
                 entry.leaseOwner = owner
-                entry.leaseExpiresAt = acquiredAt.addingTimeInterval(leaseDuration)
+                // The lease is the crash-recovery floor: after a hard crash the
+                // account stays blocked until it expires, so it must never be
+                // shorter than the provider's poll floor — otherwise a
+                // crash-looping process could poll faster than minSeconds.
+                let crashRecoveryFloor = max(leaseDuration, policy.minSeconds)
+                entry.leaseExpiresAt = acquiredAt.addingTimeInterval(crashRecoveryFloor)
                 ledger[accountKey] = entry
                 acquired = true
             }

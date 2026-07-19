@@ -31,23 +31,36 @@ public enum TokenRefresher {
         return request
     }
 
+    /// A token usable for Bearer headers: non-empty, bounded, and free of
+    /// control characters — the same screen QR-decoded credentials pass.
+    private static func usableToken(_ raw: Any?) -> String? {
+        guard let token = raw as? String,
+              !token.isEmpty,
+              token.utf8.count <= 65_536,
+              token.rangeOfCharacter(from: .controlCharacters) == nil
+        else { return nil }
+        return token
+    }
+
     /// Applies a successful token response. Returns nil when the body carries
     /// no usable access token (callers treat that as authExpired).
     public static func apply(responseBody: Data, to credentials: Credentials, now: Date = Date()) -> Credentials? {
         guard let object = try? JSONSerialization.jsonObject(with: responseBody) as? [String: Any],
-              let accessToken = object["access_token"] as? String,
-              !accessToken.isEmpty,
-              accessToken.utf8.count <= 65_536
+              let accessToken = usableToken(object["access_token"])
         else { return nil }
 
         var updated = credentials
         updated.accessToken = accessToken
-        if let refreshToken = object["refresh_token"] as? String,
-           !refreshToken.isEmpty,
-           refreshToken.utf8.count <= 65_536 {
+        if let refreshToken = usableToken(object["refresh_token"]) {
             updated.refreshToken = refreshToken
         }
-        if let expiresIn = object["expires_in"] as? NSNumber {
+        // The old expiry describes the token we just replaced — carrying it
+        // forward would be wrong metadata either way, so absent or invalid
+        // expires_in leaves the new expiry unknown. Refresh itself is
+        // 401-driven, never expiry-driven, so nil is safe.
+        updated.expiresAt = nil
+        if let expiresIn = object["expires_in"] as? NSNumber,
+           CFGetTypeID(expiresIn) != CFBooleanGetTypeID() {
             let seconds = expiresIn.doubleValue
             if seconds.isFinite, seconds > 0, seconds <= 31_536_000 {
                 updated.expiresAt = now.addingTimeInterval(seconds)

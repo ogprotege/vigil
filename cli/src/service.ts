@@ -108,6 +108,8 @@ export async function getSnapshot(
           ...base,
           status: "deferred",
           retryAt: decision.retryAt,
+          deferredReason: decision.reason,
+          ...(decision.statePath !== undefined ? { pollStatePath: decision.statePath } : {}),
           planLabel: creds.plan ?? null,
           windows: [],
           metrics: [],
