@@ -1,11 +1,14 @@
 import Foundation
 
 public enum RequestBuilder {
+    public static let timeoutInterval: TimeInterval = 15
+
     /// Builds the usage request exactly per the provider contract; headers
     /// whose placeholder has no value are omitted (e.g. missing account id).
     public static func usageRequest(spec: ProviderSpec, credentials: Credentials) -> URLRequest {
         var request = URLRequest(url: spec.usageURL)
         request.httpMethod = spec.usageMethod
+        request.timeoutInterval = timeoutInterval
         for (name, template) in spec.headers {
             var value = template
             value = value.replacingOccurrences(of: "{access_token}", with: credentials.accessToken)
@@ -23,6 +26,19 @@ public enum UsageClient {
         public let status: SnapshotStatus
         public let planLabel: String?
         public let windows: [UsageWindow]
+        public let metrics: [UsageMetric]
+
+        public init(
+            status: SnapshotStatus,
+            planLabel: String?,
+            windows: [UsageWindow],
+            metrics: [UsageMetric] = []
+        ) {
+            self.status = status
+            self.planLabel = planLabel
+            self.windows = windows
+            self.metrics = metrics
+        }
     }
 
     /// Classifies an HTTP result per the shared error taxonomy:
@@ -38,7 +54,12 @@ public enum UsageClient {
             guard let mapped = UsageMapper.map(spec: spec, body: data) else {
                 return Outcome(status: .schemaChanged, planLabel: nil, windows: [])
             }
-            return Outcome(status: .ok, planLabel: mapped.planLabel, windows: mapped.windows)
+            return Outcome(
+                status: .ok,
+                planLabel: mapped.planLabel,
+                windows: mapped.windows,
+                metrics: mapped.metrics
+            )
         default:
             return Outcome(status: .network, planLabel: nil, windows: [])
         }

@@ -51,6 +51,19 @@ struct DashboardView: View {
                 EmptyDashboardView(addAccount: { showAddAccount = true })
             }
         }
+        .alert(
+            "Vigil couldn't save data",
+            isPresented: Binding(
+                get: { model.storageErrorMessage != nil },
+                set: { if !$0 { model.dismissStorageError() } }
+            )
+        ) {
+            // The binding setter advances the durable-error queue exactly
+            // once when SwiftUI dismisses the alert.
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.storageErrorMessage ?? "")
+        }
     }
 }
 
@@ -64,7 +77,7 @@ struct EmptyDashboardView: View {
                 .foregroundStyle(.secondary)
             Text("No accounts linked")
                 .font(.title2.weight(.semibold))
-            Text("Link your Claude or ChatGPT/Codex account to see exactly where you stand against your limits.")
+            Text("Link a supported AI account to monitor rate windows, spend, or remaining balances.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

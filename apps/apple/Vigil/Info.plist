@@ -68,5 +68,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>VigilKeychainAccessGroup</key>
+	<string>$(AppIdentifierPrefix)app.vigil.shared</string>
 </dict>
 </plist>

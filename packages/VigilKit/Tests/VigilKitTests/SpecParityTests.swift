@@ -13,13 +13,17 @@ final class SpecParityTests: XCTestCase {
 
     private struct SpecProvider: Decodable {
         let displayName: String
+        let auth: String
         let usage: SpecUsage
         let oauth: SpecOAuth?
         let poll: SpecPoll
-        let responseFields: SpecResponseFields
+        let responseFields: SpecResponseFields?
         let planKey: String?
         let additionalWindows: SpecAdditional?
         let windows: [SpecWindow]
+        let metricMappings: [SpecMetric]?
+        let metricCollectionMappings: [SpecMetricCollection]?
+        let manualEntryHint: String?
     }
 
     private struct SpecOAuth: Decodable {
@@ -60,8 +64,28 @@ final class SpecParityTests: XCTestCase {
         let secondary: Bool
     }
 
+    private struct SpecMetric: Decodable {
+        let id: String
+        let label: String
+        let sourceKey: String
+        let kind: String
+        let unit: String?
+        let secondary: Bool
+    }
+
+    private struct SpecMetricCollection: Decodable {
+        let sourceKey: String
+        let idKey: String
+        let valueKey: String
+        let label: String
+        let kind: String
+        let unitKey: String?
+        let secondary: Bool
+    }
+
     private func assertMatches(_ swift: ProviderSpec, _ json: SpecProvider, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertEqual(swift.displayName, json.displayName, file: file, line: line)
+        XCTAssertEqual(swift.auth, json.auth, file: file, line: line)
         XCTAssertEqual(swift.usageMethod, json.usage.method, file: file, line: line)
         XCTAssertEqual(swift.usageURL.absoluteString, json.usage.url, file: file, line: line)
         XCTAssertEqual(swift.headers, json.usage.headers, file: file, line: line)
@@ -69,9 +93,9 @@ final class SpecParityTests: XCTestCase {
         XCTAssertEqual(swift.poll.jitterSeconds, json.poll.jitterSeconds, file: file, line: line)
         XCTAssertEqual(swift.poll.backoff429BaseSeconds, json.poll.backoff429BaseSeconds, file: file, line: line)
         XCTAssertEqual(swift.poll.backoffMaxSeconds, json.poll.backoffMaxSeconds, file: file, line: line)
-        XCTAssertEqual(swift.responseFields.utilization, json.responseFields.utilization, file: file, line: line)
-        XCTAssertEqual(swift.responseFields.resetsAt, json.responseFields.resetsAt, file: file, line: line)
-        XCTAssertEqual(swift.responseFields.windowSeconds, json.responseFields.windowSeconds, file: file, line: line)
+        XCTAssertEqual(swift.responseFields?.utilization, json.responseFields?.utilization, file: file, line: line)
+        XCTAssertEqual(swift.responseFields?.resetsAt, json.responseFields?.resetsAt, file: file, line: line)
+        XCTAssertEqual(swift.responseFields?.windowSeconds, json.responseFields?.windowSeconds, file: file, line: line)
         XCTAssertEqual(swift.planKey, json.planKey, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.sourceKey, json.additionalWindows?.sourceKey, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.idKey, json.additionalWindows?.idKey, file: file, line: line)
@@ -89,6 +113,28 @@ final class SpecParityTests: XCTestCase {
             XCTAssertEqual(got.windowSeconds, want.windowSeconds, file: file, line: line)
             XCTAssertEqual(got.secondary, want.secondary, file: file, line: line)
         }
+        let jsonMetrics = json.metricMappings ?? []
+        XCTAssertEqual(swift.metricMappings.count, jsonMetrics.count, file: file, line: line)
+        for (got, want) in zip(swift.metricMappings, jsonMetrics) {
+            XCTAssertEqual(got.id, want.id, file: file, line: line)
+            XCTAssertEqual(got.label, want.label, file: file, line: line)
+            XCTAssertEqual(got.sourceKey, want.sourceKey, file: file, line: line)
+            XCTAssertEqual(got.kind.rawValue, want.kind, file: file, line: line)
+            XCTAssertEqual(got.unit, want.unit, file: file, line: line)
+            XCTAssertEqual(got.secondary, want.secondary, file: file, line: line)
+        }
+        let jsonCollections = json.metricCollectionMappings ?? []
+        XCTAssertEqual(swift.metricCollectionMappings.count, jsonCollections.count, file: file, line: line)
+        for (got, want) in zip(swift.metricCollectionMappings, jsonCollections) {
+            XCTAssertEqual(got.sourceKey, want.sourceKey, file: file, line: line)
+            XCTAssertEqual(got.idKey, want.idKey, file: file, line: line)
+            XCTAssertEqual(got.valueKey, want.valueKey, file: file, line: line)
+            XCTAssertEqual(got.label, want.label, file: file, line: line)
+            XCTAssertEqual(got.kind.rawValue, want.kind, file: file, line: line)
+            XCTAssertEqual(got.unitKey, want.unitKey, file: file, line: line)
+            XCTAssertEqual(got.secondary, want.secondary, file: file, line: line)
+        }
+        XCTAssertEqual(swift.manualEntryHint, json.manualEntryHint, file: file, line: line)
     }
 
     func testRegistryMirrorsProvidersJson() throws {
@@ -97,7 +143,8 @@ final class SpecParityTests: XCTestCase {
         XCTAssertEqual(file.version, 1)
         XCTAssertEqual(Set(file.providers.keys), Set(ProviderRegistry.all.map(\.id)))
 
-        assertMatches(ProviderRegistry.claude, try XCTUnwrap(file.providers["claude"]))
-        assertMatches(ProviderRegistry.codex, try XCTUnwrap(file.providers["codex"]))
+        for swift in ProviderRegistry.all {
+            assertMatches(swift, try XCTUnwrap(file.providers[swift.id]))
+        }
     }
 }

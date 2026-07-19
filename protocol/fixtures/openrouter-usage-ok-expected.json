@@ -1,0 +1,8 @@
+{
+  "windows": [],
+  "metrics": [
+    { "id": "usage", "label": "Credits used", "kind": "spend", "value": 12.5, "unit": "USD", "secondary": false },
+    { "id": "limit", "label": "Credit limit", "kind": "limit", "value": 50, "unit": "USD", "secondary": true },
+    { "id": "remaining", "label": "Credits remaining", "kind": "remaining", "value": 37.5, "unit": "USD", "secondary": false }
+  ]
+}

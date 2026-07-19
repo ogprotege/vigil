@@ -54,11 +54,44 @@ final class QRVectorTests: XCTestCase {
         }
     }
 
+    func testFutureDatedPayloadRejectedBeyondClockSkewAllowance() throws {
+        let single = try XCTUnwrap(try loadVectors().first { $0.name == "claude-single-chunk.json" })
+        let tooEarly = Date(
+            timeIntervalSince1970: TimeInterval(
+                single.vector.payload.iat - QRDecoder.maximumFutureSkewSeconds - 1
+            )
+        )
+        XCTAssertThrowsError(try QRDecoder.decodePayload(single.vector.chunks, now: tooEarly)) { error in
+            XCTAssertEqual(error as? QRDecodeError, .futureDated)
+        }
+
+        let toleratedSkew = Date(
+            timeIntervalSince1970: TimeInterval(
+                single.vector.payload.iat - QRDecoder.maximumFutureSkewSeconds
+            )
+        )
+        XCTAssertNoThrow(try QRDecoder.decodePayload(single.vector.chunks, now: toleratedSkew))
+    }
+
     func testEnvelopeValidation() throws {
         XCTAssertThrowsError(try QRDecoder.parseChunk("vigil1e:1/1:AB2C:abcd")) { error in
             XCTAssertEqual(error as? QRDecodeError, .unsupportedVariant("vigil1e"))
         }
         XCTAssertThrowsError(try QRDecoder.parseChunk("https://example.com/not-a-code")) { error in
+            XCTAssertEqual(error as? QRDecodeError, .unrecognized)
+        }
+        XCTAssertThrowsError(
+            try QRDecoder.parseChunk(
+                "vigil1:1/65:AB2C:abcd"
+            )
+        ) { error in
+            XCTAssertEqual(error as? QRDecodeError, .unrecognized)
+        }
+        XCTAssertThrowsError(
+            try QRDecoder.parseChunk(
+                "vigil1:1/1:AB2C:\(String(repeating: "a", count: 701))"
+            )
+        ) { error in
             XCTAssertEqual(error as? QRDecodeError, .unrecognized)
         }
 
@@ -71,6 +104,52 @@ final class QRVectorTests: XCTestCase {
         }
         XCTAssertThrowsError(try QRDecoder.assemble([sameButTwo])) { error in
             XCTAssertEqual(error as? QRDecodeError, .incomplete(have: 1, want: 2))
+        }
+    }
+
+    func testPayloadSemanticLimitsRejectOversizedOrControlBearingFields() throws {
+        let oversized = LinkPayload(
+            v: 1,
+            iat: 1,
+            accounts: [
+                LinkAccount(
+                    p: "claude",
+                    label: "Claude",
+                    c: LinkCredentialsPayload(
+                        at: String(repeating: "x", count: 65_537),
+                        rt: nil,
+                        exp: nil,
+                        acct: nil,
+                        src: nil
+                    ),
+                    meta: nil
+                ),
+            ]
+        )
+        XCTAssertThrowsError(try QRDecoder.validatePayload(oversized)) { error in
+            XCTAssertEqual(error as? QRDecodeError, .invalidPayload)
+        }
+
+        let controlBearing = LinkPayload(
+            v: 1,
+            iat: 1,
+            accounts: [
+                LinkAccount(
+                    p: "claude",
+                    label: "Claude\nWork",
+                    c: LinkCredentialsPayload(
+                        at: "token",
+                        rt: nil,
+                        exp: nil,
+                        acct: nil,
+                        src: nil
+                    ),
+                    meta: nil
+                ),
+            ]
+        )
+        XCTAssertThrowsError(try QRDecoder.validatePayload(controlBearing)) { error in
+            XCTAssertEqual(error as? QRDecodeError, .invalidPayload)
         }
     }
 }

@@ -3,6 +3,7 @@
   "providers": {
     "claude": {
       "displayName": "Claude",
+      "defaultEnabled": true,
       "auth": "oauth_bearer",
       "usage": {
         "method": "GET",
@@ -29,9 +30,11 @@
         "backoffMaxSeconds": 3600
       },
       "discovery": {
+        "adapter": "claude",
         "file": { "path": "~/.claude/.credentials.json", "jsonPath": "claudeAiOauth" },
         "macosKeychain": { "service": "Claude Code-credentials" }
       },
+      "manualEntryHint": "From npx vigil-link --json, or ~/.claude/.credentials.json (claudeAiOauth.accessToken).",
       "responseFields": { "utilization": "utilization", "resetsAt": "resets_at" },
       "windows": [
         { "id": "session", "sourceKey": "five_hour", "resetFormat": "iso8601", "windowSeconds": 18000, "secondary": false },
@@ -43,6 +46,7 @@
     },
     "codex": {
       "displayName": "ChatGPT / Codex",
+      "defaultEnabled": true,
       "auth": "oauth_bearer",
       "usage": {
         "method": "GET",
@@ -61,8 +65,10 @@
         "backoffMaxSeconds": 3600
       },
       "discovery": {
+        "adapter": "codex",
         "file": { "path": "~/.codex/auth.json", "jsonPath": "tokens" }
       },
+      "manualEntryHint": "From ~/.codex/auth.json: tokens.access_token and tokens.account_id.",
       "responseFields": { "utilization": "used_percent", "resetsAt": "reset_at", "windowSeconds": "limit_window_seconds" },
       "planKey": "plan_type",
       "additionalWindows": { "sourceKey": "additional_rate_limits", "idKey": "name", "secondary": true },
@@ -71,6 +77,76 @@
         { "id": "weekly", "sourceKey": "rate_limit.secondary_window", "resetFormat": "unixSeconds", "secondary": false }
       ],
       "capabilities": ["rate_windows"]
+    },
+    "openrouter": {
+      "displayName": "OpenRouter",
+      "defaultEnabled": false,
+      "auth": "api_key_bearer",
+      "usage": {
+        "method": "GET",
+        "url": "https://openrouter.ai/api/v1/key",
+        "headers": {
+          "Authorization": "Bearer {access_token}",
+          "Accept": "application/json",
+          "User-Agent": "Vigil/0.10"
+        }
+      },
+      "poll": {
+        "minSeconds": 300,
+        "jitterSeconds": 60,
+        "backoff429BaseSeconds": 900,
+        "backoffMaxSeconds": 3600
+      },
+      "discovery": {
+        "adapter": "environment",
+        "environment": { "accessToken": "OPENROUTER_API_KEY" }
+      },
+      "manualEntryHint": "Create or copy an OpenRouter API key, or set OPENROUTER_API_KEY before running vigil-link.",
+      "metricMappings": [
+        { "id": "usage", "label": "Credits used", "sourceKey": "data.usage", "kind": "spend", "unit": "USD", "secondary": false },
+        { "id": "limit", "label": "Credit limit", "sourceKey": "data.limit", "kind": "limit", "unit": "USD", "secondary": true },
+        { "id": "remaining", "label": "Credits remaining", "sourceKey": "data.limit_remaining", "kind": "remaining", "unit": "USD", "secondary": false }
+      ],
+      "windows": [],
+      "capabilities": ["spend", "balance"]
+    },
+    "deepseek": {
+      "displayName": "DeepSeek",
+      "defaultEnabled": false,
+      "auth": "api_key_bearer",
+      "usage": {
+        "method": "GET",
+        "url": "https://api.deepseek.com/user/balance",
+        "headers": {
+          "Authorization": "Bearer {access_token}",
+          "Accept": "application/json",
+          "User-Agent": "Vigil/0.10"
+        }
+      },
+      "poll": {
+        "minSeconds": 300,
+        "jitterSeconds": 60,
+        "backoff429BaseSeconds": 900,
+        "backoffMaxSeconds": 3600
+      },
+      "discovery": {
+        "adapter": "environment",
+        "environment": { "accessToken": "DEEPSEEK_API_KEY" }
+      },
+      "manualEntryHint": "Create or copy a DeepSeek API key, or set DEEPSEEK_API_KEY before running vigil-link.",
+      "metricCollectionMappings": [
+        {
+          "sourceKey": "balance_infos",
+          "idKey": "currency",
+          "valueKey": "total_balance",
+          "label": "Balance",
+          "kind": "balance",
+          "unitKey": "currency",
+          "secondary": false
+        }
+      ],
+      "windows": [],
+      "capabilities": ["balance"]
     }
   }
 }

@@ -8,7 +8,7 @@
 
 ## Context
 
-This project is partly authored from Linux environments where Xcode doesn't exist. `project.pbxproj` is a hostile format to author or review blind; a declarative YAML manifest is diffable and editable anywhere. The macOS CI workflow runs the same two commands, so every push compile-checks Swift authored off-Mac.
+This project is partly authored from Linux environments where Xcode does not exist. `project.pbxproj` is difficult to author or review blind, while a declarative YAML manifest is diffable and editable anywhere. Apple CI regenerates the project, builds the iOS Simulator destination, and runs the app reliability suite against macOS on every push. Device-only behavior remains a required release check.
 
 ## Consequences
 

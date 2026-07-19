@@ -10,7 +10,7 @@ import {
   loadFixture,
   makeFakeHome,
   startFixtureServer,
-  testEnv,
+  fixtureHttp,
   type FixtureServer,
 } from "./helpers.js";
 
@@ -35,7 +35,7 @@ describe("status", () => {
       {
         registry,
         discovery: { homeDir, platform: "linux", env: {} },
-        http: { env: testEnv(server.url) },
+        http: fixtureHttp(server.url),
         now: NOW,
       },
       ["claude", "codex"]
@@ -55,7 +55,7 @@ describe("status", () => {
       {
         registry,
         discovery: { homeDir, platform: "linux", env: {} },
-        http: { env: testEnv(server.url) },
+        http: fixtureHttp(server.url),
         now: NOW,
       },
       ["claude", "codex"]
@@ -64,13 +64,66 @@ describe("status", () => {
     expect(report).toContain("no credentials found");
     expect(report).toMatchSnapshot();
   });
+
+  it("isolates one provider's transport failure and still renders the others", async () => {
+    server = await startFixtureServer({
+      "/backend-api/wham/usage": json(200, loadFixture("codex-usage-ok.json")),
+    });
+    const { homeDir } = await makeFakeHome({ claude: CLAUDE_CREDS_FILE, codex: codexCredsFile() });
+    const isolatedFetch: typeof fetch = async (input, init) => {
+      if (new URL(input.toString()).pathname === "/api/oauth/usage") {
+        throw new Error("simulated provider outage");
+      }
+      return fetch(input, init);
+    };
+    const report = await statusReport(
+      {
+        registry,
+        discovery: { homeDir, platform: "linux", env: {} },
+        http: { ...fixtureHttp(server.url), fetchImpl: isolatedFetch, retries: 0 },
+        now: NOW,
+      },
+      ["claude", "codex"]
+    );
+    expect(report).toContain("network problem reaching the provider");
+    expect(report).toContain("ChatGPT / Codex (pro)");
+    expect(report).toContain("72%");
+  });
+
+  it("renders scalar usage metrics for an opt-in gateway provider", async () => {
+    server = await startFixtureServer({
+      "/api/v1/key": json(200, loadFixture("openrouter-usage-ok.json")),
+    });
+    const { homeDir } = await makeFakeHome({});
+    const report = await statusReport(
+      {
+        registry,
+        discovery: {
+          homeDir,
+          platform: "linux",
+          env: { OPENROUTER_API_KEY: "sk-or-v1-test" },
+        },
+        http: fixtureHttp(server.url),
+        now: NOW,
+      },
+      ["openrouter"]
+    );
+    expect(report).toContain("Credits used");
+    expect(report).toContain("12.5 USD");
+    expect(report).toContain("Credits remaining");
+  });
 });
 
 describe("doctor", () => {
   it("reports discovery results without any network calls (golden)", async () => {
     const { homeDir } = await makeFakeHome({ claude: CLAUDE_CREDS_FILE, codex: codexCredsFile() });
     const report = await doctorReport(
-      { registry, discovery: { homeDir, platform: "linux", env: {} }, now: NOW },
+      {
+        registry,
+        discovery: { homeDir, platform: "linux", env: {} },
+        poll: { stateDir: "/tmp/vigil-test-poll" },
+        now: NOW,
+      },
       ["claude", "codex"]
     );
     expect(report).toMatchSnapshot();

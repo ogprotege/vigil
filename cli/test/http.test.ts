@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { loadRegistry } from "../src/spec/registry.js";
-import { buildHeaders, fetchUsage } from "../src/http.js";
+import { buildHeaders, fetchUsage, resolveUrl } from "../src/http.js";
 import { getSnapshot } from "../src/service.js";
 import type { Credentials } from "../src/providers/types.js";
-import { json, loadFixture, startFixtureServer, testEnv, type FixtureServer } from "./helpers.js";
+import { fixtureHttp, json, loadFixture, startFixtureServer, type FixtureServer } from "./helpers.js";
 
 const registry = loadRegistry();
 
@@ -41,12 +41,20 @@ describe("header construction", () => {
 });
 
 describe("fetchUsage against a fixture server", () => {
+  it("rejects non-loopback fixture URL overrides", () => {
+    expect(() =>
+      resolveUrl("https://api.anthropic.com/api/oauth/usage", "claude", {
+        claude: "https://attacker.example",
+      })
+    ).toThrow(/loopback/);
+  });
+
   it("returns ok + body on 200, sending the exact contract headers", async () => {
     server = await startFixtureServer({
       "/api/oauth/usage": json(200, loadFixture("claude-usage-ok.json")),
     });
     const result = await fetchUsage("claude", registry.providers.claude, claudeCreds, {
-      env: testEnv(server.url),
+      ...fixtureHttp(server.url),
     });
     expect(result.status).toBe("ok");
     const seen = server.requests[0]!;
@@ -60,7 +68,7 @@ describe("fetchUsage against a fixture server", () => {
       "/api/oauth/usage": json(429, loadFixture("claude-429.json")),
     });
     const result = await fetchUsage("claude", registry.providers.claude, claudeCreds, {
-      env: testEnv(server.url),
+      ...fixtureHttp(server.url),
     });
     expect(result.status).toBe("rateLimited");
     expect(server.requests.length).toBe(1);
@@ -74,7 +82,7 @@ describe("fetchUsage against a fixture server", () => {
       },
     });
     const drift = await fetchUsage("claude", registry.providers.claude, claudeCreds, {
-      env: testEnv(server.url),
+      ...fixtureHttp(server.url),
     });
     expect(drift.status).toBe("schemaChanged");
   });
@@ -89,7 +97,7 @@ describe("fetchUsage against a fixture server", () => {
       return fetch(input, init);
     };
     const result = await fetchUsage("claude", registry.providers.claude, claudeCreds, {
-      env: testEnv(server.url),
+      ...fixtureHttp(server.url),
       fetchImpl: flaky,
       retryDelayMs: 1,
     });
@@ -101,13 +109,33 @@ describe("fetchUsage against a fixture server", () => {
     const alwaysDown: typeof fetch = async () => {
       throw new Error("connect failed for Bearer sk-ant-oat01-LIVE");
     };
-    await expect(
-      fetchUsage("claude", registry.providers.claude, claudeCreds, {
-        fetchImpl: alwaysDown,
-        retries: 0,
-        env: testEnv("http://127.0.0.1:1"),
-      })
-    ).rejects.toThrow(/\[redacted\]/);
+    const result = await fetchUsage("claude", registry.providers.claude, claudeCreds, {
+      fetchImpl: alwaysDown,
+      retries: 0,
+      ...fixtureHttp("http://127.0.0.1:1"),
+    });
+    expect(result.status).toBe("network");
+    expect(result.error).toContain("[redacted]");
+    expect(result.error).not.toContain("sk-ant-oat01-LIVE");
+  });
+
+  it("aborts a hung request at the configured per-attempt timeout", async () => {
+    const neverResponds: typeof fetch = async (_input, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal;
+        if (signal?.aborted) {
+          reject(signal.reason);
+          return;
+        }
+        signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+      });
+
+    const result = await fetchUsage("claude", registry.providers.claude, claudeCreds, {
+      fetchImpl: neverResponds,
+      retries: 0,
+      timeoutMs: 5,
+    });
+    expect(result.status).toBe("network");
   });
 });
 
@@ -130,7 +158,7 @@ describe("getSnapshot 401 -> refresh -> retry (minted creds only)", () => {
       }),
     });
     const minted: Credentials = { ...claudeCreds, source: "mint" };
-    const { snapshot, credentials } = await getSnapshot(registry, minted, { env: testEnv(server.url) });
+    const { snapshot, credentials } = await getSnapshot(registry, minted, fixtureHttp(server.url));
     expect(snapshot.status).toBe("ok");
     expect(usageCalls).toBe(2);
     expect(credentials.accessToken).toBe("sk-ant-oat01-FRESH");
@@ -142,7 +170,7 @@ describe("getSnapshot 401 -> refresh -> retry (minted creds only)", () => {
       "/api/oauth/usage": json(401, { error: "expired" }),
       "/v1/oauth/token": json(200, { access_token: "should-not-be-called" }),
     });
-    const { snapshot } = await getSnapshot(registry, claudeCreds, { env: testEnv(server.url) });
+    const { snapshot } = await getSnapshot(registry, claudeCreds, fixtureHttp(server.url));
     expect(snapshot.status).toBe("authExpired");
     expect(server.requests.every((r) => r.path !== "/v1/oauth/token")).toBe(true);
   });

@@ -11,12 +11,16 @@ struct VigilWidgetBundle: WidgetBundle {
 
 struct UsageWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "app.vigil.usage", provider: UsageTimelineProvider()) { entry in
+        AppIntentConfiguration(
+            kind: "app.vigil.usage",
+            intent: SelectUsageAccountIntent.self,
+            provider: UsageTimelineProvider()
+        ) { entry in
             UsageWidgetEntryView(entry: entry)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
         .configurationDisplayName("Usage")
-        .description("Session and weekly limits with a live reset countdown.")
+        .description("Monitor a selected account's limits, spend, or balance.")
         .supportedFamilies([.systemSmall, .accessoryCircular])
     }
 }
@@ -74,6 +78,22 @@ struct SmallUsageView: View {
                             }
                         }
                     }
+                } else if let metric = snapshot.metrics.first(where: { !$0.secondary })
+                    ?? snapshot.metrics.first {
+                    HStack {
+                        Image(systemName: metricSymbol(metric.kind))
+                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(metric.label)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            Text(metricValue(metric))
+                                .font(.system(.headline, design: .rounded).weight(.semibold))
+                                .minimumScaleFactor(0.65)
+                                .lineLimit(1)
+                        }
+                    }
                 }
                 if let weekly = snapshot.windows.first(where: { $0.id == "weekly" }) {
                     Gauge(value: min(max(weekly.utilization, 0), 100), in: 0...100) {
@@ -124,6 +144,20 @@ struct CircularUsageView: View {
             .gaugeStyle(.accessoryCircularCapacity)
             .widgetAccentable()
             .accessibilityLabel(Text("\(entry.account?.displayName ?? "Vigil") session, \(Int(session.utilization.rounded())) percent used"))
+        } else if let metric = entry.snapshot?.metrics.first(where: { !$0.secondary })
+            ?? entry.snapshot?.metrics.first {
+            VStack(spacing: 0) {
+                Text(providerLetter)
+                    .font(.caption2)
+                Text(compactMetricValue(metric))
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .minimumScaleFactor(0.55)
+                    .lineLimit(1)
+            }
+            .widgetAccentable()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("\(entry.account?.displayName ?? "Vigil"), \(metric.label)"))
+            .accessibilityValue(Text(metricValue(metric)))
         } else {
             Gauge(value: 0, in: 0...100) {
                 Text("V")
@@ -138,7 +172,37 @@ struct CircularUsageView: View {
         switch entry.snapshot?.providerId {
         case "claude": return "C"
         case "codex": return "X"
+        case "openrouter": return "O"
+        case "deepseek": return "D"
         default: return "V"
         }
     }
+}
+
+private func metricValue(_ metric: UsageMetric) -> String {
+    if let unit = metric.unit, unit.count == 3 {
+        return metric.value.formatted(
+            .currency(code: unit).precision(.fractionLength(0...3))
+        )
+    }
+    let value = metric.value.formatted(
+        .number.precision(.fractionLength(0...3))
+    )
+    return metric.unit.map { "\(value) \($0)" } ?? value
+}
+
+private func metricSymbol(_ kind: UsageMetricKind) -> String {
+    switch kind {
+    case .spend: return "creditcard"
+    case .balance, .remaining: return "wallet.pass"
+    case .limit: return "gauge.with.needle"
+    }
+}
+
+private func compactMetricValue(_ metric: UsageMetric) -> String {
+    let value = metric.value.formatted(
+        .number.notation(.compactName).precision(.significantDigits(1...3))
+    )
+    guard let unit = metric.unit else { return value }
+    return unit == "USD" ? "$\(value)" : "\(value) \(unit)"
 }

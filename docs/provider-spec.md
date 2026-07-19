@@ -1,72 +1,198 @@
-# Provider spec
+# Provider registry and support
 
-`protocol/providers.json` is the canonical, machine-readable registry of every provider Vigil knows how to poll. This document explains the fields and records the verified facts behind the v1 providers. **All consumer usage endpoints are undocumented vendor internals** — they can change without notice; the `schemaChanged` snapshot status plus fixture-driven mappers are how Vigil degrades gracefully when they do.
+`protocol/providers.json` is the canonical machine-readable registry for every provider Vigil can poll. It defines request policy and response mapping. It does not eliminate provider-specific code. Authentication, credential discovery, OAuth minting, unusual response shapes, and UI behavior may still require adapters.
+
+## Support and stability matrix
+
+| Provider | Default | Credential activation | Normalized data | Token refresh | Endpoint status | Vigil confidence |
+|---|---:|---|---|---|---|---|
+| Claude | Yes | Vigil-owned OAuth mint, Claude Code file, or macOS Keychain | Session, weekly, Sonnet, and Opus windows | Yes, only for credentials Vigil minted | Undocumented consumer endpoint | Supported, live-validated July 2026, fixture-covered |
+| ChatGPT / Codex | Yes | Codex CLI file; access token and account ID required | Session, weekly, and optional additional windows | No independent refresh | Undocumented consumer endpoint | Supported, live-validated July 2026, fixture-covered |
+| OpenRouter | No | `OPENROUTER_API_KEY`, QR/paste handoff, or app manual entry | Spend, credit limit, remaining credits | Not applicable; API key | Documented key endpoint | Opt-in preview, fixture-covered; live validation remains a release check |
+| DeepSeek | No | `DEEPSEEK_API_KEY`, QR/paste handoff, or app manual entry | Balance by returned currency | Not applicable; API key | Documented balance endpoint | Opt-in preview, fixture-covered; live validation remains a release check |
+
+Definitions:
+
+- **Supported** means the implementation has fixtures and has been checked against a real account. It does not mean the vendor supports Vigil.
+- **Opt-in preview** means the provider is implemented but excluded from the default command. Users must name it explicitly.
+- **Fixture-covered** means CI verifies known response shapes without sending credentials or calling production.
+- **Undocumented** means the vendor may change or remove the consumer endpoint without notice.
+
+## Activating providers
+
+The default command selects Claude and Codex:
+
+```sh
+npx vigil-link doctor
+npx vigil-link status
+npx vigil-link
+```
+
+OpenRouter and DeepSeek read API keys from the process environment and require an explicit provider selection:
+
+```sh
+OPENROUTER_API_KEY='...' npx vigil-link doctor --provider openrouter --live
+OPENROUTER_API_KEY='...' npx vigil-link status --provider openrouter
+OPENROUTER_API_KEY='...' npx vigil-link --provider openrouter
+
+DEEPSEEK_API_KEY='...' npx vigil-link doctor --provider deepseek --live
+DEEPSEEK_API_KEY='...' npx vigil-link status --provider deepseek
+DEEPSEEK_API_KEY='...' npx vigil-link --provider deepseek
+```
+
+To link all four in one QR session:
+
+```sh
+OPENROUTER_API_KEY='...' DEEPSEEK_API_KEY='...' \
+  npx vigil-link --provider claude,codex,openrouter,deepseek
+```
+
+Environment variables exist only in the CLI process unless the shell or user stores them elsewhere. Vigil does not create a shell profile or `.env` file. The resulting QR still contains the selected credentials in compressed plaintext. Read [qr-protocol.md](qr-protocol.md) and [threat-model.md](threat-model.md) before linking.
 
 ## Registry fields
 
+The following example combines fields used by the current providers. A provider does not need every mapping block.
+
 ```jsonc
 {
-  "displayName": "Claude",
-  "auth": "oauth_bearer",
-  "usage": {                       // the polling request, as data
+  "displayName": "Example",
+  "defaultEnabled": false,
+  "auth": "api_key_bearer",
+  "usage": {
     "method": "GET",
-    "url": "https://…",
-    "headers": { "Authorization": "Bearer {access_token}", … }   // {access_token}, {account_id} substituted at request time
+    "url": "https://provider.example/usage",
+    "headers": {
+      "Authorization": "Bearer {access_token}",
+      "X-Account": "{account_id}"
+    }
   },
-  "oauth": { … },                  // authorize/token URLs, public clientId, scopes (mint + refresh flows)
-  "poll": {                        // the reliability contract
-    "minSeconds": 300,             // NEVER poll faster than this
-    "jitterSeconds": 60,           // random 0..jitter added to every scheduled fetch
-    "backoff429BaseSeconds": 900,  // first backoff after a 429
-    "backoffMaxSeconds": 3600      // backoff cap (doubles each consecutive 429)
+  "oauth": {
+    "authorizeUrl": "https://provider.example/oauth/authorize",
+    "tokenUrl": "https://provider.example/oauth/token",
+    "clientId": "public-client-id",
+    "scopes": ["usage:read"],
+    "loopbackPort": 54545,
+    "manualRedirectUri": "https://provider.example/oauth/callback"
   },
-  "discovery": { … },              // where the companion CLI finds existing credentials
-  "windows": [                     // response → UsageWindow mapping
-    { "id": "session", "sourceKey": "five_hour", "resetFormat": "iso8601",
-      "windowSeconds": 18000, "secondary": false }
+  "poll": {
+    "minSeconds": 300,
+    "jitterSeconds": 60,
+    "backoff429BaseSeconds": 900,
+    "backoffMaxSeconds": 3600
+  },
+  "discovery": {
+    "adapter": "environment",
+    "environment": { "accessToken": "EXAMPLE_API_KEY" }
+  },
+  "manualEntryHint": "Where the user can obtain this credential.",
+  "responseFields": {
+    "utilization": "used_percent",
+    "resetsAt": "reset_at",
+    "windowSeconds": "window_seconds"
+  },
+  "windows": [
+    {
+      "id": "session",
+      "sourceKey": "rate_limit.session",
+      "resetFormat": "unixSeconds",
+      "secondary": false
+    }
   ],
-  "capabilities": ["rate_windows"] // "spend" reserved for v1.1
+  "metricMappings": [
+    {
+      "id": "usage",
+      "label": "Credits used",
+      "sourceKey": "data.usage",
+      "kind": "spend",
+      "unit": "USD",
+      "secondary": false
+    }
+  ],
+  "metricCollectionMappings": [
+    {
+      "sourceKey": "balances",
+      "idKey": "currency",
+      "valueKey": "amount",
+      "label": "Balance",
+      "kind": "balance",
+      "unitKey": "currency",
+      "secondary": false
+    }
+  ],
+  "capabilities": ["rate_windows", "spend", "balance"]
 }
 ```
 
-Mapping semantics: for each `windows[]` entry, read `sourceKey` (dot-path) from the response JSON. A `null`/missing bucket produces **no window** (not an error). `resetFormat` is `iso8601` (string timestamp) or `unixSeconds` (number). `windowSeconds` in the spec is a fallback for providers whose response includes it (response value wins). Unknown response fields are always ignored; a response where **no** window mapping resolves is `schemaChanged`.
+Field behavior:
 
-## Claude (verified July 2026)
+- `defaultEnabled: false` keeps a provider out of an unqualified CLI command.
+- `usage.headers` substitutes `{access_token}` and `{account_id}` at request time.
+- `poll` is enforced independently by the CLI safety gate and the Apple scheduler.
+- `discovery.adapter` selects code registered by the CLI. Registry data cannot create a new discovery or OAuth implementation.
+- `windows` maps reset-based percentages.
+- `metricMappings` maps fixed scalar paths.
+- `metricCollectionMappings` maps arrays such as balances returned in several currencies.
+- `capabilities` describes the provider but does not, by itself, add rendering behavior.
 
-- `GET https://api.anthropic.com/api/oauth/usage` — powers claude.ai's own usage panel and Claude Code `/usage`.
-- Headers: `Authorization: Bearer <sk-ant-oat…>`, `anthropic-beta: oauth-2025-04-20`, `Accept: application/json`, and **`User-Agent: claude-code/<ver>` is mandatory** — without it requests land in an aggressively-limited bucket (401s/429s).
-- Response buckets: `five_hour` (session), `seven_day` (weekly all-model), `seven_day_sonnet`, `seven_day_opus` (model sub-quotas; may be null) — each `{ "utilization": 0-100, "resets_at": ISO-8601 | null }`. Other buckets are experimental — ignored.
-- Rate limiting: hard 429s with **no Retry-After**. Community-established safe floor: **≥5 min between polls**. This is the #1 cause of "broken" monitor apps.
-- Token scope: usage requires `user:profile`; an inference-only token 401s. The authorize request must ask for the full registered set `org:create_api_key user:profile user:inference` (`user:profile` alone is rejected); the issued grant is narrowed to `user:inference user:profile`. Two undocumented server requirements (verified live 2026-07-18): the extra `code=true` query parameter, and **`state` must be the PKCE verifier itself** — a short random `state` renders the consent screen but the grant POST fails with "Authorization failed: invalid request format". The loopback redirect must use the literal host `localhost` (`http://localhost:<port>/callback`); `http://127.0.0.1:<port>/callback` is rejected with "Redirect URI … is not supported by client". (The port-less metadata at `https://claude.ai/oauth/claude-code-client-metadata`, which does list `127.0.0.1`, belongs to the newer URL-as-client_id flow — this authorize endpoint requires a UUID `client_id` and rejects that client style.)
-- Refresh: `POST https://platform.claude.com/v1/oauth/token`, public client_id `9d1c250a-e61b-44d9-88ed-5944d1962f5e`, `grant_type=refresh_token`. Access tokens are short-lived (~1–8 h). The app refreshes only pairs marked `src: "mint"` in the link payload (401 → refresh once → retry, one ledger slot; VigilKit `TokenRefresher`); copied credentials surface `authExpired` → re-link instead.
-- Credential discovery: `~/.claude/.credentials.json` → `.claudeAiOauth.{accessToken,refreshToken,expiresAt,scopes,subscriptionType}`; macOS Keychain generic password `Claude Code-credentials` (same JSON).
-- **Mint-don't-copy:** `vigil-link` defaults to minting Vigil its own token pair via the browser OAuth flow (PKCE, loopback redirect) so Vigil's refreshes can never race Claude Code's own refresh-token rotation on the computer. `--copy` exists as a fallback and may require re-linking more often.
+## Mapping semantics
 
-## ChatGPT / Codex (verified July 2026)
+For a window mapping, Vigil reads `sourceKey` as a dot path. A missing or `null` bucket produces no window. A malformed bucket is skipped. `resetFormat` is `iso8601` or `unixSeconds`. Utilization is clamped to 0 through 100. Unknown response fields are ignored.
 
-- `GET https://chatgpt.com/backend-api/wham/usage`.
-- Headers: `Authorization: Bearer <access_token>`, `ChatGPT-Account-Id: <account_id>`, a codex-style `User-Agent`.
-- Response: `rate_limit.primary_window` (session) and `rate_limit.secondary_window` (weekly), each `{ "used_percent", "reset_at" (unix seconds), "limit_window_seconds" }`; optional `additional_rate_limits[]` (model-specific lanes → mapped as secondary windows; shape is best-effort, entries that don't parse are skipped); `plan_type`.
-- Credential discovery: `~/.codex/auth.json` (or `$CODEX_HOME/auth.json`) → `tokens.{access_token,refresh_token,id_token,account_id}`. Plan label decodable from the `id_token` JWT claims (decode only, never verified, never included in QR payloads — JWTs are large).
-- Refresh: handled by the Codex CLI itself; the endpoint is not yet independently verified, so v1 surfaces expiry as `authExpired` → "re-link from your computer".
+For a scalar mapping, Vigil accepts finite JSON numbers. Balance APIs may encode exact decimal values as strings, which the metric mapper also accepts. Vigil preserves the provider's unit and does not convert currencies.
 
-## Expansion map (in rough order)
+A successful response becomes `schemaChanged` when no valid window or metric can be mapped. This prevents an empty but apparently successful dashboard.
 
-| Provider | Path | Notes |
-|---|---|---|
-| GitHub Copilot | `GET api.github.com/copilot_internal/user` | GitHub OAuth device flow (`read:user`); `quotaSnapshots.premiumInteractions` |
-| Kimi (Moonshot) | mirror CodexBar's Kimi integration | user-requested |
-| Qwen (Alibaba) | Qwen Code CLI creds (`~/.qwen/oauth_creds.json`, Gemini CLI fork) | user-requested |
-| Hugging Face | Pro inference credits — no precedent, exploratory | user-requested |
-| Cursor | `GET cursor.com/api/usage-summary` (browser session cookie) | harder handoff |
-| Windsurf / Grok / Poe / Cline / Warp | per CodexBar docs (github.com/steipete/CodexBar) | canonical reference |
-| Gemini CLI | `cloudcode-pa` retrieveUserQuota | consumer tier deprecating mid-2026; wait for Antigravity to settle |
+## Claude
 
-v1.1 API-spend tiers (researched, roadmap): **A** plain-key pollable (OpenRouter `/api/v1/key`, DeepSeek `/user/balance`, Fireworks `billingUsage`, Moonshot balance) → **B** admin-key (Anthropic/OpenAI/Mistral/xAI org reports) → **C** no pollable surface (Together, Cohere, Perplexity, Cerebras — shown honestly as unsupported).
+- Request: `GET https://api.anthropic.com/api/oauth/usage`.
+- Required headers include `Authorization`, `anthropic-beta: oauth-2025-04-20`, `Accept`, and a Claude Code-style `User-Agent`.
+- Response buckets: `five_hour`, `seven_day`, `seven_day_sonnet`, and `seven_day_opus`.
+- Poll floor: 300 seconds. Do not lower it. The endpoint can return hard 429 responses without `Retry-After`.
+- Discovery: `~/.claude/.credentials.json`, then the macOS Keychain service `Claude Code-credentials`.
+- Preferred link path: mint a separate Vigil token pair. Copying another client's refresh token can cause rotation conflicts.
+- Refresh: `POST https://platform.claude.com/v1/oauth/token`, only for pairs marked `src: "mint"`.
+- Stability: the usage and OAuth behavior is not a public contract. The details were live-validated in July 2026 and can drift.
 
-## Adding a provider (the contract)
+The verified OAuth flow currently requires the registered scope set, a literal `localhost` loopback host, `code=true`, and the PKCE verifier as `state`. Preserve the live tests and ADR-0005 when modifying it.
 
-1. Add the registry entry to `protocol/providers.json`.
-2. Capture/synthesize at least two response fixtures + hand-write their `-expected.json` normalized outputs.
-3. Implement the thin mapper in the CLI (`cli/src/providers/`) and VigilKit (`Sources/VigilKit/Providers/`).
-4. Both CI suites must pass fixture parity; the Swift spec-parity test must be updated with the mirrored constants.
+## ChatGPT / Codex
+
+- Request: `GET https://chatgpt.com/backend-api/wham/usage`.
+- Required headers include `Authorization`, `ChatGPT-Account-Id`, `Accept`, and a Codex-style `User-Agent`.
+- Response buckets: `rate_limit.primary_window`, `rate_limit.secondary_window`, and optional `additional_rate_limits`.
+- Discovery: `~/.codex/auth.json` or `$CODEX_HOME/auth.json`.
+- Refresh: not independently verified. An expired token becomes `authExpired`, and the user must refresh Codex and re-link.
+- Stability: the usage endpoint is an internal consumer surface and can change without notice.
+
+## OpenRouter
+
+- Request: `GET https://openrouter.ai/api/v1/key`.
+- Credential: bearer API key from `OPENROUTER_API_KEY`.
+- Mapped metrics: `data.usage`, `data.limit`, and `data.limit_remaining` when present.
+- Units: USD as reported by the endpoint.
+- A missing optional limit does not fabricate a percentage or turn a valid usage value into an error.
+
+Official reference: <https://openrouter.ai/docs/api-reference/limits>
+
+## DeepSeek
+
+- Request: `GET https://api.deepseek.com/user/balance`.
+- Credential: bearer API key from `DEEPSEEK_API_KEY`.
+- Mapped metrics: every valid entry in `balance_infos`, keyed and labeled by currency.
+- Vigil does not combine or convert balances from different currencies.
+
+Official reference: <https://api-docs.deepseek.com/api/get-user-balance/>
+
+## Provider candidates
+
+Provider count alone is not the goal. Vigil should add a provider only when it can report a meaningful value through a supportable authentication path.
+
+| Candidate | Current blocker or required decision |
+|---|---|
+| GitHub Copilot | Public APIs focus on organization usage. Personal quota support needs a stable, permitted endpoint. |
+| Cursor | Official APIs focus on team or admin data. Personal account support needs a safe credential path. |
+| Gemini CLI | No stable public personal quota API has been established for Vigil. |
+| Kimi, Qwen, Hugging Face | Require endpoint, authentication, and terms review before implementation. |
+| Other API gateways | Prefer documented balance or spend endpoints with user-scoped keys. |
+
+The complete implementation checklist is in [provider-contribution.md](provider-contribution.md).

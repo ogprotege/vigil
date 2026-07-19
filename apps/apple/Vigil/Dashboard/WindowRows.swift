@@ -106,3 +106,58 @@ enum UsageTint {
         return .green
     }
 }
+
+/// Scalar spend and balance values for providers that do not expose
+/// reset-based percentage windows. These remain amounts because inventing a
+/// percentage without a provider-supplied limit would misstate the account.
+struct UsageMetricRow: View {
+    let metric: UsageMetric
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .frame(width: 24)
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+            Text(metric.label)
+                .font(.subheadline)
+            Spacer()
+            Text(formattedValue)
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .multilineTextAlignment(.trailing)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(metric.label))
+        .accessibilityValue(Text(formattedValue))
+    }
+
+    private var formattedValue: String {
+        if let unit = metric.unit, unit.count == 3 {
+            return metric.value.formatted(
+                .currency(code: unit)
+                    .precision(.fractionLength(0...4))
+            )
+        }
+        let number = metric.value.formatted(
+            .number.precision(.fractionLength(0...4))
+        )
+        return metric.unit.map { "\(number) \($0)" } ?? number
+    }
+
+    private var symbol: String {
+        switch metric.kind {
+        case .balance: return "wallet.pass"
+        case .spend: return "creditcard"
+        case .limit: return "gauge.with.needle"
+        case .remaining: return "banknote"
+        }
+    }
+
+    private var tint: Color {
+        switch metric.kind {
+        case .remaining, .balance: return .green
+        case .spend: return .orange
+        case .limit: return .secondary
+        }
+    }
+}

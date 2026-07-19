@@ -6,6 +6,7 @@ public enum UsageMapper {
     public struct Mapped: Equatable, Sendable {
         public let planLabel: String?
         public let windows: [UsageWindow]
+        public let metrics: [UsageMetric]
     }
 
     private static let isoFormatter: ISO8601DateFormatter = {
@@ -34,6 +35,17 @@ public enum UsageMapper {
         return nil
     }
 
+    /// Balance APIs commonly encode exact decimal amounts as JSON strings.
+    /// Accept those for scalar metrics while keeping window percentages strict.
+    private static func metricNumber(_ raw: Any?) -> Double? {
+        if let number = number(raw) { return number }
+        guard let string = raw as? String,
+              let value = Double(string),
+              value.isFinite
+        else { return nil }
+        return value
+    }
+
     /// Returns nil for a malformed reset; .some(nil) for an explicit null/absent one.
     private static func reset(from raw: Any?, format: ResetFormat) -> Date?? {
         if raw == nil || raw is NSNull { return .some(nil) }
@@ -43,6 +55,12 @@ public enum UsageMapper {
             return .some(date)
         case .unixSeconds:
             guard let seconds = number(raw) else { return nil }
+            let milliseconds = seconds * 1_000
+            // Keep parity with JavaScript Date's representable range and
+            // reject hostile finite values that would fail later formatting.
+            guard milliseconds.isFinite,
+                  abs(milliseconds) <= 8_640_000_000_000_000
+            else { return nil }
             return .some(Date(timeIntervalSince1970: seconds))
         }
     }
@@ -55,21 +73,26 @@ public enum UsageMapper {
         specWindowSeconds: Int?,
         secondary: Bool
     ) -> UsageWindow? {
+        guard let fields = spec.responseFields else { return nil }
         // Some providers nest the numbers one level down (Codex
         // additional_rate_limits entries appear both flat and nested).
         var source = bucket
-        if value(at: spec.responseFields.utilization, in: bucket) == nil,
+        if value(at: fields.utilization, in: bucket) == nil,
            let nested = bucket["rate_limit"] as? [String: Any] {
             source = nested
         }
 
-        guard let utilization = number(value(at: spec.responseFields.utilization, in: source)) else { return nil }
-        guard let resetsAt = reset(from: value(at: spec.responseFields.resetsAt, in: source), format: resetFormat) else { return nil }
+        guard let utilization = number(value(at: fields.utilization, in: source)) else { return nil }
+        guard let resetsAt = reset(from: value(at: fields.resetsAt, in: source), format: resetFormat) else { return nil }
 
         var windowSeconds = specWindowSeconds
-        if let key = spec.responseFields.windowSeconds,
+        if let key = fields.windowSeconds,
            let fromResponse = number(value(at: key, in: source)) {
-            windowSeconds = Int(fromResponse)
+            if fromResponse > 0,
+               fromResponse <= Double(Int.max),
+               fromResponse.rounded(.towardZero) == fromResponse {
+                windowSeconds = Int(fromResponse)
+            }
         }
 
         return UsageWindow(
@@ -81,11 +104,27 @@ public enum UsageMapper {
         )
     }
 
+    private static func normalizedMetricID(_ raw: String, prefix: String) -> String {
+        let safe = raw.lowercased().map { character -> Character in
+            character.isLetter || character.isNumber ? character : "_"
+        }
+        return "\(prefix)_\(String(safe))"
+    }
+
+    private static func boundedProviderText(_ raw: String, maximumBytes: Int) -> String? {
+        guard !raw.isEmpty,
+              raw.utf8.count <= maximumBytes,
+              raw.rangeOfCharacter(from: .controlCharacters) == nil
+        else { return nil }
+        return raw
+    }
+
     /// Returns nil when nothing maps at all — the schemaChanged signal.
     public static func map(spec: ProviderSpec, body: Data) -> Mapped? {
         guard let root = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] else { return nil }
 
         var windows: [UsageWindow] = []
+        var windowIDs = Set<String>()
         for mapping in spec.windows {
             guard let bucket = value(at: mapping.sourceKey, in: root) as? [String: Any] else { continue }
             if let window = readBucket(
@@ -95,17 +134,17 @@ public enum UsageMapper {
                 resetFormat: mapping.resetFormat,
                 specWindowSeconds: mapping.windowSeconds,
                 secondary: mapping.secondary
-            ) {
+            ), windowIDs.insert(window.id).inserted {
                 windows.append(window)
             }
         }
 
         if let additional = spec.additionalWindows,
            let entries = value(at: additional.sourceKey, in: root) as? [Any] {
-            for entry in entries {
+            for entry in entries.prefix(128) {
                 guard let record = entry as? [String: Any],
-                      let id = record[additional.idKey] as? String,
-                      !id.isEmpty
+                      let rawID = record[additional.idKey] as? String,
+                      let id = boundedProviderText(rawID, maximumBytes: 128)
                 else { continue }
                 if let window = readBucket(
                     spec: spec,
@@ -114,18 +153,62 @@ public enum UsageMapper {
                     resetFormat: .unixSeconds,
                     specWindowSeconds: nil,
                     secondary: additional.secondary
-                ) {
+                ), windowIDs.insert(window.id).inserted {
                     windows.append(window)
                 }
             }
         }
 
-        guard !windows.isEmpty else { return nil }
+        var metrics: [UsageMetric] = []
+        var metricIDs = Set<String>()
+        for mapping in spec.metricMappings {
+            guard let amount = metricNumber(value(at: mapping.sourceKey, in: root)) else { continue }
+            let metric = UsageMetric(
+                id: mapping.id,
+                label: mapping.label,
+                kind: mapping.kind,
+                value: amount,
+                unit: mapping.unit,
+                secondary: mapping.secondary
+            )
+            if metricIDs.insert(metric.id).inserted {
+                metrics.append(metric)
+            }
+        }
+
+        for collection in spec.metricCollectionMappings {
+            guard let entries = value(at: collection.sourceKey, in: root) as? [Any] else { continue }
+            for entry in entries.prefix(128) {
+                guard let record = entry as? [String: Any],
+                      let rawID = value(at: collection.idKey, in: record) as? String,
+                      let safeID = boundedProviderText(rawID, maximumBytes: 128),
+                      let amount = metricNumber(value(at: collection.valueKey, in: record))
+                else { continue }
+                let unit = collection.unitKey
+                    .flatMap { value(at: $0, in: record) as? String }
+                    .flatMap { boundedProviderText($0, maximumBytes: 32) }
+                let suffix = unit ?? safeID
+                let metric = UsageMetric(
+                    id: normalizedMetricID(safeID, prefix: collection.kind.rawValue),
+                    label: "\(collection.label) (\(suffix))",
+                    kind: collection.kind,
+                    value: amount,
+                    unit: unit,
+                    secondary: collection.secondary
+                )
+                if metricIDs.insert(metric.id).inserted {
+                    metrics.append(metric)
+                }
+            }
+        }
+
+        guard !windows.isEmpty || !metrics.isEmpty else { return nil }
 
         var planLabel: String?
-        if let planKey = spec.planKey, let plan = value(at: planKey, in: root) as? String, !plan.isEmpty {
-            planLabel = plan
+        if let planKey = spec.planKey,
+           let plan = value(at: planKey, in: root) as? String {
+            planLabel = boundedProviderText(plan, maximumBytes: 128)
         }
-        return Mapped(planLabel: planLabel, windows: windows)
+        return Mapped(planLabel: planLabel, windows: windows, metrics: metrics)
     }
 }

@@ -15,7 +15,7 @@ struct AddAccountView: View {
     /// replace confirmation, then save-anyway on network verify failure.
     enum PendingAction {
         case failed(String)
-        case confirmUnverified(LinkSource)
+        case confirmUnverified(LinkSource, String)
         case confirmReplace(LinkSource, [String])
     }
 
@@ -46,7 +46,7 @@ struct AddAccountView: View {
                 } header: {
                     Text("From your computer")
                 } footer: {
-                    Text("vigil-link finds your Claude Code / Codex CLI sign-ins and shows QR codes to scan. It never stores anything.")
+                    Text("vigil-link finds supported CLI sign-ins and opt-in API keys, then shows QR codes to scan. It never stores credentials or usage values.")
                 }
 
                 Section("Paste a link code") {
@@ -98,7 +98,7 @@ struct AddAccountView: View {
                 set: { if !$0 { pending = nil } }
             )) {
                 switch pending {
-                case .confirmUnverified(let source):
+                case .confirmUnverified(let source, _):
                     Button("Save anyway") { run(source, allowUnverified: true, allowReplace: true) }
                     Button("Cancel", role: .cancel) {}
                 case .confirmReplace(let source, _):
@@ -124,8 +124,8 @@ struct AddAccountView: View {
     private var alertMessage: String {
         switch pending {
         case .failed(let message): return message
-        case .confirmUnverified:
-            return "Network problem while verifying. Save and verify later?"
+        case .confirmUnverified(_, let message):
+            return message
         case .confirmReplace(_, let labels):
             return "This replaces the already-linked \(labels.joined(separator: ", "))."
         case nil: return ""
@@ -149,7 +149,15 @@ struct AddAccountView: View {
                 }
                 dismiss()
             } catch AppModel.LinkError.verifyFailed(.network) {
-                pending = .confirmUnverified(source)
+                pending = .confirmUnverified(
+                    source,
+                    "Network problem while verifying. Save and verify later?"
+                )
+            } catch AppModel.LinkError.verificationDeferred(_) {
+                pending = .confirmUnverified(
+                    source,
+                    "Vigil's polling safety cooldown deferred this check. Save now and verify on the next allowed refresh?"
+                )
             } catch AppModel.LinkError.wouldReplace(let labels) {
                 pending = .confirmReplace(source, labels)
             } catch {

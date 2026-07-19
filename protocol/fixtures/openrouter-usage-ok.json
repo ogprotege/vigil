@@ -1,0 +1,13 @@
+{
+  "data": {
+    "label": "vigil-test",
+    "usage": 12.5,
+    "limit": 50,
+    "is_free_tier": false,
+    "limit_remaining": 37.5,
+    "rate_limit": {
+      "requests": 200,
+      "interval": "10s"
+    }
+  }
+}

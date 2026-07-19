@@ -4,6 +4,7 @@ import VigilKit
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var accountPendingRemoval: AccountRef?
+    @State private var removalError: String?
 
     var body: some View {
         @Bindable var model = model
@@ -75,13 +76,28 @@ struct SettingsView: View {
         ) {
             Button("Remove account", role: .destructive) {
                 if let account = accountPendingRemoval {
-                    model.removeAccount(account)
+                    do {
+                        try model.removeAccount(account)
+                    } catch {
+                        removalError = error.localizedDescription
+                    }
                 }
                 accountPendingRemoval = nil
             }
             Button("Cancel", role: .cancel) { accountPendingRemoval = nil }
         } message: {
             Text("Deletes its credentials from the Keychain on this device. Re-adding will prompt a fresh link.")
+        }
+        .alert(
+            "Account removal needs attention",
+            isPresented: Binding(
+                get: { removalError != nil },
+                set: { if !$0 { removalError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { removalError = nil }
+        } message: {
+            Text(removalError ?? "")
         }
     }
 
@@ -110,7 +126,7 @@ struct SettingsView: View {
         )
         let events = ThresholdEngine.crossings(previous: before, current: after)
         await model.notifications.requestAuthorizationIfNeeded()
-        await model.notifications.deliver(events: events, account: account)
+        _ = await model.notifications.deliver(events: events, account: account)
     }
     #endif
 }

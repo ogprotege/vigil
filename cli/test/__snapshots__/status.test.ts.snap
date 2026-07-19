@@ -13,7 +13,8 @@ ChatGPT / Codex
   account id: present
   plan: pro
 
-vigil-link is stateless: it never writes credentials to disk (ADR-0004).
+vigil-link is credential-stateless: it never writes credentials or usage values to disk (ADR-0004).
+Poll safety state: /tmp/vigil-test-poll (timestamps and 429 counters only).
 "
 `;
 
@@ -35,5 +36,5 @@ exports[`status > reports honest states for missing creds and rate limiting 1`] 
   ⚠ provider is rate-limiting checks — this is normal, try again in a few minutes
 
 ChatGPT / Codex
-  no credentials found — is the provider's CLI signed in on this machine? (\`vigil-link doctor\` shows where Vigil looks)"
+  no credentials found. Run \`vigil-link doctor\` to see checked sources"
 `;

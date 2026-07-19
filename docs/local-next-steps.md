@@ -16,6 +16,8 @@
 | Phase 3 · M4 app | ✅ built, adversarially reviewed, in TestFlight |
 | Phase 4 · M5 widgets, M6 notifications/background/icon, M7 menu bar | ✅ built (menu bar ships with the macOS build from source) |
 | M8 · TestFlight | ✅ build 0.9.0 (1) in internal testing — process captured in [release.md](release.md) |
+| Reliability remediation | ✅ cross-process leases, CLI poll gate/timeouts, persistence alerts, account identity fix, future-link bound |
+| Provider expansion | ✅ OpenRouter and DeepSeek implemented as opt-in scalar-metric providers; live release validation still required |
 
 ## What actually remains
 
@@ -26,19 +28,25 @@
    background refresh, menu bar freshness.
 2. **External TestFlight / App Store** — screenshots, listing copy, Beta App
    Review ([release.md](release.md) § Not yet wired).
-3. **v1.1** — Live Activity, encrypted QR (`vigil1e`), Codex refresh,
-   API-spend Tier A, providers per the
-   [expansion map](provider-spec.md).
+3. **Provider release validation:** run OpenRouter and DeepSeek against
+   dedicated test keys, confirm scalar rendering on every intended surface,
+   and record the result in the support matrix.
+4. **Release-only validation:** keep the dedicated iOS and macOS app
+   reliability suite green, then complete the device-only Keychain, camera,
+   background-task, notification, and WidgetKit checks before each release.
+5. **Later product work:** Live Activity, encrypted QR (`vigil1e`), Codex
+   refresh, and carefully selected providers with supportable APIs.
 
 ## Standing gotchas (unchanged)
 
-- **Never poll Claude faster than 5 min** — the scheduler enforces it; don't
+- **Never poll Claude faster than 5 min.** Apple surfaces use locked leases
+  and the CLI uses a timestamp-only safety cache. Don't
   "fix" slowness by lowering `minSeconds`. That 429 jail is what breaks the
   monitor apps this project replaces.
 - **If a provider changes their response**: the app degrades to "provider
-  changed" instead of lying; the fix is `protocol/providers.json` + new
-  fixtures + the two thin mappers — see "Adding a provider" in
-  provider-spec.md.
+  changed" instead of lying. A fix may require registry, adapter, mapper,
+  fixture, Swift parity, UI, and documentation changes. Follow
+  [provider-contribution.md](provider-contribution.md).
 - **Never copy-refresh another CLI's token** — only pairs marked
   `src:"mint"` in the link payload are refreshable (ADR-0005).
 - **macOS CI minutes** are free only while the repo is public.

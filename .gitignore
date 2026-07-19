@@ -16,3 +16,9 @@ DerivedData/
 
 # Xcode archive/export artifacts
 apps/apple/build/
+
+# Signing credentials and provisioning profiles must stay outside source
+# control even when a release tool writes them somewhere unexpected.
+*.p12
+*.p8
+*.mobileprovision

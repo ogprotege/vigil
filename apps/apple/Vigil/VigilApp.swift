@@ -13,7 +13,7 @@ struct VigilApp: App {
 
     enum DeepLinkState {
         case failed(String)
-        case confirmUnverified(LinkPayload)
+        case confirmUnverified(LinkPayload, String)
         case confirmReplace(LinkPayload, [String])
     }
 
@@ -48,7 +48,7 @@ struct VigilApp: App {
                 )
             ) {
                 switch deepLink {
-                case .confirmUnverified(let payload):
+                case .confirmUnverified(let payload, _):
                     Button("Save anyway") { add(payload, allowUnverified: true, allowReplace: true) }
                     Button("Cancel", role: .cancel) {}
                 case .confirmReplace(let payload, _):
@@ -106,8 +106,8 @@ struct VigilApp: App {
     private var deepLinkAlertMessage: String {
         switch deepLink {
         case .failed(let message): return message
-        case .confirmUnverified:
-            return "Network problem while verifying. Save and verify later?"
+        case .confirmUnverified(_, let message):
+            return message
         case .confirmReplace(_, let labels):
             return "This replaces the already-linked \(labels.joined(separator: ", "))."
         case nil: return ""
@@ -135,7 +135,15 @@ struct VigilApp: App {
             do {
                 try await model.addAccounts(from: payload, allowUnverified: allowUnverified, allowReplace: allowReplace)
             } catch AppModel.LinkError.verifyFailed(.network) {
-                deepLink = .confirmUnverified(payload)
+                deepLink = .confirmUnverified(
+                    payload,
+                    "Network problem while verifying. Save and verify later?"
+                )
+            } catch AppModel.LinkError.verificationDeferred(_) {
+                deepLink = .confirmUnverified(
+                    payload,
+                    "Vigil's polling safety cooldown deferred this check. Save now and verify on the next allowed refresh?"
+                )
             } catch AppModel.LinkError.wouldReplace(let labels) {
                 deepLink = .confirmReplace(payload, labels)
             } catch {

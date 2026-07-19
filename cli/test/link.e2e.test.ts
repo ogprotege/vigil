@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { loadRegistry } from "../src/spec/registry.js";
 import { runLink } from "../src/commands/link.js";
+import { statusReport } from "../src/commands/status.js";
 import { assembleAndDecode, validateAge } from "../src/qr/payload.js";
 import {
   CLAUDE_CREDS_FILE,
@@ -9,7 +10,7 @@ import {
   loadFixture,
   makeFakeHome,
   startFixtureServer,
-  testEnv,
+  fixtureHttp,
   type FixtureServer,
 } from "./helpers.js";
 
@@ -41,7 +42,7 @@ describe("link --copy --json end-to-end", () => {
       verify: true,
       registry,
       discovery: { homeDir, platform: "linux", env: {} },
-      http: { env: testEnv(server.url) },
+      http: fixtureHttp(server.url),
       now: () => new Date("2026-07-18T20:01:00Z"),
       out: (t) => out.push(t),
       err: (t) => err.push(t),
@@ -51,10 +52,10 @@ describe("link --copy --json end-to-end", () => {
     expect(err.join("\n")).toContain("✓ Claude: verified (ok)");
     expect(err.join("\n")).toContain("✓ ChatGPT / Codex: verified (ok)");
 
-    const line = out.join("").trim();
-    expect(line).toMatch(/^vigil1:1\/1:[A-Z2-7]{4}:/);
+    const lines = out.join("").trim().split("\n");
+    expect(lines[0]).toMatch(/^vigil1:1\/\d+:[A-Z2-7]{4}:/);
 
-    const payload = assembleAndDecode([line]);
+    const payload = assembleAndDecode(lines);
     validateAge(payload, Math.floor(new Date("2026-07-18T20:05:00Z").getTime() / 1000));
     expect(payload.accounts).toHaveLength(2);
 
@@ -85,7 +86,7 @@ describe("link --copy --json end-to-end", () => {
       verify: true,
       registry,
       discovery: { homeDir, platform: "linux", env: {} },
-      http: { env: testEnv(server.url) },
+      http: fixtureHttp(server.url),
       out: () => {},
       err: (t) => err.push(t),
     });
@@ -112,5 +113,37 @@ describe("link --copy --json end-to-end", () => {
     });
     expect(code).toBe(1);
     expect(err.join("\n")).toContain("Nothing to link");
+  });
+
+  it("does not double-poll when status is followed immediately by link verification", async () => {
+    server = await startFixtureServer({
+      "/api/oauth/usage": json(200, loadFixture("claude-usage-ok.json")),
+    });
+    const { homeDir } = await makeFakeHome({ claude: CLAUDE_CREDS_FILE });
+    const now = () => new Date("2026-07-18T20:01:00Z");
+    const discovery = { homeDir, platform: "linux" as const, env: {} };
+    const http = fixtureHttp(server.url);
+
+    await statusReport({ registry, discovery, http, now }, ["claude"]);
+    const err: string[] = [];
+    const code = await runLink({
+      providers: ["claude"],
+      mode: "copy",
+      json: true,
+      loop: false,
+      big: false,
+      clear: true,
+      verify: true,
+      registry,
+      discovery,
+      http,
+      now,
+      out: () => {},
+      err: (text) => err.push(text),
+    });
+
+    expect(code).toBe(1);
+    expect(server.requests).toHaveLength(1);
+    expect(err.join("\n")).toContain("deferred");
   });
 });

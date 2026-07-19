@@ -105,10 +105,15 @@ export function codexCredsFile(): Record<string, unknown> {
   };
 }
 
-export function testEnv(claudeBase: string, codexBase?: string): Record<string, string> {
+export function fixtureHttp(claudeBase: string, codexBase?: string): {
+  fixtureBaseUrls: Record<string, string>;
+} {
   return {
-    VIGIL_TEST: "1",
-    VIGIL_TEST_BASE_CLAUDE: claudeBase,
-    VIGIL_TEST_BASE_CODEX: codexBase ?? claudeBase,
+    fixtureBaseUrls: {
+      claude: claudeBase,
+      codex: codexBase ?? claudeBase,
+      openrouter: claudeBase,
+      deepseek: claudeBase,
+    },
   };
 }

@@ -13,10 +13,22 @@ struct ManualEntryView: View {
     @State private var accountId = ""
     @State private var label = ""
 
+    private var selectedSpec: ProviderSpec? {
+        ProviderRegistry.spec(for: providerId)
+    }
+
+    private var requiresAccountId: Bool {
+        selectedSpec?.headers.values.contains(where: { $0.contains("{account_id}") }) == true
+    }
+
+    private var credentialLabel: String {
+        selectedSpec?.auth == "api_key_bearer" ? "API key" : "Access token"
+    }
+
     private var canSubmit: Bool {
         let token = accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !token.isEmpty else { return false }
-        if providerId == "codex" {
+        if requiresAccountId {
             return !accountId.trimmingCharacters(in: .whitespaces).isEmpty
         }
         return true
@@ -31,9 +43,11 @@ struct ManualEntryView: View {
             }
 
             Section {
-                SecureField("Access token", text: $accessToken)
-                SecureField("Refresh token (optional)", text: $refreshToken)
-                if providerId == "codex" {
+                SecureField(credentialLabel, text: $accessToken)
+                if selectedSpec?.oauth != nil {
+                    SecureField("Refresh token (optional)", text: $refreshToken)
+                }
+                if requiresAccountId {
                     TextField("Account ID", text: $accountId)
                         #if os(iOS)
                         .autocorrectionDisabled()
@@ -44,20 +58,22 @@ struct ManualEntryView: View {
             } header: {
                 Text("Credentials")
             } footer: {
-                Text(providerId == "codex"
-                     ? "From ~/.codex/auth.json: tokens.access_token and tokens.account_id."
-                     : "From `npx vigil-link --json`, or ~/.claude/.credentials.json (claudeAiOauth.accessToken).")
+                Text(selectedSpec?.manualEntryHint ?? "Enter a credential accepted by this provider.")
             }
 
             Button("Verify & add") {
                 let trimmedRefresh = refreshToken.trimmingCharacters(in: .whitespacesAndNewlines)
-                let trimmedAccount = accountId.trimmingCharacters(in: .whitespaces)
-                let trimmedLabel = label.trimmingCharacters(in: .whitespaces)
+                let trimmedAccount = accountId.trimmingCharacters(in: .whitespacesAndNewlines)
+                let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
                 onSubmit(Credentials(
                     providerId: providerId,
                     accessToken: accessToken.trimmingCharacters(in: .whitespacesAndNewlines),
-                    refreshToken: trimmedRefresh.isEmpty ? nil : trimmedRefresh,
-                    accountId: trimmedAccount.isEmpty ? nil : trimmedAccount,
+                    refreshToken: selectedSpec?.oauth != nil && !trimmedRefresh.isEmpty
+                        ? trimmedRefresh
+                        : nil,
+                    accountId: requiresAccountId && !trimmedAccount.isEmpty
+                        ? trimmedAccount
+                        : nil,
                     label: trimmedLabel.isEmpty ? nil : trimmedLabel
                 ))
                 dismiss()

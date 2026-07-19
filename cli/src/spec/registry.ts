@@ -2,7 +2,12 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export type ProviderId = "claude" | "codex";
+/**
+ * Provider IDs are registry keys, not a closed compile-time union. This keeps
+ * the CLI able to consume newly generated registry entries without another
+ * round of command parsing changes.
+ */
+export type ProviderId = string;
 
 export interface WindowSpec {
   id: string;
@@ -35,8 +40,14 @@ export interface UsageRequestSpec {
 }
 
 export interface DiscoverySpec {
+  adapter?: "claude" | "codex" | "environment" | string;
   file?: { path: string; jsonPath: string };
   macosKeychain?: { service: string };
+  environment?: {
+    accessToken: string;
+    accountId?: string;
+    label?: string;
+  };
 }
 
 export interface ResponseFieldsSpec {
@@ -51,16 +62,42 @@ export interface AdditionalWindowsSpec {
   secondary: boolean;
 }
 
+export type UsageMetricKind = "balance" | "spend" | "limit" | "remaining";
+
+export interface MetricMappingSpec {
+  id: string;
+  label: string;
+  sourceKey: string;
+  kind: UsageMetricKind;
+  unit?: string;
+  secondary: boolean;
+}
+
+export interface MetricCollectionMappingSpec {
+  sourceKey: string;
+  idKey: string;
+  valueKey: string;
+  label: string;
+  kind: UsageMetricKind;
+  unitKey?: string;
+  secondary: boolean;
+}
+
 export interface ProviderSpec {
   displayName: string;
+  /** Omitted means enabled. Opt-in providers set this to false. */
+  defaultEnabled?: boolean;
   auth: string;
   usage: UsageRequestSpec;
   oauth?: OAuthSpec;
   poll: PollSpec;
   discovery: DiscoverySpec;
-  responseFields: ResponseFieldsSpec;
+  manualEntryHint?: string;
+  responseFields?: ResponseFieldsSpec;
   planKey?: string;
   additionalWindows?: AdditionalWindowsSpec;
+  metricMappings?: MetricMappingSpec[];
+  metricCollectionMappings?: MetricCollectionMappingSpec[];
   windows: WindowSpec[];
   capabilities: string[];
 }
@@ -70,7 +107,11 @@ export interface Registry {
   providers: Record<ProviderId, ProviderSpec>;
 }
 
-export const PROVIDER_IDS: ProviderId[] = ["claude", "codex"];
+export function providerIds(registry: Registry, includeOptIn = false): ProviderId[] {
+  return Object.entries(registry.providers)
+    .filter(([, spec]) => includeOptIn || spec.defaultEnabled !== false)
+    .map(([id]) => id);
+}
 
 function specPath(): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
@@ -87,5 +128,15 @@ function specPath(): string {
 }
 
 export function loadRegistry(): Registry {
-  return JSON.parse(readFileSync(specPath(), "utf8")) as Registry;
+  const parsed = JSON.parse(readFileSync(specPath(), "utf8")) as Registry;
+  if (
+    parsed === null ||
+    typeof parsed !== "object" ||
+    typeof parsed.version !== "number" ||
+    parsed.providers === null ||
+    typeof parsed.providers !== "object"
+  ) {
+    throw new Error("providers.json has an invalid registry shape");
+  }
+  return parsed;
 }

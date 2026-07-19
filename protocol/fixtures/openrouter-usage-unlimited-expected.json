@@ -1,0 +1,6 @@
+{
+  "windows": [],
+  "metrics": [
+    { "id": "usage", "label": "Credits used", "kind": "spend", "value": 3.75, "unit": "USD", "secondary": false }
+  ]
+}

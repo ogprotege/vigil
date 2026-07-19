@@ -1,4 +1,4 @@
-import type { ProviderId } from "../spec/registry.js";
+import type { ProviderId, UsageMetricKind } from "../spec/registry.js";
 
 export interface UsageWindow {
   id: string;
@@ -8,7 +8,22 @@ export interface UsageWindow {
   secondary: boolean;
 }
 
-export type SnapshotStatus = "ok" | "authExpired" | "rateLimited" | "schemaChanged" | "network";
+export interface UsageMetric {
+  id: string;
+  label: string;
+  kind: UsageMetricKind;
+  value: number;
+  unit: string | null;
+  secondary: boolean;
+}
+
+export type SnapshotStatus =
+  | "ok"
+  | "authExpired"
+  | "rateLimited"
+  | "schemaChanged"
+  | "network"
+  | "deferred";
 
 export interface ProviderSnapshot {
   providerId: ProviderId;
@@ -16,7 +31,10 @@ export interface ProviderSnapshot {
   planLabel: string | null;
   fetchedAt: string;
   status: SnapshotStatus;
+  /** Present when a local poll gate deferred the live request. */
+  retryAt?: string;
   windows: UsageWindow[];
+  metrics: UsageMetric[];
 }
 
 export interface Credentials {
@@ -28,5 +46,5 @@ export interface Credentials {
   accountId?: string;
   label?: string;
   plan?: string;
-  source: "file" | "keychain" | "mint";
+  source: "file" | "keychain" | "environment" | "mint";
 }

@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
 import { createInterface } from "node:readline/promises";
-import { loadRegistry, PROVIDER_IDS, type ProviderId } from "./spec/registry.js";
+import { loadRegistry, providerIds, type ProviderId, type Registry } from "./spec/registry.js";
 import { statusReport } from "./commands/status.js";
 import { doctorReport } from "./commands/doctor.js";
 import { runLink } from "./commands/link.js";
 import { redactedMessage } from "./util/redact.js";
+import { sanitizeTerminalText } from "./util/terminal.js";
 
 const HELP = `vigil-link — link your AI accounts to the Vigil usage monitor
 
@@ -15,7 +16,7 @@ Usage:
   npx vigil-link doctor     Diagnose credential discovery ( --live adds a network check )
 
 Link options:
-  --provider <ids>   Comma-separated: claude,codex (default: all found)
+  --provider <ids>   Comma-separated registry IDs (default: enabled providers)
   --mint             Mint Vigil its own Claude token via browser sign-in (default)
   --copy             Copy existing CLI credentials instead of minting
   --json             Print the paste-code to stdout instead of rendering QRs
@@ -24,18 +25,21 @@ Link options:
   --no-clear         Don't clear the terminal after linking
   --no-verify        Skip the live verification fetch before rendering
 
-vigil-link is stateless: it never writes credentials to disk.
+vigil-link never writes credentials or usage values to disk. It stores only
+per-provider poll timestamps and 429 counters in the user cache directory.
 `;
 
-function parseProviders(value: string | undefined): ProviderId[] {
-  if (!value) return [...PROVIDER_IDS];
-  const ids = value.split(",").map((s) => s.trim().toLowerCase());
+function parseProviders(value: string | undefined, registry: Registry): ProviderId[] {
+  if (!value) return providerIds(registry);
+  const known = Object.keys(registry.providers);
+  const ids = [...new Set(value.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean))];
+  if (ids.length === 0) throw new Error("--provider requires at least one provider ID");
   for (const id of ids) {
-    if (!PROVIDER_IDS.includes(id as ProviderId)) {
-      throw new Error(`unknown provider "${id}" (known: ${PROVIDER_IDS.join(", ")})`);
+    if (!Object.hasOwn(registry.providers, id)) {
+      throw new Error(`unknown provider "${id}" (known: ${known.join(", ")})`);
     }
   }
-  return ids as ProviderId[];
+  return ids;
 }
 
 async function main(): Promise<number> {
@@ -63,7 +67,7 @@ async function main(): Promise<number> {
 
   const command = positionals[0] ?? "link";
   const registry = loadRegistry();
-  const providers = parseProviders(values.provider);
+  const providers = parseProviders(values.provider, registry);
 
   if (command === "status") {
     process.stdout.write((await statusReport({ registry }, providers)) + "\n");
@@ -109,7 +113,7 @@ async function main(): Promise<number> {
         ? {
             promptPaste: async (url) => {
               process.stderr.write(
-                `\nIf the browser didn't open, visit:\n${url}\n\n` +
+                  `\nIf the browser didn't open, visit:\n${sanitizeTerminalText(url, 4096)}\n\n` +
                   `Waiting for the browser... If it shows a connection error after you\n` +
                   `authorize, paste that page's full URL (or the code) below instead.\n`
               );
@@ -126,6 +130,6 @@ async function main(): Promise<number> {
 main()
   .then((code) => process.exit(code))
   .catch((err: unknown) => {
-    process.stderr.write(`error: ${redactedMessage(err)}\n`);
+    process.stderr.write(`error: ${sanitizeTerminalText(redactedMessage(err))}\n`);
     process.exit(1);
   });

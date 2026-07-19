@@ -1,9 +1,10 @@
-import type { ProviderSpec, WindowSpec } from "../spec/registry.js";
-import type { UsageWindow } from "./types.js";
+import type { ProviderSpec, UsageMetricKind, WindowSpec } from "../spec/registry.js";
+import type { UsageMetric, UsageWindow } from "./types.js";
 
 export interface MappedUsage {
   planLabel: string | null;
   windows: UsageWindow[];
+  metrics: UsageMetric[];
 }
 
 function getPath(obj: unknown, dotPath: string): unknown {
@@ -29,7 +30,9 @@ function parseReset(value: unknown, format: WindowSpec["resetFormat"]): string |
     return toIso(date);
   }
   if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
-  return toIso(new Date(value * 1000));
+  const date = new Date(value * 1000);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return toIso(date);
 }
 
 function readBucket(
@@ -37,6 +40,7 @@ function readBucket(
   bucket: Record<string, unknown>,
   windowSpec: Pick<WindowSpec, "id" | "resetFormat" | "windowSeconds" | "secondary">
 ): UsageWindow | null {
+  if (!spec.responseFields) return null;
   // Some providers nest the numbers one level down (e.g. Codex
   // additional_rate_limits entries have been seen both flat and nested).
   const nested = bucket["rate_limit"];
@@ -56,7 +60,11 @@ function readBucket(
   let windowSeconds: number | null = windowSpec.windowSeconds ?? null;
   if (spec.responseFields.windowSeconds) {
     const fromResponse = getPath(source, spec.responseFields.windowSeconds);
-    if (typeof fromResponse === "number" && Number.isFinite(fromResponse)) {
+    if (
+      typeof fromResponse === "number" &&
+      Number.isSafeInteger(fromResponse) &&
+      fromResponse > 0
+    ) {
       windowSeconds = fromResponse;
     }
   }
@@ -70,6 +78,32 @@ function readBucket(
   };
 }
 
+function metricNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function normalizedMetricId(raw: string, kind: UsageMetricKind): string {
+  const suffix = raw.toLowerCase().replace(/[^a-z0-9]/g, "_");
+  return `${kind}_${suffix}`;
+}
+
+function boundedProviderText(raw: unknown, maximumLength: number): string | null {
+  if (
+    typeof raw !== "string" ||
+    raw.length === 0 ||
+    raw.length > maximumLength ||
+    /[\u0000-\u001F\u007F-\u009F]/.test(raw)
+  ) {
+    return null;
+  }
+  return raw;
+}
+
 /**
  * Maps a raw usage response through the provider's window spec.
  * Returns null when nothing maps at all — the schemaChanged signal.
@@ -79,38 +113,89 @@ export function mapUsageResponse(spec: ProviderSpec, body: unknown): MappedUsage
   if (body === null || typeof body !== "object") return null;
 
   const windows: UsageWindow[] = [];
+  const windowIds = new Set<string>();
   for (const windowSpec of spec.windows) {
     const bucket = getPath(body, windowSpec.sourceKey);
     if (bucket === null || bucket === undefined || typeof bucket !== "object") continue;
     const mapped = readBucket(spec, bucket as Record<string, unknown>, windowSpec);
-    if (mapped) windows.push(mapped);
+    if (mapped && !windowIds.has(mapped.id)) {
+      windowIds.add(mapped.id);
+      windows.push(mapped);
+    }
   }
 
   if (spec.additionalWindows) {
     const extra = getPath(body, spec.additionalWindows.sourceKey);
     if (Array.isArray(extra)) {
-      for (const entry of extra) {
+      for (const entry of extra.slice(0, 128)) {
         if (entry === null || typeof entry !== "object") continue;
         const record = entry as Record<string, unknown>;
-        const id = record[spec.additionalWindows.idKey];
-        if (typeof id !== "string" || id.length === 0) continue;
+        const id = boundedProviderText(record[spec.additionalWindows.idKey], 128);
+        if (!id) continue;
         const mapped = readBucket(spec, record, {
           id,
           resetFormat: "unixSeconds",
           secondary: spec.additionalWindows.secondary,
         });
-        if (mapped) windows.push(mapped);
+        if (mapped && !windowIds.has(mapped.id)) {
+          windowIds.add(mapped.id);
+          windows.push(mapped);
+        }
       }
     }
   }
 
-  if (windows.length === 0) return null;
+  const metrics: UsageMetric[] = [];
+  const metricIds = new Set<string>();
+  for (const mapping of spec.metricMappings ?? []) {
+    const value = metricNumber(getPath(body, mapping.sourceKey));
+    if (value === null) continue;
+    const metric = {
+      id: mapping.id,
+      label: mapping.label,
+      kind: mapping.kind,
+      value,
+      unit: mapping.unit ?? null,
+      secondary: mapping.secondary,
+    };
+    if (!metricIds.has(metric.id)) {
+      metricIds.add(metric.id);
+      metrics.push(metric);
+    }
+  }
+
+  for (const collection of spec.metricCollectionMappings ?? []) {
+    const entries = getPath(body, collection.sourceKey);
+    if (!Array.isArray(entries)) continue;
+    for (const entry of entries.slice(0, 128)) {
+      if (entry === null || typeof entry !== "object") continue;
+      const record = entry as Record<string, unknown>;
+      const rawId = boundedProviderText(getPath(record, collection.idKey), 128);
+      const value = metricNumber(getPath(record, collection.valueKey));
+      if (!rawId || value === null) continue;
+      const rawUnit = collection.unitKey ? getPath(record, collection.unitKey) : undefined;
+      const unit = boundedProviderText(rawUnit, 32);
+      const metric = {
+        id: normalizedMetricId(rawId, collection.kind),
+        label: `${collection.label} (${unit ?? rawId})`,
+        kind: collection.kind,
+        value,
+        unit,
+        secondary: collection.secondary,
+      };
+      if (!metricIds.has(metric.id)) {
+        metricIds.add(metric.id);
+        metrics.push(metric);
+      }
+    }
+  }
+
+  if (windows.length === 0 && metrics.length === 0) return null;
 
   let planLabel: string | null = null;
   if (spec.planKey) {
-    const plan = getPath(body, spec.planKey);
-    if (typeof plan === "string" && plan.length > 0) planLabel = plan;
+    planLabel = boundedProviderText(getPath(body, spec.planKey), 128);
   }
 
-  return { planLabel, windows };
+  return { planLabel, windows, metrics };
 }

@@ -1,6 +1,69 @@
+import AppIntents
 import Foundation
+import OSLog
 import VigilKit
 import WidgetKit
+
+struct WidgetAccount: AppEntity {
+    static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Vigil Account")
+    static var defaultQuery = WidgetAccountQuery()
+
+    let id: String
+    let providerId: String
+    let label: String?
+    let plan: String?
+    let providerName: String
+
+    init(_ account: AccountRef) {
+        id = account.key
+        providerId = account.providerId
+        label = account.label
+        plan = account.plan
+        providerName = account.displayName
+    }
+
+    var displayRepresentation: DisplayRepresentation {
+        if let label, !label.isEmpty {
+            return DisplayRepresentation(title: "\(providerName)", subtitle: "\(label)")
+        }
+        return DisplayRepresentation(title: "\(providerName)")
+    }
+
+    var accountRef: AccountRef {
+        AccountRef(key: id, providerId: providerId, label: label, plan: plan)
+    }
+}
+
+struct WidgetAccountQuery: EntityQuery {
+    func entities(for identifiers: [WidgetAccount.ID]) async throws -> [WidgetAccount] {
+        let wanted = Set(identifiers)
+        return try AccountIndex.load()
+            .filter { wanted.contains($0.key) }
+            .map(WidgetAccount.init)
+    }
+
+    func suggestedEntities() async throws -> [WidgetAccount] {
+        try AccountIndex.load().map(WidgetAccount.init)
+    }
+
+    func defaultResult() async -> WidgetAccount? {
+        do {
+            return try AccountIndex.load().first.map(WidgetAccount.init)
+        } catch {
+            Logger(subsystem: "app.vigil", category: "widget")
+                .error("Could not load a default widget account: \(error.localizedDescription, privacy: .private(mask: .hash))")
+            return nil
+        }
+    }
+}
+
+struct SelectUsageAccountIntent: WidgetConfigurationIntent {
+    static var title: LocalizedStringResource = "Choose Account"
+    static var description = IntentDescription("Choose which linked account this widget monitors.")
+
+    @Parameter(title: "Account")
+    var account: WidgetAccount?
+}
 
 struct UsageEntry: TimelineEntry {
     let date: Date
@@ -13,7 +76,8 @@ struct UsageEntry: TimelineEntry {
 /// (docs/architecture.md fetch triggers). Timeline entries are scheduled at
 /// reset boundaries so a window visually drops to ~0% on time even before the
 /// next real fetch confirms it.
-struct UsageTimelineProvider: TimelineProvider {
+struct UsageTimelineProvider: AppIntentTimelineProvider {
+    private static let log = Logger(subsystem: "app.vigil", category: "widget")
     private static let staleAfter: TimeInterval = 30 * 60
 
     /// One scheduler per widget process: preserves in-process single-flight
@@ -27,44 +91,80 @@ struct UsageTimelineProvider: TimelineProvider {
         UsageEntry(date: Date(), account: nil, snapshot: Self.sampleSnapshot)
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (UsageEntry) -> Void) {
-        let (account, snapshot) = Self.load()
-        completion(UsageEntry(
+    func snapshot(for configuration: SelectUsageAccountIntent, in context: Context) async -> UsageEntry {
+        let (account, snapshot) = Self.load(accountKey: configuration.account?.id)
+        return UsageEntry(
             date: Date(),
             account: account,
             snapshot: snapshot ?? (context.isPreview ? Self.sampleSnapshot : nil)
-        ))
+        )
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<UsageEntry>) -> Void) {
-        Task {
-            var (account, snapshot) = Self.load()
+    func timeline(for configuration: SelectUsageAccountIntent, in context: Context) async -> Timeline<UsageEntry> {
+        var (account, snapshot) = Self.load(accountKey: configuration.account?.id)
 
-            if let account,
-               let credentials = try? KeychainCredentialsStore().load(accountKey: account.key),
-               (snapshot.map { Date().timeIntervalSince($0.fetchedAt) > Self.staleAfter } ?? true) {
-                let result = await UsageService.refresh(
-                    account: account,
-                    credentials: credentials,
-                    scheduler: Self.scheduler,
-                    snapshots: SnapshotStore(directory: SharedContainer.directory),
-                    vault: KeychainCredentialsStore(),
-                    surface: "widget"
+        if let account,
+           (snapshot.map { Date().timeIntervalSince($0.fetchedAt) > Self.staleAfter } ?? true) {
+            do {
+                let vault = SharedKeychain.credentialsStore()
+                if let credentials = try vault.load(accountKey: account.key) {
+                    let result = await UsageService.refresh(
+                        account: account,
+                        credentials: credentials,
+                        scheduler: Self.scheduler,
+                        snapshots: SnapshotStore(directory: SharedContainer.directory),
+                        vault: vault,
+                        surface: "widget",
+                        pendingEvents: PendingEventStore(directory: SharedContainer.directory)
+                    )
+                    if let fresh = result.snapshot { snapshot = fresh }
+                    if let issue = result.persistenceIssue {
+                        Self.log.error(
+                            "Widget persistence failure: \(String(describing: issue), privacy: .private(mask: .hash))"
+                        )
+                    }
+                } else {
+                    Self.log.error(
+                        "No credentials found for configured account \(account.key, privacy: .private(mask: .hash))"
+                    )
+                }
+            } catch {
+                Self.log.error(
+                    "Could not load credentials for \(account.key, privacy: .private(mask: .hash)): \(error.localizedDescription, privacy: .private(mask: .hash))"
                 )
-                if let fresh = result.snapshot { snapshot = fresh }
             }
-
-            completion(Self.timeline(account: account, snapshot: snapshot))
         }
+
+        return Self.timeline(account: account, snapshot: snapshot)
     }
 
     // MARK: - Data
 
-    private static func load() -> (AccountRef?, ProviderSnapshot?) {
-        guard let account = AccountIndex.load().first else { return (nil, nil) }
-        let snapshot = SnapshotStore(directory: SharedContainer.directory)
-            .current(accountKey: account.key)
-        return (account, snapshot)
+    private static func load(accountKey: String?) -> (AccountRef?, ProviderSnapshot?) {
+        let accounts: [AccountRef]
+        do {
+            accounts = try AccountIndex.load()
+        } catch {
+            log.error(
+                "Could not read account index: \(error.localizedDescription, privacy: .private(mask: .hash))"
+            )
+            return (nil, nil)
+        }
+
+        // A removed configured account stays empty instead of silently
+        // switching the widget to another user's account.
+        let account = AccountIndex.selected(from: accounts, accountKey: accountKey)
+        guard let account else { return (nil, nil) }
+        do {
+            let snapshot = try SnapshotStore(directory: SharedContainer.directory)
+                .current(accountKey: account.key)
+            return (account, snapshot)
+        } catch {
+            log.error(
+                "Could not read snapshot for \(account.key, privacy: .private(mask: .hash)): \(error.localizedDescription, privacy: .private(mask: .hash))"
+            )
+            return (account, nil)
+        }
     }
 
     private static func timeline(account: AccountRef?, snapshot: ProviderSnapshot?) -> Timeline<UsageEntry> {
@@ -122,7 +222,8 @@ struct UsageTimelineProvider: TimelineProvider {
                     windowSeconds: window.windowSeconds,
                     secondary: window.secondary
                 )
-            }
+            },
+            metrics: snapshot.metrics
         )
     }
 
