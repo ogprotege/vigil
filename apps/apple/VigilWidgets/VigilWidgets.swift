@@ -211,7 +211,14 @@ struct CircularUsageView: View {
         case "codex": return "X"
         case "openrouter": return "O"
         case "deepseek": return "D"
-        default: return "V"
+        case .some(let id):
+            // New providers fall back to the first letter of their registry
+            // display name, matching the menu bar title convention.
+            guard let first = ProviderRegistry.spec(for: id)?.displayName.first else {
+                return "V"
+            }
+            return String(first)
+        case nil: return "V"
         }
     }
 }

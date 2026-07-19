@@ -11,7 +11,36 @@ const registry = loadRegistry();
 describe("provider registry selection", () => {
   it("defaults to enabled providers but accepts opt-in registry entries explicitly", () => {
     expect(providerIds(registry)).toEqual(["claude", "codex"]);
-    expect(providerIds(registry, true)).toEqual(["claude", "codex", "openrouter", "deepseek"]);
+    expect(providerIds(registry, true)).toEqual([
+      "claude",
+      "codex",
+      "openrouter",
+      "deepseek",
+      "moonshot",
+      "moonshot_cn",
+      "minimax",
+      "minimax_cn",
+      "openai",
+      "github",
+      "xai",
+      "zai",
+      "cursor",
+    ]);
+  });
+
+  it("every opt-in gateway is discoverable from its environment variables", () => {
+    for (const [id, spec] of Object.entries(registry.providers)) {
+      if (spec.defaultEnabled !== false) continue;
+      expect(spec.discovery.adapter, id).toBe("environment");
+      expect(spec.discovery.environment?.accessToken, id).toBeTruthy();
+    }
+  });
+
+  it("providers whose URL needs an account id declare an account-id env var", () => {
+    for (const [id, spec] of Object.entries(registry.providers)) {
+      if (!spec.usage.url.includes("{account_id}")) continue;
+      expect(spec.discovery.environment?.accountId, id).toBeTruthy();
+    }
   });
 });
 

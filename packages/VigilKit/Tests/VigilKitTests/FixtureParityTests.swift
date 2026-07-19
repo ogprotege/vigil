@@ -263,21 +263,50 @@ final class FixtureParityTests: XCTestCase {
         )
     }
 
-    func testRequestBuilderSubstitutesAndOmitsHeaders() {
-        let claude = RequestBuilder.usageRequest(
+    func testRequestBuilderSubstitutesAndOmitsHeaders() throws {
+        let claude = try XCTUnwrap(RequestBuilder.usageRequest(
             spec: ProviderRegistry.claude,
             credentials: Credentials(providerId: "claude", accessToken: "sk-ant-oat01-X")
-        )
+        ))
         XCTAssertEqual(claude.value(forHTTPHeaderField: "Authorization"), "Bearer sk-ant-oat01-X")
         XCTAssertEqual(claude.value(forHTTPHeaderField: "anthropic-beta"), "oauth-2025-04-20")
         XCTAssertNotNil(claude.value(forHTTPHeaderField: "User-Agent"))
         XCTAssertEqual(claude.timeoutInterval, RequestBuilder.timeoutInterval)
 
-        let codexNoAccount = RequestBuilder.usageRequest(
+        let codexNoAccount = try XCTUnwrap(RequestBuilder.usageRequest(
             spec: ProviderRegistry.codex,
             credentials: Credentials(providerId: "codex", accessToken: "tok")
-        )
+        ))
         XCTAssertNil(codexNoAccount.value(forHTTPHeaderField: "ChatGPT-Account-Id"))
         XCTAssertEqual(codexNoAccount.value(forHTTPHeaderField: "Authorization"), "Bearer tok")
+    }
+
+    func testRequestBuilderTemplatesURLsAndComputedQueryParams() throws {
+        // A URL that needs {account_id} refuses to build without one.
+        XCTAssertNil(RequestBuilder.usageRequest(
+            spec: ProviderRegistry.gitHub,
+            credentials: Credentials(providerId: "github", accessToken: "tok")
+        ))
+
+        // 2026-07-19T00:00:00Z; month start is 2026-07-01T00:00:00Z.
+        let now = Date(timeIntervalSince1970: 1_784_419_200)
+        let github = try XCTUnwrap(RequestBuilder.usageRequest(
+            spec: ProviderRegistry.gitHub,
+            credentials: Credentials(providerId: "github", accessToken: "tok", accountId: "octo cat"),
+            now: now
+        ))
+        let githubURL = try XCTUnwrap(github.url?.absoluteString)
+        XCTAssertTrue(githubURL.contains("/users/octo%20cat/settings/billing/ai_credit/usage"), githubURL)
+        XCTAssertTrue(githubURL.contains("year=2026"), githubURL)
+        XCTAssertTrue(githubURL.contains("month=7"), githubURL)
+
+        let openai = try XCTUnwrap(RequestBuilder.usageRequest(
+            spec: ProviderRegistry.openAI,
+            credentials: Credentials(providerId: "openai", accessToken: "admin"),
+            now: now
+        ))
+        let openaiURL = try XCTUnwrap(openai.url?.absoluteString)
+        XCTAssertTrue(openaiURL.contains("start_time=1782864000"), "month start must be 2026-07-01T00:00:00Z — \(openaiURL)")
+        XCTAssertTrue(openaiURL.contains("bucket_width=1d"), openaiURL)
     }
 }

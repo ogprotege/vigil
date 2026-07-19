@@ -19,7 +19,11 @@
         "authorizeUrl": "https://claude.ai/oauth/authorize",
         "tokenUrl": "https://platform.claude.com/v1/oauth/token",
         "clientId": "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
-        "scopes": ["org:create_api_key", "user:profile", "user:inference"],
+        "scopes": [
+          "org:create_api_key",
+          "user:profile",
+          "user:inference"
+        ],
         "loopbackPort": 54545,
         "manualRedirectUri": "https://console.anthropic.com/oauth/code/callback"
       },
@@ -31,18 +35,52 @@
       },
       "discovery": {
         "adapter": "claude",
-        "file": { "path": "~/.claude/.credentials.json", "jsonPath": "claudeAiOauth" },
-        "macosKeychain": { "service": "Claude Code-credentials" }
+        "file": {
+          "path": "~/.claude/.credentials.json",
+          "jsonPath": "claudeAiOauth"
+        },
+        "macosKeychain": {
+          "service": "Claude Code-credentials"
+        }
       },
       "manualEntryHint": "From npx vigil-link --json, or ~/.claude/.credentials.json (claudeAiOauth.accessToken).",
-      "responseFields": { "utilization": "utilization", "resetsAt": "resets_at" },
+      "responseFields": {
+        "utilization": "utilization",
+        "resetsAt": "resets_at"
+      },
       "windows": [
-        { "id": "session", "sourceKey": "five_hour", "resetFormat": "iso8601", "windowSeconds": 18000, "secondary": false },
-        { "id": "weekly", "sourceKey": "seven_day", "resetFormat": "iso8601", "windowSeconds": 604800, "secondary": false },
-        { "id": "weekly_sonnet", "sourceKey": "seven_day_sonnet", "resetFormat": "iso8601", "windowSeconds": 604800, "secondary": true },
-        { "id": "weekly_opus", "sourceKey": "seven_day_opus", "resetFormat": "iso8601", "windowSeconds": 604800, "secondary": true }
+        {
+          "id": "session",
+          "sourceKey": "five_hour",
+          "resetFormat": "iso8601",
+          "windowSeconds": 18000,
+          "secondary": false
+        },
+        {
+          "id": "weekly",
+          "sourceKey": "seven_day",
+          "resetFormat": "iso8601",
+          "windowSeconds": 604800,
+          "secondary": false
+        },
+        {
+          "id": "weekly_sonnet",
+          "sourceKey": "seven_day_sonnet",
+          "resetFormat": "iso8601",
+          "windowSeconds": 604800,
+          "secondary": true
+        },
+        {
+          "id": "weekly_opus",
+          "sourceKey": "seven_day_opus",
+          "resetFormat": "iso8601",
+          "windowSeconds": 604800,
+          "secondary": true
+        }
       ],
-      "capabilities": ["rate_windows"]
+      "capabilities": [
+        "rate_windows"
+      ]
     },
     "codex": {
       "displayName": "ChatGPT / Codex",
@@ -66,17 +104,40 @@
       },
       "discovery": {
         "adapter": "codex",
-        "file": { "path": "~/.codex/auth.json", "jsonPath": "tokens" }
+        "file": {
+          "path": "~/.codex/auth.json",
+          "jsonPath": "tokens"
+        }
       },
       "manualEntryHint": "From ~/.codex/auth.json: tokens.access_token and tokens.account_id.",
-      "responseFields": { "utilization": "used_percent", "resetsAt": "reset_at", "windowSeconds": "limit_window_seconds" },
+      "responseFields": {
+        "utilization": "used_percent",
+        "resetsAt": "reset_at",
+        "windowSeconds": "limit_window_seconds"
+      },
       "planKey": "plan_type",
-      "additionalWindows": { "sourceKey": "additional_rate_limits", "idKey": "name", "secondary": true },
+      "additionalWindows": {
+        "sourceKey": "additional_rate_limits",
+        "idKey": "name",
+        "secondary": true
+      },
       "windows": [
-        { "id": "session", "sourceKey": "rate_limit.primary_window", "resetFormat": "unixSeconds", "secondary": false },
-        { "id": "weekly", "sourceKey": "rate_limit.secondary_window", "resetFormat": "unixSeconds", "secondary": false }
+        {
+          "id": "session",
+          "sourceKey": "rate_limit.primary_window",
+          "resetFormat": "unixSeconds",
+          "secondary": false
+        },
+        {
+          "id": "weekly",
+          "sourceKey": "rate_limit.secondary_window",
+          "resetFormat": "unixSeconds",
+          "secondary": false
+        }
       ],
-      "capabilities": ["rate_windows"]
+      "capabilities": [
+        "rate_windows"
+      ]
     },
     "openrouter": {
       "displayName": "OpenRouter",
@@ -99,16 +160,42 @@
       },
       "discovery": {
         "adapter": "environment",
-        "environment": { "accessToken": "OPENROUTER_API_KEY" }
+        "environment": {
+          "accessToken": "OPENROUTER_API_KEY"
+        }
       },
       "manualEntryHint": "Create or copy an OpenRouter API key, or set OPENROUTER_API_KEY before running vigil-link.",
       "metricMappings": [
-        { "id": "usage", "label": "Credits used", "sourceKey": "data.usage", "kind": "spend", "unit": "USD", "secondary": false },
-        { "id": "limit", "label": "Credit limit", "sourceKey": "data.limit", "kind": "limit", "unit": "USD", "secondary": true },
-        { "id": "remaining", "label": "Credits remaining", "sourceKey": "data.limit_remaining", "kind": "remaining", "unit": "USD", "secondary": false }
+        {
+          "id": "usage",
+          "label": "Credits used",
+          "sourceKey": "data.usage",
+          "kind": "spend",
+          "unit": "USD",
+          "secondary": false
+        },
+        {
+          "id": "limit",
+          "label": "Credit limit",
+          "sourceKey": "data.limit",
+          "kind": "limit",
+          "unit": "USD",
+          "secondary": true
+        },
+        {
+          "id": "remaining",
+          "label": "Credits remaining",
+          "sourceKey": "data.limit_remaining",
+          "kind": "remaining",
+          "unit": "USD",
+          "secondary": false
+        }
       ],
       "windows": [],
-      "capabilities": ["spend", "balance"]
+      "capabilities": [
+        "spend",
+        "balance"
+      ]
     },
     "deepseek": {
       "displayName": "DeepSeek",
@@ -131,7 +218,9 @@
       },
       "discovery": {
         "adapter": "environment",
-        "environment": { "accessToken": "DEEPSEEK_API_KEY" }
+        "environment": {
+          "accessToken": "DEEPSEEK_API_KEY"
+        }
       },
       "manualEntryHint": "Create or copy a DeepSeek API key, or set DEEPSEEK_API_KEY before running vigil-link.",
       "metricCollectionMappings": [
@@ -146,7 +235,495 @@
         }
       ],
       "windows": [],
-      "capabilities": ["balance"]
+      "capabilities": [
+        "balance"
+      ]
+    },
+    "moonshot": {
+      "displayName": "Moonshot (Kimi)",
+      "defaultEnabled": false,
+      "auth": "api_key_bearer",
+      "usage": {
+        "method": "GET",
+        "url": "https://api.moonshot.ai/v1/users/me/balance",
+        "headers": {
+          "Authorization": "Bearer {access_token}",
+          "Accept": "application/json",
+          "User-Agent": "Vigil/0.10"
+        }
+      },
+      "poll": {
+        "minSeconds": 300,
+        "jitterSeconds": 60,
+        "backoff429BaseSeconds": 900,
+        "backoffMaxSeconds": 3600
+      },
+      "discovery": {
+        "adapter": "environment",
+        "environment": {
+          "accessToken": "MOONSHOT_API_KEY"
+        }
+      },
+      "manualEntryHint": "Paste your Moonshot open-platform API key (sk-...) from platform.kimi.ai -> Console -> API Keys. China-platform keys need the Moonshot China provider.",
+      "metricMappings": [
+        {
+          "id": "balance",
+          "label": "Balance",
+          "sourceKey": "data.available_balance",
+          "kind": "balance",
+          "unit": "USD",
+          "secondary": false
+        },
+        {
+          "id": "balance_cash",
+          "label": "Cash balance",
+          "sourceKey": "data.cash_balance",
+          "kind": "balance",
+          "unit": "USD",
+          "secondary": true
+        },
+        {
+          "id": "balance_voucher",
+          "label": "Voucher balance",
+          "sourceKey": "data.voucher_balance",
+          "kind": "balance",
+          "unit": "USD",
+          "secondary": true
+        }
+      ],
+      "windows": [],
+      "capabilities": [
+        "balance"
+      ]
+    },
+    "moonshot_cn": {
+      "displayName": "Moonshot (Kimi) China",
+      "defaultEnabled": false,
+      "auth": "api_key_bearer",
+      "usage": {
+        "method": "GET",
+        "url": "https://api.moonshot.cn/v1/users/me/balance",
+        "headers": {
+          "Authorization": "Bearer {access_token}",
+          "Accept": "application/json",
+          "User-Agent": "Vigil/0.10"
+        }
+      },
+      "poll": {
+        "minSeconds": 300,
+        "jitterSeconds": 60,
+        "backoff429BaseSeconds": 900,
+        "backoffMaxSeconds": 3600
+      },
+      "discovery": {
+        "adapter": "environment",
+        "environment": {
+          "accessToken": "MOONSHOT_CN_API_KEY"
+        }
+      },
+      "manualEntryHint": "Paste your Moonshot China open-platform API key from platform.moonshot.cn -> Console -> API Keys.",
+      "metricMappings": [
+        {
+          "id": "balance",
+          "label": "Balance",
+          "sourceKey": "data.available_balance",
+          "kind": "balance",
+          "unit": "CNY",
+          "secondary": false
+        },
+        {
+          "id": "balance_cash",
+          "label": "Cash balance",
+          "sourceKey": "data.cash_balance",
+          "kind": "balance",
+          "unit": "CNY",
+          "secondary": true
+        },
+        {
+          "id": "balance_voucher",
+          "label": "Voucher balance",
+          "sourceKey": "data.voucher_balance",
+          "kind": "balance",
+          "unit": "CNY",
+          "secondary": true
+        }
+      ],
+      "windows": [],
+      "capabilities": [
+        "balance"
+      ]
+    },
+    "minimax": {
+      "displayName": "MiniMax Coding Plan",
+      "defaultEnabled": false,
+      "auth": "api_key_bearer",
+      "usage": {
+        "method": "GET",
+        "url": "https://api.minimax.io/v1/token_plan/remains",
+        "headers": {
+          "Authorization": "Bearer {access_token}",
+          "Accept": "application/json",
+          "User-Agent": "Vigil/0.10"
+        }
+      },
+      "poll": {
+        "minSeconds": 300,
+        "jitterSeconds": 60,
+        "backoff429BaseSeconds": 900,
+        "backoffMaxSeconds": 3600
+      },
+      "discovery": {
+        "adapter": "environment",
+        "environment": {
+          "accessToken": "MINIMAX_CODING_API_KEY"
+        }
+      },
+      "manualEntryHint": "Paste your MiniMax Coding Plan API key (sk-cp-...) from platform.minimax.io -> User Center -> Interface Key. China keys need the MiniMax China provider.",
+      "responseFields": {
+        "utilization": "current_interval_remaining_percent",
+        "resetsAt": "end_time",
+        "utilizationKind": "remaining",
+        "allowStringNumbers": true
+      },
+      "windows": [
+        {
+          "id": "session",
+          "sourceKey": "data.model_remains[model_name=general]",
+          "resetFormat": "unixMillis",
+          "secondary": false
+        },
+        {
+          "id": "weekly",
+          "sourceKey": "data.model_remains[model_name=general]",
+          "resetFormat": "unixMillis",
+          "secondary": false,
+          "fields": {
+            "utilization": "current_weekly_remaining_percent",
+            "resetsAt": "weekly_end_time"
+          }
+        }
+      ],
+      "capabilities": [
+        "rate_windows"
+      ]
+    },
+    "minimax_cn": {
+      "displayName": "MiniMax Coding Plan China",
+      "defaultEnabled": false,
+      "auth": "api_key_bearer",
+      "usage": {
+        "method": "GET",
+        "url": "https://api.minimaxi.com/v1/token_plan/remains",
+        "headers": {
+          "Authorization": "Bearer {access_token}",
+          "Accept": "application/json",
+          "User-Agent": "Vigil/0.10"
+        }
+      },
+      "poll": {
+        "minSeconds": 300,
+        "jitterSeconds": 60,
+        "backoff429BaseSeconds": 900,
+        "backoffMaxSeconds": 3600
+      },
+      "discovery": {
+        "adapter": "environment",
+        "environment": {
+          "accessToken": "MINIMAX_CN_CODING_API_KEY"
+        }
+      },
+      "manualEntryHint": "Paste your MiniMax China Coding Plan API key from platform.minimaxi.com -> User Center -> Interface Key.",
+      "responseFields": {
+        "utilization": "current_interval_remaining_percent",
+        "resetsAt": "end_time",
+        "utilizationKind": "remaining",
+        "allowStringNumbers": true
+      },
+      "windows": [
+        {
+          "id": "session",
+          "sourceKey": "data.model_remains[model_name=general]",
+          "resetFormat": "unixMillis",
+          "secondary": false
+        },
+        {
+          "id": "weekly",
+          "sourceKey": "data.model_remains[model_name=general]",
+          "resetFormat": "unixMillis",
+          "secondary": false,
+          "fields": {
+            "utilization": "current_weekly_remaining_percent",
+            "resetsAt": "weekly_end_time"
+          }
+        }
+      ],
+      "capabilities": [
+        "rate_windows"
+      ]
+    },
+    "openai": {
+      "displayName": "OpenAI API",
+      "defaultEnabled": false,
+      "auth": "api_key_bearer",
+      "usage": {
+        "method": "GET",
+        "url": "https://api.openai.com/v1/organization/costs",
+        "headers": {
+          "Authorization": "Bearer {access_token}",
+          "Accept": "application/json",
+          "User-Agent": "Vigil/0.10"
+        },
+        "query": {
+          "start_time": {
+            "compute": "monthStartUnixSeconds"
+          },
+          "bucket_width": {
+            "value": "1d"
+          },
+          "limit": {
+            "value": "31"
+          }
+        }
+      },
+      "poll": {
+        "minSeconds": 300,
+        "jitterSeconds": 60,
+        "backoff429BaseSeconds": 900,
+        "backoffMaxSeconds": 3600
+      },
+      "discovery": {
+        "adapter": "environment",
+        "environment": {
+          "accessToken": "OPENAI_ADMIN_KEY"
+        }
+      },
+      "manualEntryHint": "Create a read-only Admin API key at platform.openai.com -> Settings -> Organization -> Admin keys and paste it. Regular project keys (sk-proj-...) are rejected by the billing endpoint.",
+      "metricMappings": [
+        {
+          "id": "spend_month",
+          "label": "Spend (month to date)",
+          "sourceKey": "data[].results[].amount.value",
+          "aggregate": "sum",
+          "kind": "spend",
+          "unit": "USD",
+          "secondary": false
+        }
+      ],
+      "windows": [],
+      "capabilities": [
+        "spend"
+      ]
+    },
+    "github": {
+      "displayName": "GitHub Copilot",
+      "defaultEnabled": false,
+      "auth": "api_key_bearer",
+      "usage": {
+        "method": "GET",
+        "url": "https://api.github.com/users/{account_id}/settings/billing/ai_credit/usage",
+        "headers": {
+          "Authorization": "Bearer {access_token}",
+          "Accept": "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "User-Agent": "Vigil/0.10"
+        },
+        "query": {
+          "year": {
+            "compute": "currentYear"
+          },
+          "month": {
+            "compute": "currentMonth"
+          }
+        }
+      },
+      "poll": {
+        "minSeconds": 300,
+        "jitterSeconds": 60,
+        "backoff429BaseSeconds": 900,
+        "backoffMaxSeconds": 3600
+      },
+      "discovery": {
+        "adapter": "environment",
+        "environment": {
+          "accessToken": "GITHUB_BILLING_TOKEN",
+          "accountId": "GITHUB_BILLING_USER"
+        }
+      },
+      "manualEntryHint": "Create a fine-grained token at github.com -> Settings -> Developer settings with Account -> Plan (read) permission, and enter it together with your GitHub username. Org-managed Copilot seats report empty usage.",
+      "metricMappings": [
+        {
+          "id": "spend_month",
+          "label": "AI spend (month)",
+          "sourceKey": "usageItems[].netAmount",
+          "aggregate": "sum",
+          "kind": "spend",
+          "unit": "USD",
+          "secondary": false
+        },
+        {
+          "id": "credits_used",
+          "label": "Credits used (month)",
+          "sourceKey": "usageItems[].netQuantity",
+          "aggregate": "sum",
+          "kind": "spend",
+          "unit": "credits",
+          "secondary": true
+        }
+      ],
+      "windows": [],
+      "capabilities": [
+        "spend"
+      ]
+    },
+    "xai": {
+      "displayName": "xAI API",
+      "defaultEnabled": false,
+      "experimental": true,
+      "auth": "api_key_bearer",
+      "usage": {
+        "method": "GET",
+        "url": "https://management-api.x.ai/v1/billing/teams/{account_id}/prepaid/balance",
+        "headers": {
+          "Authorization": "Bearer {access_token}",
+          "Accept": "application/json",
+          "User-Agent": "Vigil/0.10"
+        }
+      },
+      "poll": {
+        "minSeconds": 300,
+        "jitterSeconds": 60,
+        "backoff429BaseSeconds": 900,
+        "backoffMaxSeconds": 3600
+      },
+      "discovery": {
+        "adapter": "environment",
+        "environment": {
+          "accessToken": "XAI_MANAGEMENT_KEY",
+          "accountId": "XAI_TEAM_ID"
+        }
+      },
+      "manualEntryHint": "Create a Management Key at console.x.ai -> Settings -> Management Keys and enter it with your team ID (visible in console URLs). Experimental: the balance denomination has not been verified against a live account.",
+      "metricMappings": [
+        {
+          "id": "balance",
+          "label": "Prepaid balance",
+          "sourceKey": "total.val",
+          "kind": "balance",
+          "unit": "USD",
+          "secondary": false
+        }
+      ],
+      "windows": [],
+      "capabilities": [
+        "balance"
+      ]
+    },
+    "zai": {
+      "displayName": "Z.ai Coding Plan",
+      "defaultEnabled": false,
+      "experimental": true,
+      "auth": "api_key_bearer",
+      "usage": {
+        "method": "GET",
+        "url": "https://api.z.ai/api/monitor/usage/quota/limit",
+        "headers": {
+          "Authorization": "Bearer {access_token}",
+          "Accept": "application/json",
+          "User-Agent": "Vigil/0.10"
+        }
+      },
+      "poll": {
+        "minSeconds": 300,
+        "jitterSeconds": 60,
+        "backoff429BaseSeconds": 900,
+        "backoffMaxSeconds": 3600
+      },
+      "discovery": {
+        "adapter": "environment",
+        "environment": {
+          "accessToken": "ZAI_API_KEY"
+        }
+      },
+      "manualEntryHint": "Paste your GLM Coding Plan API key from z.ai -> Manage API Key. Experimental: the quota endpoint is undocumented and its schema may drift.",
+      "planKey": "data.level",
+      "responseFields": {
+        "utilization": "percentage",
+        "resetsAt": "nextResetTime"
+      },
+      "windows": [
+        {
+          "id": "session",
+          "sourceKey": "data.limits[type=TOKENS_LIMIT]",
+          "resetFormat": "unixSeconds",
+          "secondary": false
+        },
+        {
+          "id": "monthly",
+          "sourceKey": "data.limits[type=TIME_LIMIT]",
+          "resetFormat": "unixSeconds",
+          "secondary": true
+        }
+      ],
+      "capabilities": [
+        "rate_windows"
+      ]
+    },
+    "cursor": {
+      "displayName": "Cursor",
+      "defaultEnabled": false,
+      "experimental": true,
+      "auth": "web_session_cookie",
+      "usage": {
+        "method": "GET",
+        "url": "https://cursor.com/api/usage-summary",
+        "headers": {
+          "Cookie": "WorkosCursorSessionToken={access_token}",
+          "Accept": "application/json",
+          "Referer": "https://www.cursor.com/settings",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+        }
+      },
+      "poll": {
+        "minSeconds": 300,
+        "jitterSeconds": 60,
+        "backoff429BaseSeconds": 900,
+        "backoffMaxSeconds": 3600
+      },
+      "discovery": {
+        "adapter": "environment",
+        "environment": {
+          "accessToken": "CURSOR_SESSION_TOKEN"
+        }
+      },
+      "manualEntryHint": "On cursor.com while signed in, open DevTools -> Application -> Cookies, copy the WorkosCursorSessionToken value, and paste it here. Experimental: undocumented web API; re-paste when the session expires.",
+      "planKey": "membershipType",
+      "responseFields": {
+        "utilization": "plan.totalPercentUsed",
+        "resetsAt": "billingCycleEnd"
+      },
+      "windows": [
+        {
+          "id": "plan",
+          "sourceKey": "individualUsage",
+          "resetFormat": "unixMillis",
+          "secondary": false
+        }
+      ],
+      "metricMappings": [
+        {
+          "id": "spend_ondemand",
+          "label": "On-demand spend",
+          "sourceKey": "individualUsage.onDemand",
+          "scale": 0.01,
+          "kind": "spend",
+          "unit": "USD",
+          "secondary": true
+        }
+      ],
+      "capabilities": [
+        "rate_windows",
+        "spend"
+      ]
     }
   }
 }

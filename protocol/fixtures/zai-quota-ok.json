@@ -1,0 +1,24 @@
+{
+  "code": 200,
+  "msg": "success",
+  "success": true,
+  "data": {
+    "limits": [
+      {
+        "type": "TOKENS_LIMIT",
+        "percentage": 37.5,
+        "usage": 15000000,
+        "currentValue": 15000000,
+        "remaining": 25000000
+      },
+      {
+        "type": "TIME_LIMIT",
+        "percentage": 12,
+        "usage": 36,
+        "currentValue": 36,
+        "remaining": 264
+      }
+    ],
+    "level": "pro"
+  }
+}

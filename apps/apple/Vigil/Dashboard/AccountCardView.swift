@@ -89,6 +89,9 @@ struct AccountCardView: View {
         HStack {
             Text(account.displayName)
                 .font(.headline)
+            if ProviderPresentation.isExperimental(providerId: account.providerId) {
+                ExperimentalBadge()
+            }
             if let plan = snapshot?.planLabel ?? account.plan {
                 Text(plan.capitalized)
                     .font(.caption.weight(.semibold))

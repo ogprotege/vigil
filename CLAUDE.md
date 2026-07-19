@@ -71,7 +71,7 @@ Its provider status is `ok | authExpired | rateLimited | schemaChanged | network
 - **Honest freshness**: countdowns tick client-side from `resets_at` with zero network. Staleness and failure states remain visible.
 - **Claude usage requests require `User-Agent: claude-code/<ver>`**. Without it they land in an aggressively limited bucket.
 - **Persistence failures are product failures.** Credential rotation, Keychain deletion, account-index writes, snapshot writes, and scheduler-ledger failures must not be ignored. Keep the app's visible storage alert path intact.
-- **One failed provider must not abort a multi-provider CLI report.** Network requests have a 15-second per-attempt timeout and provider failures degrade independently.
+- **One failed provider must not abort a multi-provider CLI report.** CLI requests abort at a hard 15-second per-attempt deadline (Apple requests set a 15-second idle timeout, which bounds time between bytes, not total duration) and provider failures degrade independently.
 - **VigilKit stays UI-free**; all app UI lives in `apps/apple/`.
 
 ## QR protocol (`vigil1`)

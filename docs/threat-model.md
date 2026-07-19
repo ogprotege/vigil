@@ -19,7 +19,7 @@ Data crosses these boundaries:
 
 1. provider-owned CLI files or macOS Keychain into `vigil-link`;
 2. the CLI process into terminal output or a QR image;
-3. the QR or paste code into the Vigil app;
+3. the QR, paste code, or `vigil1:` URL into the Vigil app;
 4. the app into Apple Keychain and the App Group container;
 5. the app or CLI over TLS to the activated provider;
 6. the app's App Group container into the widget extension.
@@ -39,8 +39,13 @@ Vigil has no application server, account service, telemetry collector, or cloud 
 
 ### QR handoff
 
-- The CLI asks for consent before showing credentials.
-- Terminal screen and scrollback clearing is best effort.
+- The CLI obtains consent before printing credentials. An interactive run
+  prompts y/N. In `--json` mode, or when stdin is not a terminal, the CLI
+  refuses to print credentials and exits 1 unless `--yes` grants explicit
+  consent. `--yes` skips the prompt and prints a warning on stderr.
+- Terminal screen and scrollback clearing is best effort and applies to
+  interactive QR output. The CLI cannot clear a piped stream, so `--json`
+  prints a clear-your-scrollback caution to stderr instead.
 - Chunks have a session ID and cannot be mixed across sessions.
 - Receivers reject payloads older than 10 minutes.
 - Receivers reject payloads more than 60 seconds in the future.
@@ -49,6 +54,21 @@ Vigil has no application server, account service, telemetry collector, or cloud 
   safety-cooldown path.
 - Receivers bound link chunks, account counts, credential fields, and metadata
   before durable storage.
+
+### vigil1 URL-scheme entry (iOS)
+
+The iOS app registers the `vigil1:` URL scheme so the stock camera can open
+Vigil from a scanned single-chunk code. Registration also means any installed
+app or webpage can invoke the scheme and deliver a crafted payload to Vigil.
+
+- A URL-delivered payload passes the same decoder validation as a scanned
+  code: the 10-minute age limit, the 60-second future-skew limit, and the
+  chunk, account, field-size, and control-character bounds.
+- A URL-delivered payload is never verified and never persisted until the
+  user confirms an explicit "Add account?" prompt naming the accounts the
+  link would add. Opening the in-app scanner remains a user-initiated act,
+  and replacing an already-linked account has always required its own
+  confirmation.
 
 ### Polling and local state
 
@@ -63,7 +83,10 @@ Vigil has no application server, account service, telemetry collector, or cloud 
 ### Provider failures
 
 - Requests use TLS through system networking.
-- Apple and CLI provider attempts have a 15-second timeout.
+- CLI provider attempts stop at a hard 15-second per-attempt deadline.
+- Apple provider requests set a 15-second request timeout. That value bounds
+  idle time between bytes, not total request duration, so a slowly dripping
+  response can hold a connection longer.
 - Provider failures are isolated.
 - Invalid successful responses become `schemaChanged`, not an empty success.
 - Scalar metrics preserve their reported unit. Vigil does not silently convert currencies or invent utilization.
@@ -75,6 +98,16 @@ Vigil has no application server, account service, telemetry collector, or cloud 
 `vigil1` compresses credentials but does not encrypt them. Anyone who sees the QR, captures the screen, reads terminal scrollback, or obtains a saved screenshot can recover the credential. Compression is not encryption.
 
 Mitigations reduce exposure time but do not remove this risk. Link in private, avoid screen sharing and recording, and clear the terminal. Revoke the credential if exposure is suspected.
+
+### The vigil1 URL scheme is public
+
+iOS cannot reserve a URL scheme for one app. Another installed app can
+register `vigil1:` and receive a link code meant for Vigil, including its
+plaintext credentials, and any app or webpage can open Vigil with a crafted
+payload. Decoder validation and the explicit add confirmation bound what a
+crafted payload can do, but the confirmation is only as strong as the user's
+attention, and scheme squatting by another installed app is outside Vigil's
+control. The in-app scanner does not route through the URL scheme.
 
 ### Provider endpoint stability
 

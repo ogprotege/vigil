@@ -15,13 +15,56 @@ public enum UsageMapper {
         return formatter
     }()
 
+    /// Dot-path lookup with one extension mirrored from the TS mapper: a
+    /// segment may end in a selector, `items[kind=general]`, which resolves
+    /// `items` to an array and picks the first element whose `kind` property
+    /// string-equals "general".
     private static func value(at dotPath: String, in object: Any?) -> Any? {
         var current: Any? = object
-        for key in dotPath.split(separator: ".") {
+        for segment in dotPath.split(separator: ".") {
             guard let dict = current as? [String: Any] else { return nil }
-            current = dict[String(key)]
+            if segment.hasSuffix("]"),
+               let open = segment.firstIndex(of: "["),
+               let equals = segment.firstIndex(of: "="),
+               open < equals {
+                let key = String(segment[..<open])
+                let matchKey = String(segment[segment.index(after: open)..<equals])
+                let matchValue = String(segment[segment.index(after: equals)..<segment.index(before: segment.endIndex)])
+                guard let array = dict[key] as? [Any] else { return nil }
+                current = array.prefix(128).first { entry in
+                    guard let record = entry as? [String: Any] else { return false }
+                    return (record[matchKey] as? String) == matchValue
+                }
+            } else {
+                current = dict[String(segment)]
+            }
         }
         return current
+    }
+
+    /// Aggregate-path lookup mirrored from the TS mapper: segments ending in
+    /// `[]` flat-map arrays, so `data[].results[].amount.value` collects
+    /// every matching leaf. Bounded at 128 elements per array level.
+    private static func collect(at dotPath: String, in object: Any?) -> [Any] {
+        var frontier: [Any] = object.map { [$0] } ?? []
+        for segment in dotPath.split(separator: ".") {
+            var next: [Any] = []
+            let isFlatMap = segment.hasSuffix("[]")
+            let key = isFlatMap ? String(segment.dropLast(2)) : String(segment)
+            for node in frontier {
+                guard let dict = node as? [String: Any], let value = dict[key] else { continue }
+                if isFlatMap {
+                    if let array = value as? [Any] {
+                        next.append(contentsOf: array.prefix(128))
+                    }
+                } else {
+                    next.append(value)
+                }
+            }
+            frontier = next
+            if frontier.isEmpty { return [] }
+        }
+        return frontier
     }
 
     private static func number(_ raw: Any?) -> Double? {
@@ -47,22 +90,33 @@ public enum UsageMapper {
         return value
     }
 
+    /// Window numbers are strict by default; allowStringNumbers opts a
+    /// provider into string-encoded numerics ("46.5") without loosening
+    /// everyone else. Mirrors the TS windowNumber helper.
+    private static func windowNumber(_ raw: Any?, lenient: Bool) -> Double? {
+        if let value = number(raw) { return value }
+        guard lenient, let string = raw as? String else { return nil }
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let value = Double(trimmed), value.isFinite else { return nil }
+        return value
+    }
+
     /// Returns nil for a malformed reset; .some(nil) for an explicit null/absent one.
-    private static func reset(from raw: Any?, format: ResetFormat) -> Date?? {
+    private static func reset(from raw: Any?, format: ResetFormat, lenient: Bool) -> Date?? {
         if raw == nil || raw is NSNull { return .some(nil) }
         switch format {
         case .iso8601:
             guard let string = raw as? String, let date = isoFormatter.date(from: string) else { return nil }
             return .some(date)
-        case .unixSeconds:
-            guard let seconds = number(raw) else { return nil }
-            let milliseconds = seconds * 1_000
+        case .unixSeconds, .unixMillis:
+            guard let numeric = windowNumber(raw, lenient: lenient) else { return nil }
+            let milliseconds = format == .unixMillis ? numeric : numeric * 1_000
             // Keep parity with JavaScript Date's representable range and
             // reject hostile finite values that would fail later formatting.
             guard milliseconds.isFinite,
                   abs(milliseconds) <= 8_640_000_000_000_000
             else { return nil }
-            return .some(Date(timeIntervalSince1970: seconds))
+            return .some(Date(timeIntervalSince1970: milliseconds / 1_000))
         }
     }
 
@@ -72,23 +126,29 @@ public enum UsageMapper {
         id: String,
         resetFormat: ResetFormat,
         specWindowSeconds: Int?,
-        secondary: Bool
+        secondary: Bool,
+        fieldOverride: WindowFieldOverride? = nil
     ) -> UsageWindow? {
         guard let fields = spec.responseFields else { return nil }
+        let utilizationKey = fieldOverride?.utilization ?? fields.utilization
+        let resetsAtKey = fieldOverride?.resetsAt ?? fields.resetsAt
+        let lenient = fields.allowStringNumbers
+
         // Some providers nest the numbers one level down (Codex
         // additional_rate_limits entries appear both flat and nested).
         var source = bucket
-        if value(at: fields.utilization, in: bucket) == nil,
+        if value(at: utilizationKey, in: bucket) == nil,
            let nested = bucket["rate_limit"] as? [String: Any] {
             source = nested
         }
 
-        guard let utilization = number(value(at: fields.utilization, in: source)) else { return nil }
-        guard let resetsAt = reset(from: value(at: fields.resetsAt, in: source), format: resetFormat) else { return nil }
+        guard let rawUtilization = windowNumber(value(at: utilizationKey, in: source), lenient: lenient) else { return nil }
+        let utilization = fields.utilizationKind == .remaining ? 100 - rawUtilization : rawUtilization
+        guard let resetsAt = reset(from: value(at: resetsAtKey, in: source), format: resetFormat, lenient: lenient) else { return nil }
 
         var windowSeconds = specWindowSeconds
         if let key = fields.windowSeconds,
-           let fromResponse = number(value(at: key, in: source)),
+           let fromResponse = windowNumber(value(at: key, in: source), lenient: lenient),
            // Int(exactly:) rejects non-integral values and anything outside
            // Int64 — a plain Int(_:) would trap on 2^63, which slips past a
            // `<= Double(Int.max)` comparison because Int.max rounds UP to
@@ -146,7 +206,8 @@ public enum UsageMapper {
                 id: mapping.id,
                 resetFormat: mapping.resetFormat,
                 specWindowSeconds: mapping.windowSeconds,
-                secondary: mapping.secondary
+                secondary: mapping.secondary,
+                fieldOverride: mapping.fields
             ), windowIDs.insert(window.id).inserted {
                 windows.append(window)
             }
@@ -175,12 +236,35 @@ public enum UsageMapper {
         var metrics: [UsageMetric] = []
         var metricIDs = Set<String>()
         for mapping in spec.metricMappings {
-            guard let amount = metricNumber(value(at: mapping.sourceKey, in: root)) else { continue }
+            var amount: Double?
+            if mapping.aggregate == .sum {
+                // A zero-spend month legitimately sums to 0 (root array
+                // present but empty); a missing root key, or leaves that all
+                // fail to parse, means the shape changed. Mirrors map.ts.
+                let firstSegment = mapping.sourceKey.split(separator: ".").first.map(String.init) ?? ""
+                let firstKey = firstSegment.hasSuffix("[]") ? String(firstSegment.dropLast(2)) : firstSegment
+                if let rootValue = root[firstKey], !(rootValue is NSNull) {
+                    let leaves = collect(at: mapping.sourceKey, in: root)
+                    let numbers = leaves.compactMap { metricNumber($0) }
+                    amount = (!leaves.isEmpty && numbers.isEmpty)
+                        ? nil
+                        : numbers.reduce(0, +)
+                } else {
+                    amount = nil
+                }
+            } else {
+                amount = metricNumber(value(at: mapping.sourceKey, in: root))
+            }
+            guard var resolved = amount else { continue }
+            if let scale = mapping.scale, scale.isFinite {
+                resolved *= scale
+            }
+            guard resolved.isFinite else { continue }
             let metric = UsageMetric(
                 id: mapping.id,
                 label: mapping.label,
                 kind: mapping.kind,
-                value: amount,
+                value: resolved,
                 unit: mapping.unit,
                 secondary: mapping.secondary
             )

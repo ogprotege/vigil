@@ -13,6 +13,7 @@ final class SpecParityTests: XCTestCase {
 
     private struct SpecProvider: Decodable {
         let displayName: String
+        let experimental: Bool?
         let auth: String
         let usage: SpecUsage
         let oauth: SpecOAuth?
@@ -26,6 +27,11 @@ final class SpecParityTests: XCTestCase {
         let manualEntryHint: String?
     }
 
+    private struct SpecQueryParam: Decodable, Equatable {
+        let value: String?
+        let compute: String?
+    }
+
     private struct SpecOAuth: Decodable {
         let tokenUrl: String
         let clientId: String
@@ -35,6 +41,7 @@ final class SpecParityTests: XCTestCase {
         let method: String
         let url: String
         let headers: [String: String]
+        let query: [String: SpecQueryParam]?
     }
 
     private struct SpecPoll: Decodable {
@@ -48,6 +55,8 @@ final class SpecParityTests: XCTestCase {
         let utilization: String
         let resetsAt: String
         let windowSeconds: String?
+        let utilizationKind: String?
+        let allowStringNumbers: Bool?
     }
 
     private struct SpecAdditional: Decodable {
@@ -56,12 +65,18 @@ final class SpecParityTests: XCTestCase {
         let secondary: Bool
     }
 
+    private struct SpecWindowFields: Decodable {
+        let utilization: String
+        let resetsAt: String
+    }
+
     private struct SpecWindow: Decodable {
         let id: String
         let sourceKey: String
         let resetFormat: String
         let windowSeconds: Int?
         let secondary: Bool
+        let fields: SpecWindowFields?
     }
 
     private struct SpecMetric: Decodable {
@@ -71,6 +86,8 @@ final class SpecParityTests: XCTestCase {
         let kind: String
         let unit: String?
         let secondary: Bool
+        let aggregate: String?
+        let scale: Double?
     }
 
     private struct SpecMetricCollection: Decodable {
@@ -85,10 +102,33 @@ final class SpecParityTests: XCTestCase {
 
     private func assertMatches(_ swift: ProviderSpec, _ json: SpecProvider, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertEqual(swift.displayName, json.displayName, file: file, line: line)
+        XCTAssertEqual(swift.experimental, json.experimental ?? false, file: file, line: line)
         XCTAssertEqual(swift.auth, json.auth, file: file, line: line)
         XCTAssertEqual(swift.usageMethod, json.usage.method, file: file, line: line)
-        XCTAssertEqual(swift.usageURL.absoluteString, json.usage.url, file: file, line: line)
+        XCTAssertEqual(swift.usageURLTemplate, json.usage.url, file: file, line: line)
         XCTAssertEqual(swift.headers, json.usage.headers, file: file, line: line)
+
+        // Query params: JSON objects are unordered after decoding, so compare
+        // as name -> spec maps; both sides must agree on every entry.
+        let jsonQuery = json.usage.query ?? [:]
+        XCTAssertEqual(swift.query.count, jsonQuery.count, file: file, line: line)
+        for entry in swift.query {
+            guard let want = jsonQuery[entry.name] else {
+                XCTFail("query param \(entry.name) missing from providers.json", file: file, line: line)
+                continue
+            }
+            switch entry.param {
+            case .value(let literal):
+                XCTAssertEqual(want.value, literal, file: file, line: line)
+                XCTAssertNil(want.compute, file: file, line: line)
+            case .monthStartUnixSeconds:
+                XCTAssertEqual(want.compute, "monthStartUnixSeconds", file: file, line: line)
+            case .currentYear:
+                XCTAssertEqual(want.compute, "currentYear", file: file, line: line)
+            case .currentMonth:
+                XCTAssertEqual(want.compute, "currentMonth", file: file, line: line)
+            }
+        }
         XCTAssertEqual(swift.poll.minSeconds, json.poll.minSeconds, file: file, line: line)
         XCTAssertEqual(swift.poll.jitterSeconds, json.poll.jitterSeconds, file: file, line: line)
         XCTAssertEqual(swift.poll.backoff429BaseSeconds, json.poll.backoff429BaseSeconds, file: file, line: line)
@@ -96,6 +136,18 @@ final class SpecParityTests: XCTestCase {
         XCTAssertEqual(swift.responseFields?.utilization, json.responseFields?.utilization, file: file, line: line)
         XCTAssertEqual(swift.responseFields?.resetsAt, json.responseFields?.resetsAt, file: file, line: line)
         XCTAssertEqual(swift.responseFields?.windowSeconds, json.responseFields?.windowSeconds, file: file, line: line)
+        if let swiftFields = swift.responseFields {
+            XCTAssertEqual(
+                swiftFields.utilizationKind.rawValue,
+                json.responseFields?.utilizationKind ?? "used",
+                file: file, line: line
+            )
+            XCTAssertEqual(
+                swiftFields.allowStringNumbers,
+                json.responseFields?.allowStringNumbers ?? false,
+                file: file, line: line
+            )
+        }
         XCTAssertEqual(swift.planKey, json.planKey, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.sourceKey, json.additionalWindows?.sourceKey, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.idKey, json.additionalWindows?.idKey, file: file, line: line)
@@ -112,6 +164,8 @@ final class SpecParityTests: XCTestCase {
             XCTAssertEqual(got.resetFormat.rawValue, want.resetFormat, file: file, line: line)
             XCTAssertEqual(got.windowSeconds, want.windowSeconds, file: file, line: line)
             XCTAssertEqual(got.secondary, want.secondary, file: file, line: line)
+            XCTAssertEqual(got.fields?.utilization, want.fields?.utilization, file: file, line: line)
+            XCTAssertEqual(got.fields?.resetsAt, want.fields?.resetsAt, file: file, line: line)
         }
         let jsonMetrics = json.metricMappings ?? []
         XCTAssertEqual(swift.metricMappings.count, jsonMetrics.count, file: file, line: line)
@@ -122,6 +176,8 @@ final class SpecParityTests: XCTestCase {
             XCTAssertEqual(got.kind.rawValue, want.kind, file: file, line: line)
             XCTAssertEqual(got.unit, want.unit, file: file, line: line)
             XCTAssertEqual(got.secondary, want.secondary, file: file, line: line)
+            XCTAssertEqual(got.aggregate?.rawValue, want.aggregate, file: file, line: line)
+            XCTAssertEqual(got.scale, want.scale, file: file, line: line)
         }
         let jsonCollections = json.metricCollectionMappings ?? []
         XCTAssertEqual(swift.metricCollectionMappings.count, jsonCollections.count, file: file, line: line)

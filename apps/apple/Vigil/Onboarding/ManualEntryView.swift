@@ -18,7 +18,7 @@ struct ManualEntryView: View {
     }
 
     private var requiresAccountId: Bool {
-        selectedSpec?.headers.values.contains(where: { $0.contains("{account_id}") }) == true
+        selectedSpec.map(ProviderPresentation.needsAccountId) == true
     }
 
     private var credentialLabel: String {
@@ -38,8 +38,15 @@ struct ManualEntryView: View {
         Form {
             Picker("Provider", selection: $providerId) {
                 ForEach(ProviderRegistry.all, id: \.id) { spec in
-                    Text(spec.displayName).tag(spec.id)
+                    Text(ProviderPresentation.pickerTitle(for: spec)).tag(spec.id)
                 }
+            }
+            if selectedSpec?.experimental == true {
+                StatusBannerView(
+                    icon: "testtube.2",
+                    tint: .orange,
+                    text: "Experimental — a community-documented endpoint, not a vendor-supported integration. It may break without notice."
+                )
             }
 
             Section {
@@ -47,8 +54,8 @@ struct ManualEntryView: View {
                 if selectedSpec?.oauth != nil {
                     SecureField("Refresh token (optional)", text: $refreshToken)
                 }
-                if requiresAccountId {
-                    TextField("Account ID", text: $accountId)
+                if let spec = selectedSpec, ProviderPresentation.needsAccountId(spec) {
+                    TextField(ProviderPresentation.accountIdLabel(for: spec), text: $accountId)
                         #if os(iOS)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)

@@ -44,7 +44,9 @@ export async function doctorReport(deps: DoctorDeps, providers: ProviderId[]): P
       lines.push("  ✗ provider is missing from the loaded registry");
       return lines;
     }
-    lines.push(sanitizeTerminalText(spec.displayName));
+    lines.push(
+      sanitizeTerminalText(spec.displayName + (spec.experimental ? " (experimental)" : ""))
+    );
 
     let result;
     try {

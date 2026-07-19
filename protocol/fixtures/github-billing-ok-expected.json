@@ -1,0 +1,21 @@
+{
+  "windows": [],
+  "metrics": [
+    {
+      "id": "spend_month",
+      "label": "AI spend (month)",
+      "kind": "spend",
+      "value": 2,
+      "unit": "USD",
+      "secondary": false
+    },
+    {
+      "id": "credits_used",
+      "label": "Credits used (month)",
+      "kind": "spend",
+      "value": 200,
+      "unit": "credits",
+      "secondary": true
+    }
+  ]
+}

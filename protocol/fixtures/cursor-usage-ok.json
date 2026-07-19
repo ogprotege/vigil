@@ -1,0 +1,15 @@
+{
+  "membershipType": "pro",
+  "individualUsage": {
+    "plan": {
+      "used": 8300,
+      "limit": 10000,
+      "remaining": 1700,
+      "totalPercentUsed": 83,
+      "autoPercentUsed": 0,
+      "apiPercentUsed": 0
+    },
+    "onDemand": 4350,
+    "billingCycleEnd": 1784530800000
+  }
+}

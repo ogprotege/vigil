@@ -1,0 +1,13 @@
+{
+  "windows": [],
+  "metrics": [
+    {
+      "id": "balance",
+      "label": "Prepaid balance",
+      "kind": "balance",
+      "value": 25.5,
+      "unit": "USD",
+      "secondary": false
+    }
+  ]
+}

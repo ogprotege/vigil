@@ -17,7 +17,12 @@ struct SettingsView: View {
                     ForEach(model.accounts) { account in
                         HStack {
                             VStack(alignment: .leading) {
-                                Text(account.displayName)
+                                HStack(spacing: 6) {
+                                    Text(account.displayName)
+                                    if ProviderPresentation.isExperimental(providerId: account.providerId) {
+                                        ExperimentalBadge()
+                                    }
+                                }
                                 if let label = account.label {
                                     Text(label)
                                         .font(.caption)

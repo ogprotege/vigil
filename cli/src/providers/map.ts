@@ -7,13 +7,62 @@ export interface MappedUsage {
   metrics: UsageMetric[];
 }
 
+/**
+ * Dot-path lookup with one extension: a segment may end in a selector,
+ * `items[kind=general]`, which resolves `items` to an array and picks the
+ * first element whose `kind` property string-equals "general".
+ */
 function getPath(obj: unknown, dotPath: string): unknown {
   let cur: unknown = obj;
-  for (const key of dotPath.split(".")) {
+  for (const segment of dotPath.split(".")) {
     if (cur === null || typeof cur !== "object") return undefined;
-    cur = (cur as Record<string, unknown>)[key];
+    const selector = /^([^[\]]+)\[([^=\]]+)=([^\]]*)\]$/.exec(segment);
+    if (selector) {
+      const key = selector[1] as string;
+      const matchKey = selector[2] as string;
+      const matchValue = selector[3] as string;
+      const array = (cur as Record<string, unknown>)[key];
+      if (!Array.isArray(array)) return undefined;
+      cur = array
+        .slice(0, 128)
+        .find(
+          (entry) =>
+            entry !== null &&
+            typeof entry === "object" &&
+            (entry as Record<string, unknown>)[matchKey] === matchValue
+        );
+    } else {
+      cur = (cur as Record<string, unknown>)[segment];
+    }
   }
   return cur;
+}
+
+/**
+ * Aggregate-path lookup: segments ending in `[]` flat-map arrays, so
+ * `data[].results[].amount.value` collects every matching leaf. Bounded at
+ * 128 elements per array level like every other provider-controlled fan-out.
+ */
+function collectPath(obj: unknown, dotPath: string): unknown[] {
+  let frontier: unknown[] = [obj];
+  for (const rawSegment of dotPath.split(".")) {
+    const segment = rawSegment as string;
+    const next: unknown[] = [];
+    const isFlatMap = segment.endsWith("[]");
+    const key = isFlatMap ? segment.slice(0, -2) : segment;
+    for (const node of frontier) {
+      if (node === null || typeof node !== "object") continue;
+      const value = (node as Record<string, unknown>)[key];
+      if (isFlatMap) {
+        if (Array.isArray(value)) next.push(...value.slice(0, 128));
+      } else {
+        next.push(value);
+      }
+    }
+    frontier = next;
+    if (frontier.length === 0) return [];
+  }
+  return frontier;
 }
 
 /** Normalizes to second-precision ISO-8601 with a trailing Z. */
@@ -21,7 +70,11 @@ function toIso(date: Date): string {
   return date.toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
-function parseReset(value: unknown, format: WindowSpec["resetFormat"]): string | null | undefined {
+function parseReset(
+  value: unknown,
+  format: WindowSpec["resetFormat"],
+  lenient: boolean
+): string | null | undefined {
   if (value === null || value === undefined) return null;
   if (format === "iso8601") {
     if (typeof value !== "string") return undefined;
@@ -29,42 +82,59 @@ function parseReset(value: unknown, format: WindowSpec["resetFormat"]): string |
     if (Number.isNaN(date.getTime())) return undefined;
     return toIso(date);
   }
-  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
-  const date = new Date(value * 1000);
+  const numeric = windowNumber(value, lenient);
+  if (numeric === null) return undefined;
+  const millis = format === "unixMillis" ? numeric : numeric * 1000;
+  const date = new Date(millis);
   if (Number.isNaN(date.getTime())) return undefined;
   return toIso(date);
+}
+
+/** Window numbers are strict by default; allowStringNumbers opts a provider
+ * into string-encoded numerics ("46.5") without loosening everyone else. */
+function windowNumber(value: unknown, lenient: boolean): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (!lenient) return null;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
 }
 
 function readBucket(
   spec: ProviderSpec,
   bucket: Record<string, unknown>,
-  windowSpec: Pick<WindowSpec, "id" | "resetFormat" | "windowSeconds" | "secondary">
+  windowSpec: Pick<WindowSpec, "id" | "resetFormat" | "windowSeconds" | "secondary" | "fields">
 ): UsageWindow | null {
   if (!spec.responseFields) return null;
+  const utilizationKey = windowSpec.fields?.utilization ?? spec.responseFields.utilization;
+  const resetsAtKey = windowSpec.fields?.resetsAt ?? spec.responseFields.resetsAt;
+  const lenient = spec.responseFields.allowStringNumbers === true;
+
   // Some providers nest the numbers one level down (e.g. Codex
   // additional_rate_limits entries have been seen both flat and nested).
   const nested = bucket["rate_limit"];
   const source =
-    getPath(bucket, spec.responseFields.utilization) === undefined &&
-    nested !== null &&
-    typeof nested === "object"
+    getPath(bucket, utilizationKey) === undefined && nested !== null && typeof nested === "object"
       ? (nested as Record<string, unknown>)
       : bucket;
 
-  const utilization = getPath(source, spec.responseFields.utilization);
-  if (typeof utilization !== "number" || !Number.isFinite(utilization)) return null;
+  const rawUtilization = windowNumber(getPath(source, utilizationKey), lenient);
+  if (rawUtilization === null) return null;
+  const utilization =
+    spec.responseFields.utilizationKind === "remaining" ? 100 - rawUtilization : rawUtilization;
 
-  const reset = parseReset(getPath(source, spec.responseFields.resetsAt), windowSpec.resetFormat);
+  const reset = parseReset(getPath(source, resetsAtKey), windowSpec.resetFormat, lenient);
   if (reset === undefined) return null;
 
   let windowSeconds: number | null = windowSpec.windowSeconds ?? null;
   if (spec.responseFields.windowSeconds) {
-    const fromResponse = getPath(source, spec.responseFields.windowSeconds);
-    if (
-      typeof fromResponse === "number" &&
-      Number.isSafeInteger(fromResponse) &&
-      fromResponse > 0
-    ) {
+    const fromResponse = windowNumber(
+      getPath(source, spec.responseFields.windowSeconds),
+      lenient
+    );
+    if (fromResponse !== null && Number.isSafeInteger(fromResponse) && fromResponse > 0) {
       windowSeconds = fromResponse;
     }
   }
@@ -148,8 +218,35 @@ export function mapUsageResponse(spec: ProviderSpec, body: unknown): MappedUsage
   const metrics: UsageMetric[] = [];
   const metricIds = new Set<string>();
   for (const mapping of spec.metricMappings ?? []) {
-    const value = metricNumber(getPath(body, mapping.sourceKey));
+    let value: number | null;
+    if (mapping.aggregate === "sum") {
+      // A zero-spend month legitimately sums to 0 (root array present but
+      // empty); a missing root key, or leaves that all fail to parse, means
+      // the shape changed. The distinction keeps fresh accounts showing
+      // $0.00 instead of schemaChanged.
+      const firstSegment = mapping.sourceKey.split(".")[0] ?? "";
+      const firstKey = firstSegment.endsWith("[]") ? firstSegment.slice(0, -2) : firstSegment;
+      const root = (body as Record<string, unknown>)[firstKey];
+      if (root === undefined || root === null) {
+        value = null;
+      } else {
+        const leaves = collectPath(body, mapping.sourceKey);
+        const numbers = leaves
+          .map((leaf) => metricNumber(leaf))
+          .filter((n): n is number => n !== null);
+        value =
+          leaves.length > 0 && numbers.length === 0
+            ? null
+            : numbers.reduce((a, b) => a + b, 0);
+      }
+    } else {
+      value = metricNumber(getPath(body, mapping.sourceKey));
+    }
     if (value === null) continue;
+    if (typeof mapping.scale === "number" && Number.isFinite(mapping.scale)) {
+      value *= mapping.scale;
+    }
+    if (!Number.isFinite(value)) continue;
     const metric = {
       id: mapping.id,
       label: mapping.label,

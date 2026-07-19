@@ -20,13 +20,15 @@ There is no Vigil server. The phone talks directly to provider endpoints with cr
 
 ## The three reliability mechanisms
 
-1. **Locked polling leases.** Every Apple fetch first reserves an account-specific lease in the App Group ledger. `FileLedgerStore` wraps the read, decision, and lease write in an OS `flock`, so app and widget processes cannot both pass the gate from the same ledger state. The lease expires after five minutes if a process crashes. `recordResult` clears only the caller's lease and records the next allowed time plus any 429 backoff. A ledger read or write failure fails closed and is surfaced to the app.
+1. **Locked polling leases.** Every Apple fetch first reserves an account-specific lease in the App Group ledger. `FileLedgerStore` wraps the read, decision, and lease write in an OS `flock`, so app and widget processes cannot both pass the gate from the same ledger state. The lease expires if a process crashes, and `acquire` clamps the lease duration to at least the provider's poll floor (five minutes for every current provider), so even a crash-looping process cannot poll faster than `minSeconds`. `recordResult` clears only the caller's lease and records the next allowed time plus any 429 backoff. A ledger read or write failure fails closed and is surfaced to the app.
 
 2. **Client-computed countdowns.** `resets_at` timestamps let every window surface render a live countdown with zero network. Timelines schedule entries at reset boundaries so a window can display 0% after its known reset even before the next provider fetch confirms it.
 
 3. **Honest failure and persistence states.** Every provider snapshot carries `ok`, `rateLimited`, `authExpired`, `schemaChanged`, or `network`. Staleness stays visible. Malformed provider data degrades to `schemaChanged`. Credential-rotation, snapshot, account-index, Keychain-deletion, and ledger failures follow a separate visible storage-error path.
 
-The CLI does not share the Apple App Group. It uses its own provider-level, cross-process poll gate. The gate stores only `lastAttemptAt`, `nextAllowedAt`, and a consecutive-429 counter under the user cache directory. Reservation happens before network I/O under a directory lock. If the safety state is unavailable, the CLI defers the request. Apple and CLI network attempts have a 15-second timeout by default. One provider's CLI failure does not abort the remaining report.
+The CLI does not share the Apple App Group. It uses its own provider-level, cross-process poll gate. The gate stores only `lastAttemptAt`, `nextAllowedAt`, and a consecutive-429 counter under the user cache directory. Reservation happens before network I/O under a directory lock. If the safety state is unavailable, the CLI defers the request. CLI attempts abort at a hard 15-second per-attempt deadline; Apple requests set a 15-second `URLRequest` timeout, which bounds idle time between bytes rather than total request duration. One provider's CLI failure does not abort the remaining report.
+
+The poll floor is enforced per gate, not as one global per-provider budget. The Apple ledger is keyed by account, so each linked account has its own five-minute clock — N linked accounts of one provider on Apple surfaces can produce N requests against that provider inside one five-minute window. The CLI gate is keyed by provider, and the CLI and the app on the same Mac keep separate state. Each gate honestly enforces its own floor; none of them can see the others' traffic.
 
 ## Cross-language lockstep
 

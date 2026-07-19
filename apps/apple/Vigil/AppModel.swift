@@ -682,8 +682,12 @@ final class AppModel {
            accountID.utf8.count > 128 || containsControlCharacters(accountID) {
             throw LinkError.invalidCredentials("the account ID is malformed")
         }
-        if ProviderRegistry.spec(for: credentials.providerId)?
-            .headers.values.contains(where: { $0.contains("{account_id}") }) == true {
+        // {account_id} may live in a header template (Codex) or in the URL
+        // template (GitHub username, xAI team id). RequestBuilder returns nil
+        // without it, so saving such credentials would only mint a dead
+        // account — reject up front instead.
+        if let spec = ProviderRegistry.spec(for: credentials.providerId),
+           ProviderPresentation.needsAccountId(spec) {
             guard let accountID = credentials.accountId?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
                 !accountID.isEmpty

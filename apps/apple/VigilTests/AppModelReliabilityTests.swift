@@ -293,6 +293,36 @@ final class AppModelReliabilityTests: XCTestCase {
         }
     }
 
+    func testURLTemplateAccountIdRequirementBlocksSaveUntilProvided() async throws {
+        // GitHub's {account_id} lives in the usage URL template, not a
+        // header — validation must still refuse to store credentials that
+        // RequestBuilder could never turn into a request.
+        let directory = try makeTemporaryDirectory()
+        let vault = InMemoryCredentialsStore()
+        let model = AppModel(vault: vault, directory: directory)
+
+        do {
+            try await model.addAccount(
+                credentials: Credentials(providerId: "github", accessToken: "token"),
+                allowUnverified: true
+            )
+            XCTFail("Expected the missing GitHub username to be rejected")
+        } catch AppModel.LinkError.invalidCredentials {
+            XCTAssertTrue(try vault.allKeys().isEmpty)
+            XCTAssertTrue(model.accounts.isEmpty)
+        }
+
+        try await model.addAccount(
+            credentials: Credentials(
+                providerId: "github",
+                accessToken: "token",
+                accountId: "octocat"
+            ),
+            allowUnverified: true
+        )
+        XCTAssertEqual(model.accounts.map(\.key), ["github:octocat"])
+    }
+
     func testDeferredRelinkCannotOverwriteExistingCredentialWithoutConsent() async throws {
         let directory = try makeTemporaryDirectory()
         let old = Credentials(

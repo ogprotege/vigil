@@ -56,9 +56,18 @@ State location priority:
 
 Deleting the state file removes the safety delay and can cause an extra provider request. Do it only to recover from a clearly invalid future timestamp, and do not use deletion to bypass normal rate limits.
 
+## The CLI reports a corrupt poll-state file
+
+A malformed or unreadable `<provider>.poll.json` defers that provider's polls. The gate fails closed and never deletes the file on its own.
+
+- `status` prints the offending file path and the recovery step: delete that file to reset that provider's poll clock.
+- `doctor` flags each selected provider whose poll-state file is corrupt or unreadable.
+
+The file contains timestamps and a 429 counter, never credentials or usage values. Deleting it resets only the local poll clock and can cause one extra provider request.
+
 ## One provider says network, but others work
 
-This is expected failure isolation. Each provider request has a 15-second per-attempt timeout and transport retries. A provider-specific DNS, TLS, timeout, or HTTP failure becomes `network` for that provider while the report continues.
+This is expected failure isolation. Each CLI provider request has a hard 15-second per-attempt timeout and transport-level retries; the app's requests use a 15-second idle timeout instead. A provider-specific DNS, TLS, timeout, or HTTP failure becomes `network` for that provider while the report continues.
 
 Check:
 
@@ -92,6 +101,18 @@ Vigil received a successful response but could not map a valid window or metric.
 
 Never post the raw response until tokens, account IDs, emails, request IDs, and distinctive billing data have been removed.
 
+Gateway-specific `schemaChanged` causes worth checking first:
+
+- **MiniMax**: a wrong-region key gets an HTTP 200 with an error body (code 1004). Switch between the MiniMax global and China providers instead of debugging the mapper.
+- **Experimental providers (xAI, Z.ai, Cursor)**: the endpoint is undocumented and may have drifted. `schemaChanged` is the designed failure mode; check for a Vigil update before anything else.
+
+Other gateway notes:
+
+- **GitHub Copilot**: organization-managed seats legitimately report empty usage through the per-user billing API. An honest $0.00 with no items is not a bug.
+- **OpenAI API**: the billing endpoint rejects regular project keys (`sk-proj-…`); it needs a read-only organization Admin key.
+- **Cursor**: the session cookie expires; `authExpired` means re-paste `WorkosCursorSessionToken` from a signed-in browser.
+- **Moonshot / MiniMax China vs global**: keys live in separate namespaces; the wrong host answers 401 (`authExpired`) or a 200 error body (`schemaChanged`), never silently wrong numbers.
+
 ## The app says it could not save data
 
 Do not dismiss repeated storage failures as a network problem.
@@ -102,7 +123,15 @@ Do not dismiss repeated storage failures as a network problem.
 - **Account index:** the app either rolls back the link or leaves the incomplete removal visible.
 - **Keychain deletion:** the account remains linked because Vigil could not confirm credential deletion.
 
+On macOS, a queued storage error also appears as a read-only notice banner at the top of the menu bar window, so a menu-bar-only session cannot miss it. Open the main Vigil window to review and dismiss the error; the banner itself has no dismiss control.
+
 Check available device storage, reboot once, and retry. If the error persists, collect sanitized Console logs for subsystem `app.vigil`.
+
+## The app warns that shared storage is unavailable
+
+At startup the app checks whether its shared App Group container resolved. When the container is unavailable, the app continues on app-private storage and raises a storage alert, because the app and its widgets can no longer share the polling ledger and each process may poll providers separately.
+
+On a real install this usually indicates a signing or entitlement problem. Reinstall the app, validate the App Group entitlements, and test a properly signed build. Unsigned previews and local development builds are expected to use the fallback.
 
 ## The widget shows the wrong or no account
 

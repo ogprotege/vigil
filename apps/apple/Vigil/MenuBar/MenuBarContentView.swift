@@ -63,6 +63,9 @@ private struct MenuBarAccountRow: View {
             HStack {
                 Text(account.displayName)
                     .font(.subheadline.weight(.semibold))
+                if ProviderPresentation.isExperimental(providerId: account.providerId) {
+                    ExperimentalBadge()
+                }
                 Spacer()
                 if let snapshot, snapshot.status != .ok {
                     Text(statusText(snapshot.status))

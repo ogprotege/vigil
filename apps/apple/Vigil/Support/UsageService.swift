@@ -121,32 +121,42 @@ enum UsageService {
         var effectiveCredentials = credentials
         var credentialState = CredentialState.unchanged
 
-        do {
-            let request = RequestBuilder.usageRequest(spec: spec, credentials: credentials)
-            let (data, response) = try await session.data(for: request)
-            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-            let outcome = UsageClient.classify(data: data, statusCode: code, spec: spec)
-            status = outcome.status
-            planLabel = outcome.planLabel
-            windows = outcome.windows
-            metrics = outcome.metrics
-        } catch {
-            // Cancellation (scene ended, BG task expired) is not a provider
-            // failure: release the in-flight lock without charging the ledger
-            // clock or painting the account "offline".
-            if error is CancellationError || (error as? URLError)?.code == .cancelled {
-                let released = await scheduler.release(accountKey: account.key)
-                let schedulerError = released ? nil : await scheduler.persistenceErrorDescription()
-                log.info("[\(surface)] \(account.key, privacy: .private(mask: .hash)): cancelled, released")
-                return Result(
-                    snapshot: nil,
-                    nextAllowed: nil,
-                    persistenceIssue: schedulerError.map(PersistenceIssue.fetchLedger),
-                    effectiveCredentials: credentials,
-                    credentialState: .unchanged
-                )
+        if let request = RequestBuilder.usageRequest(spec: spec, credentials: credentials) {
+            do {
+                let (data, response) = try await session.data(for: request)
+                let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+                let outcome = UsageClient.classify(data: data, statusCode: code, spec: spec)
+                status = outcome.status
+                planLabel = outcome.planLabel
+                windows = outcome.windows
+                metrics = outcome.metrics
+            } catch {
+                // Cancellation (scene ended, BG task expired) is not a provider
+                // failure: release the in-flight lock without charging the ledger
+                // clock or painting the account "offline".
+                if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                    let released = await scheduler.release(accountKey: account.key)
+                    let schedulerError = released ? nil : await scheduler.persistenceErrorDescription()
+                    log.info("[\(surface)] \(account.key, privacy: .private(mask: .hash)): cancelled, released")
+                    return Result(
+                        snapshot: nil,
+                        nextAllowed: nil,
+                        persistenceIssue: schedulerError.map(PersistenceIssue.fetchLedger),
+                        effectiveCredentials: credentials,
+                        credentialState: .unchanged
+                    )
+                }
+                status = .network
+                planLabel = nil
+                windows = []
+                metrics = []
             }
-            status = .network
+        } else {
+            // The URL needs an account id this credential does not carry
+            // (GitHub username, xAI team id): the credential cannot
+            // authenticate the request — authExpired drives re-link, and the
+            // shared taxonomy path below records the outcome normally.
+            status = .authExpired
             planLabel = nil
             windows = []
             metrics = []
@@ -326,7 +336,11 @@ enum UsageService {
                 "[\(surface)] \(account.key, privacy: .private(mask: .hash)): token refreshed, retrying"
             )
 
-            let retry = RequestBuilder.usageRequest(spec: spec, credentials: updated)
+            // A refresh never adds an account id, so a nil here means the
+            // template gap that produced the 401 persists: stay authExpired.
+            guard let retry = RequestBuilder.usageRequest(spec: spec, credentials: updated) else {
+                return .unavailable
+            }
             do {
                 let (data, retryResponse) = try await session.data(for: retry)
                 let retryCode = (retryResponse as? HTTPURLResponse)?.statusCode ?? 0

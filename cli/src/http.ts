@@ -1,4 +1,4 @@
-import type { ProviderId, ProviderSpec } from "./spec/registry.js";
+import type { ProviderId, ProviderSpec, QueryParamSpec } from "./spec/registry.js";
 import type { Credentials, SnapshotStatus } from "./providers/types.js";
 import { redactedMessage } from "./util/redact.js";
 
@@ -54,6 +54,46 @@ export function resolveUrl(
   return new URL(original.pathname + original.search, base).toString();
 }
 
+/**
+ * Applies {account_id} substitution and the registry's computed query
+ * params to the spec URL. Returns null when the URL needs an account id the
+ * credential does not carry — callers surface that as authExpired (the
+ * credential cannot authenticate this request).
+ */
+export function buildRequestUrl(
+  spec: ProviderSpec,
+  creds: Credentials,
+  now: Date = new Date()
+): string | null {
+  let url = spec.usage.url;
+  if (url.includes("{account_id}")) {
+    const accountId = creds.accountId?.trim();
+    if (!accountId) return null;
+    url = url.replace("{account_id}", encodeURIComponent(accountId));
+  }
+  if (spec.usage.query) {
+    const withQuery = new URL(url);
+    for (const [name, param] of Object.entries(spec.usage.query)) {
+      withQuery.searchParams.set(name, resolveQueryParam(param, now));
+    }
+    url = withQuery.toString();
+  }
+  return url;
+}
+
+/** Billing periods are UTC on every provider that takes date params. */
+export function resolveQueryParam(param: QueryParamSpec, now: Date): string {
+  if ("value" in param) return param.value;
+  switch (param.compute) {
+    case "monthStartUnixSeconds":
+      return String(Math.floor(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) / 1000));
+    case "currentYear":
+      return String(now.getUTCFullYear());
+    case "currentMonth":
+      return String(now.getUTCMonth() + 1);
+  }
+}
+
 export function buildHeaders(spec: ProviderSpec, creds: Credentials): Record<string, string> {
   const headers: Record<string, string> = {};
   for (const [name, template] of Object.entries(spec.usage.headers)) {
@@ -89,9 +129,16 @@ export async function fetchUsage(
   const retries = opts.retries ?? 2;
   const retryDelayMs = opts.retryDelayMs ?? 500;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const templatedUrl = buildRequestUrl(spec, creds);
+  if (templatedUrl === null) {
+    return {
+      status: "authExpired",
+      error: "this provider needs an account id (re-link with one, or set its account-id environment variable)",
+    };
+  }
   let url: string;
   try {
-    url = resolveUrl(spec.usage.url, providerId, opts.fixtureBaseUrls);
+    url = resolveUrl(templatedUrl, providerId, opts.fixtureBaseUrls);
   } catch (error) {
     return { status: "network", error: redactedMessage(error) };
   }

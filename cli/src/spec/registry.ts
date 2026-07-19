@@ -12,9 +12,13 @@ export type ProviderId = string;
 export interface WindowSpec {
   id: string;
   sourceKey: string;
-  resetFormat: "iso8601" | "unixSeconds";
+  resetFormat: "iso8601" | "unixSeconds" | "unixMillis";
   windowSeconds?: number;
   secondary: boolean;
+  /** Per-window override of the provider's responseFields (e.g. MiniMax
+   * exposes the session and weekly numbers under different keys of one
+   * bucket). */
+  fields?: { utilization: string; resetsAt: string };
 }
 
 export interface PollSpec {
@@ -33,10 +37,24 @@ export interface OAuthSpec {
   manualRedirectUri: string;
 }
 
+/**
+ * A query parameter is either a literal value or one computed client-side at
+ * request time from a small closed vocabulary (billing APIs need time
+ * ranges). The vocabulary is deliberately tiny so both implementations stay
+ * trivially in lockstep.
+ */
+export type QueryParamSpec =
+  | { value: string }
+  | { compute: "monthStartUnixSeconds" | "currentYear" | "currentMonth" };
+
 export interface UsageRequestSpec {
   method: string;
+  /** May contain {account_id}, substituted from the credential (GitHub
+   * usernames, xAI team ids). A URL needing an id the credential lacks
+   * yields no request. */
   url: string;
   headers: Record<string, string>;
+  query?: Record<string, QueryParamSpec>;
 }
 
 export interface DiscoverySpec {
@@ -54,6 +72,11 @@ export interface ResponseFieldsSpec {
   utilization: string;
   resetsAt: string;
   windowSeconds?: string;
+  /** "remaining" inverts the percentage (utilization = 100 - value) for
+   * providers that report quota left instead of quota used. Default "used". */
+  utilizationKind?: "used" | "remaining";
+  /** Providers that serialize window numbers as JSON strings ("46.5"). */
+  allowStringNumbers?: boolean;
 }
 
 export interface AdditionalWindowsSpec {
@@ -67,10 +90,16 @@ export type UsageMetricKind = "balance" | "spend" | "limit" | "remaining";
 export interface MetricMappingSpec {
   id: string;
   label: string;
+  /** With aggregate, path segments ending in [] flat-map arrays
+   * (data[].results[].amount.value collects every matching leaf). */
   sourceKey: string;
   kind: UsageMetricKind;
   unit?: string;
   secondary: boolean;
+  /** "sum" adds every value the sourceKey resolves to (billing buckets). */
+  aggregate?: "sum";
+  /** Multiplier applied after resolution (0.01 converts cents to dollars). */
+  scale?: number;
 }
 
 export interface MetricCollectionMappingSpec {
@@ -87,6 +116,9 @@ export interface ProviderSpec {
   displayName: string;
   /** Omitted means enabled. Opt-in providers set this to false. */
   defaultEnabled?: boolean;
+  /** Community-proven but undocumented endpoint: surfaced in UI and docs so
+   * nobody mistakes it for a vendor-supported integration. */
+  experimental?: boolean;
   auth: string;
   usage: UsageRequestSpec;
   oauth?: OAuthSpec;

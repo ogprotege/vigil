@@ -1,0 +1,22 @@
+{
+  "planLabel": "pro",
+  "windows": [
+    {
+      "id": "plan",
+      "utilization": 83,
+      "resetsAt": "2026-07-20T07:00:00Z",
+      "windowSeconds": null,
+      "secondary": false
+    }
+  ],
+  "metrics": [
+    {
+      "id": "spend_ondemand",
+      "label": "On-demand spend",
+      "kind": "spend",
+      "value": 43.5,
+      "unit": "USD",
+      "secondary": true
+    }
+  ]
+}

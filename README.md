@@ -48,13 +48,17 @@ npx vigil-link          # link your accounts to the app via QR
 ```sh
 OPENROUTER_API_KEY='...' npx vigil-link --provider openrouter
 DEEPSEEK_API_KEY='...' npx vigil-link --provider deepseek
+MOONSHOT_API_KEY='...' npx vigil-link --provider moonshot
+MINIMAX_CODING_API_KEY='...' npx vigil-link --provider minimax
+OPENAI_ADMIN_KEY='...' npx vigil-link --provider openai
+GITHUB_BILLING_TOKEN='...' GITHUB_BILLING_USER='you' npx vigil-link --provider github
 
-# Link every currently supported provider in one session.
+# Link several providers in one QR session.
 OPENROUTER_API_KEY='...' DEEPSEEK_API_KEY='...' \
   npx vigil-link --provider claude,codex,openrouter,deepseek
 ```
 
-OpenRouter and DeepSeek are opt-in. A plain `npx vigil-link` selects only Claude and Codex. The CLI never persists credentials or usage values. It does persist poll timestamps and 429 counters under the user cache directory to prevent accidental rapid polling. See [ADR-0004](docs/decisions/0004-stateless-cli.md).
+Thirteen providers are in the registry: Claude and ChatGPT/Codex subscription windows by default, plus opt-in Moonshot/Kimi and DeepSeek balances, MiniMax Coding Plan windows, OpenAI API and GitHub Copilot spend, OpenRouter credits, and — clearly labeled experimental — xAI, Z.ai/GLM, and Cursor. The full tiering, per-provider credential sources, and the researched backlog live in the [support matrix](docs/provider-spec.md#support-and-stability-matrix). A plain `npx vigil-link` selects only Claude and Codex. The CLI never persists credentials or usage values. It does persist poll timestamps and 429 counters under the user cache directory to prevent accidental rapid polling. See [ADR-0004](docs/decisions/0004-stateless-cli.md).
 
 ## Provider support
 
