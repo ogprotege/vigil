@@ -580,28 +580,54 @@ final class AppModel {
 
     // MARK: - Menu bar (M7)
 
-    /// "C 42% · X 71%" — session-window utilization per linked provider.
+    /// "C 42% left · X 71% left" — the tightest remaining percentage for
+    /// each visible account, with direction stated rather than implied.
     /// Degraded or stale accounts carry a warning mark: the most-glanced
     /// surface must not silently show old numbers as fresh.
     var menuBarTitle: String {
-        let parts = accounts.map { account -> String in
-            let letter = account.providerId == "claude" ? "C" : account.providerId == "codex" ? "X" : String(account.displayName.prefix(1))
-            guard let snapshot = snapshots[account.key] else { return "\(letter) –" }
+        let visibleAccounts = Array(accounts.prefix(2))
+        var parts = visibleAccounts.map { account -> String in
+            let accountMark = menuBarAccountMark(for: account)
+            guard let snapshot = snapshots[account.key] else { return "\(accountMark) –" }
             let degraded = SnapshotFreshness.isDegraded(
                 status: snapshot.status,
                 fetchedAt: snapshot.fetchedAt
             )
-            let mark = degraded ? "⚠︎" : ""
-            if let session = snapshot.windows.first(where: { $0.id == "session" }) {
-                return "\(letter) \(Int(session.utilization.rounded()))%\(mark)"
+            let warning = degraded ? " ⚠︎" : ""
+            if let tightest = snapshot.windows.min(by: {
+                UsagePresentation.remainingPercent(for: $0)
+                    < UsagePresentation.remainingPercent(for: $1)
+            }) {
+                let remaining = UsagePresentation.remainingPercent(for: tightest)
+                return "\(accountMark) \(Int(remaining.rounded()))% left\(warning)"
             }
             if let metric = snapshot.metrics.first(where: { !$0.secondary })
                 ?? snapshot.metrics.first {
-                return "\(letter) \(Self.compactMetric(metric))\(mark)"
+                return "\(accountMark) \(Self.compactMetric(metric))\(warning)"
             }
-            return "\(letter) –\(mark)"
+            return "\(accountMark) –\(warning)"
+        }
+        if accounts.count > visibleAccounts.count {
+            parts.append("+\(accounts.count - visibleAccounts.count)")
         }
         return parts.isEmpty ? "Vigil" : parts.joined(separator: " · ")
+    }
+
+    private func menuBarAccountMark(for account: AccountRef) -> String {
+        let letter = account.providerId == "claude"
+            ? "C"
+            : account.providerId == "codex"
+                ? "X"
+                : String(account.displayName.prefix(1))
+        let matchingAccounts = accounts.filter { $0.providerId == account.providerId }
+        guard matchingAccounts.count > 1 else { return letter }
+
+        if let label = account.label?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !label.isEmpty {
+            return "\(letter):\(String(label.prefix(10)))"
+        }
+        let index = (matchingAccounts.firstIndex(of: account) ?? 0) + 1
+        return "\(letter)\(index)"
     }
 
     private func reloadWidgets() {

@@ -39,39 +39,70 @@ struct UsageWidgetEntryView: View {
     }
 }
 
-/// Home-screen small: session ring, weekly bar, ticking countdown,
-/// staleness tinted, never hidden.
+/// Home-screen small: the tightest window first, then the next provider window.
+/// This lets a special-model quota outrank a healthier generic session window.
 struct SmallUsageView: View {
     let entry: UsageEntry
 
+    private var degraded: Bool {
+        guard let snapshot = entry.snapshot else { return false }
+        return SnapshotFreshness.isDegraded(
+            status: snapshot.status,
+            fetchedAt: snapshot.fetchedAt,
+            at: entry.date
+        )
+    }
+
     var body: some View {
         if let snapshot = entry.snapshot {
+            let windows = UsagePresentation.sortedWindows(snapshot.windows)
+            let tightest = windows.min(by: {
+                UsagePresentation.remainingPercent(for: $0)
+                    < UsagePresentation.remainingPercent(for: $1)
+            })
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text(entry.account?.displayName ?? snapshot.providerId.capitalized)
+                    Text(
+                        entry.account.map(UsagePresentation.accountTitle)
+                            ?? snapshot.providerId.capitalized
+                    )
                         .font(.caption.weight(.semibold))
                         .lineLimit(1)
                     Spacer()
-                    if snapshot.status != .ok {
-                        Image(systemName: statusSymbol(snapshot.status))
+                    if degraded {
+                        Image(
+                            systemName: snapshot.status == .ok
+                                ? "clock.badge.exclamationmark"
+                                : statusSymbol(snapshot.status)
+                        )
                             .font(.caption2)
                             .foregroundStyle(.orange)
                     }
                 }
-                if let session = snapshot.windows.first(where: { $0.id == "session" }) {
+                if let tightest {
                     HStack(spacing: 8) {
-                        Gauge(value: min(max(session.utilization, 0), 100), in: 0...100) {
+                        Gauge(
+                            value: UsagePresentation.remainingPercent(for: tightest),
+                            in: 0...100
+                        ) {
                             EmptyView()
                         } currentValueLabel: {
-                            Text("\(Int(session.utilization.rounded()))")
+                            Text(
+                                "\(Int(UsagePresentation.remainingPercent(for: tightest).rounded()))%"
+                            )
                                 .font(.system(.headline, design: .rounded))
                         }
                         .gaugeStyle(.accessoryCircularCapacity)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Session")
+                            Text(
+                                "\(Int(UsagePresentation.remainingPercent(for: tightest).rounded()))% left"
+                            )
+                            .font(.caption2.weight(.semibold).monospacedDigit())
+                            Text(UsagePresentation.compactTitle(for: tightest))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
-                            if let resetsAt = session.resetsAt, resetsAt > entry.date {
+                                .lineLimit(1)
+                            if let resetsAt = tightest.resetsAt, resetsAt > entry.date {
                                 Text(timerInterval: entry.date...resetsAt, countsDown: true)
                                     .font(.caption.monospacedDigit())
                                     .lineLimit(1)
@@ -95,10 +126,22 @@ struct SmallUsageView: View {
                         }
                     }
                 }
-                if let weekly = snapshot.windows.first(where: { $0.id == "weekly" }) {
-                    Gauge(value: min(max(weekly.utilization, 0), 100), in: 0...100) {
-                        Text("Wk \(Int(weekly.utilization.rounded()))%")
-                            .font(.caption2)
+                if let second = windows.filter({ $0.id != tightest?.id }).first {
+                    HStack(spacing: 4) {
+                        Text(UsagePresentation.compactTitle(for: second))
+                            .lineLimit(1)
+                        Spacer()
+                        Text(
+                            "\(Int(UsagePresentation.remainingPercent(for: second).rounded()))% left"
+                        )
+                        .monospacedDigit()
+                    }
+                    .font(.caption2)
+                    Gauge(
+                        value: UsagePresentation.remainingPercent(for: second),
+                        in: 0...100
+                    ) {
+                        EmptyView()
                     }
                     .gaugeStyle(.accessoryLinearCapacity)
                 }
@@ -133,7 +176,7 @@ struct SmallUsageView: View {
     }
 }
 
-/// Lock-screen circular: session percentage ring. Failed fetches deliberately
+/// Lock-screen circular: tightest-window percentage-left ring. Failed fetches deliberately
 /// preserve the last good windows, so this family carries the same degradation
 /// signals as systemSmall (status != ok, or data older than the shared
 /// 30-minute staleness threshold): degraded tint, a compact warning marker,
@@ -155,15 +198,22 @@ struct CircularUsageView: View {
     }
 
     var body: some View {
-        if let session = entry.snapshot?.windows.first(where: { $0.id == "session" }) {
-            Gauge(value: min(max(session.utilization, 0), 100), in: 0...100) {
+        if let tightest = entry.snapshot?.windows.min(by: {
+            UsagePresentation.remainingPercent(for: $0)
+                < UsagePresentation.remainingPercent(for: $1)
+        }) {
+            Gauge(
+                value: UsagePresentation.remainingPercent(for: tightest),
+                in: 0...100
+            ) {
                 Text(providerLetter)
             } currentValueLabel: {
-                // The marker lives in the center label because the capacity
-                // gauge style is the only part guaranteed to render at every
-                // lock-screen rendering mode.
                 VStack(spacing: 0) {
-                    Text("\(Int(session.utilization.rounded()))")
+                    Text(
+                        "\(Int(UsagePresentation.remainingPercent(for: tightest).rounded()))%"
+                    )
+                    Text("left")
+                        .font(.system(size: 7, weight: .semibold))
                     if degraded {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 7, weight: .bold))
@@ -173,7 +223,14 @@ struct CircularUsageView: View {
             .gaugeStyle(.accessoryCircularCapacity)
             .tint(degraded ? Color.orange : nil)
             .widgetAccentable()
-            .accessibilityLabel(Text("\(entry.account?.displayName ?? "Vigil") session, \(Int(session.utilization.rounded())) percent used\(degradedSuffix)"))
+            .accessibilityLabel(
+                Text(
+                    "\(entry.account?.displayName ?? "Vigil") "
+                        + "\(UsagePresentation.title(for: tightest)), "
+                        + "\(Int(UsagePresentation.remainingPercent(for: tightest).rounded())) percent left"
+                        + degradedSuffix
+                )
+            )
         } else if let metric = entry.snapshot?.metrics.first(where: { !$0.secondary })
             ?? entry.snapshot?.metrics.first {
             VStack(spacing: 0) {

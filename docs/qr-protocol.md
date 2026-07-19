@@ -64,7 +64,7 @@ QR capacity at version 25 / EC level M is 997 bytes; codes past ~v25 scan unreli
    failure or a local safety-cooldown deferral, offer "save anyway, verify
    later".
 
-The paste path (`vigil-link --json` output pasted into the app) uses the same
+The paste path (`vigil-link --json --yes` output pasted into the app) uses the same
 envelope and decoder. Small payloads produce one line. Larger payloads produce
 multiple `vigil1:` lines, all of which must be pasted.
 

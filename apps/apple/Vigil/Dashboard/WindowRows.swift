@@ -1,73 +1,124 @@
 import SwiftUI
 import VigilKit
 
-/// The session window: a prominent circular gauge + ticking reset countdown.
+/// A quota reservoir: the meter and headline both show what remains. The
+/// provider still stores utilization internally, and VoiceOver announces both
+/// values so the direction of the metric is never ambiguous.
+struct LimitWindowView: View {
+    let window: UsageWindow
+    var compact = false
+
+    private var remaining: Double {
+        UsagePresentation.remainingPercent(for: window)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: compact ? 9 : 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    VigilEyebrow(text: UsagePresentation.category(for: window))
+                    Text(UsagePresentation.title(for: window))
+                        .font((compact ? Font.subheadline : Font.body).weight(.semibold))
+                        .foregroundStyle(VigilPalette.ink)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 8)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("\(Int(remaining.rounded()))%")
+                        .font(
+                            .system(
+                                compact ? .title3 : .title2,
+                                design: .rounded
+                            )
+                            .weight(.bold)
+                        )
+                        .monospacedDigit()
+                        .foregroundStyle(UsageTint.color(for: window.utilization))
+                    Text("left")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(VigilPalette.inkMuted)
+                }
+            }
+
+            LimitReservoirBar(
+                remaining: remaining,
+                tint: UsageTint.color(for: window.utilization)
+            )
+
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                ResetCountdownView(resetsAt: window.resetsAt)
+                Spacer()
+                Text("\(Int(window.utilization.rounded()))% used")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(VigilPalette.inkFaint)
+            }
+        }
+        .padding(compact ? 12 : 14)
+        .vigilInsetSurface(cornerRadius: VigilRadius.medium)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(UsagePresentation.title(for: window)))
+        .accessibilityValue(
+            Text(
+                "\(Int(remaining.rounded())) percent left, "
+                    + "\(Int(window.utilization.rounded())) percent used"
+            )
+        )
+        .accessibilityHint(accessibilityCountdown(window.resetsAt))
+    }
+}
+
+struct LimitReservoirBar: View {
+    let remaining: Double
+    let tint: Color
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(VigilPalette.canvas.opacity(0.78))
+                Capsule()
+                    .fill(tint)
+                    .frame(
+                        width: geometry.size.width
+                            * min(max(remaining, 0), 100) / 100
+                    )
+            }
+        }
+        .frame(height: 8)
+        .animation(
+            reduceMotion ? nil : .easeOut(duration: 0.25),
+            value: remaining
+        )
+        .accessibilityHidden(true)
+    }
+}
+
+/// Kept as compatibility wrappers for previews and any older call sites.
 struct WindowGaugeRow: View {
     let title: String
     let window: UsageWindow
     var prominent = false
 
     var body: some View {
-        HStack(spacing: 16) {
-            Gauge(value: min(max(window.utilization, 0), 100), in: 0...100) {
-                Text(title)
-            } currentValueLabel: {
-                Text("\(Int(window.utilization.rounded()))%")
-                    .font(.system(.title3, design: .rounded).weight(.semibold))
-                    // Dynamic Type can outgrow the fixed ring — scale, don't clip.
-                    .minimumScaleFactor(0.6)
-                    .lineLimit(1)
-            }
-            .gaugeStyle(.accessoryCircularCapacity)
-            .tint(UsageTint.color(for: window.utilization))
-            .frame(width: 64, height: 64)
-            .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                ResetCountdownView(resetsAt: window.resetsAt)
-            }
-            Spacer()
-        }
-        // One VoiceOver element: "Session, 27 percent used, resets in ...".
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("\(title), \(Int(window.utilization.rounded())) percent used"))
-        .accessibilityValue(accessibilityCountdown(window.resetsAt))
+        LimitWindowView(window: window, compact: !prominent)
     }
 }
 
-func accessibilityCountdown(_ resetsAt: Date?) -> Text {
-    guard let resetsAt else { return Text("no reset scheduled") }
-    if resetsAt <= Date() { return Text("reset due, awaiting refresh") }
-    return Text("resets \(resetsAt, style: .relative) from now")
-}
-
-/// Weekly / secondary windows: a linear bar + countdown.
 struct WindowBarRow: View {
     let title: String
     let window: UsageWindow
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(title)
-                    .font(.subheadline)
-                Spacer()
-                Text("\(Int(window.utilization.rounded()))%")
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
-            }
-            Gauge(value: min(max(window.utilization, 0), 100), in: 0...100) {
-                EmptyView()
-            }
-            .gaugeStyle(.accessoryLinearCapacity)
-            .tint(UsageTint.color(for: window.utilization))
-            ResetCountdownView(resetsAt: window.resetsAt)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("\(title), \(Int(window.utilization.rounded())) percent used"))
-        .accessibilityValue(accessibilityCountdown(window.resetsAt))
+        LimitWindowView(window: window, compact: true)
     }
+}
+
+func accessibilityCountdown(_ resetsAt: Date?) -> Text {
+    guard let resetsAt else { return Text("No reset scheduled") }
+    if resetsAt <= Date() { return Text("Reset due, awaiting refresh") }
+    return Text("Resets \(resetsAt, style: .relative) from now")
 }
 
 /// Client-computed countdown: ticks natively with zero network
@@ -76,8 +127,6 @@ struct ResetCountdownView: View {
     let resetsAt: Date?
 
     var body: some View {
-        // One clock read: a second `.now` between the check and the range
-        // construction could invert the ClosedRange at the boundary and trap.
         let now = Date()
         Group {
             if let resetsAt {
@@ -88,27 +137,24 @@ struct ResetCountdownView: View {
                             .monospacedDigit()
                     }
                 } else {
-                    Text("Reset due — awaiting refresh")
+                    Text("Reset due · awaiting refresh")
                 }
             } else {
                 Text("No reset scheduled")
             }
         }
         .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(VigilPalette.inkMuted)
     }
 }
 
 enum UsageTint {
     static func color(for utilization: Double) -> Color {
-        if utilization >= 95 { return .red }
-        if utilization >= 80 { return .orange }
-        return .green
+        VigilPalette.limitColor(utilization: utilization)
     }
 }
 
-/// Scalar spend and balance values for providers that do not expose
-/// reset-based percentage windows. These remain amounts because inventing a
+/// Scalar spend and balance values remain amounts because inventing a
 /// percentage without a provider-supplied limit would misstate the account.
 struct UsageMetricRow: View {
     let metric: UsageMetric
@@ -116,19 +162,35 @@ struct UsageMetricRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: MetricFormat.symbol(for: metric.kind))
-                .frame(width: 24)
-                .foregroundStyle(MetricFormat.tint(for: metric.kind))
+                .font(.body.weight(.semibold))
+                .frame(width: 28, height: 28)
+                .foregroundStyle(metricTint)
+                .background(metricTint.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
                 .accessibilityHidden(true)
-            Text(metric.label)
-                .font(.subheadline)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(metric.label)
+                    .font(.caption)
+                    .foregroundStyle(VigilPalette.inkMuted)
+                Text(formattedValue)
+                    .font(.body.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(VigilPalette.ink)
+                    .multilineTextAlignment(.leading)
+            }
             Spacer()
-            Text(formattedValue)
-                .font(.subheadline.weight(.semibold).monospacedDigit())
-                .multilineTextAlignment(.trailing)
         }
+        .padding(12)
+        .vigilInsetSurface(cornerRadius: VigilRadius.medium)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(metric.label))
         .accessibilityValue(Text(formattedValue))
+    }
+
+    private var metricTint: Color {
+        switch metric.kind {
+        case .balance, .remaining: return VigilPalette.safe
+        case .spend: return VigilPalette.caution
+        case .limit: return VigilPalette.signal
+        }
     }
 
     private var formattedValue: String {

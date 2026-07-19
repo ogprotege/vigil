@@ -121,6 +121,7 @@ targets:
       - path: Vigil/Support/SharedContainer.swift
       - path: Vigil/Support/SnapshotFreshness.swift
       - path: Vigil/Support/UsageService.swift
+      - path: Vigil/Support/UsagePresentation.swift
     dependencies:
       - package: VigilKit
     settings:

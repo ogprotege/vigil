@@ -25,7 +25,7 @@ struct ScanView: View {
                     ContentUnavailableView(
                         "Camera unavailable",
                         systemImage: "video.slash",
-                        description: Text("Use the paste-code path instead — run `npx vigil-link --json` on your computer and paste its output.")
+                        description: Text("Use the paste-code path instead. Run `npx vigil-link --json --yes`, paste its output only into Vigil, then clear your terminal scrollback.")
                     )
                 }
             }

@@ -3,31 +3,90 @@ import SwiftUI
 /// Summarizes docs/privacy.md in the shipped app.
 struct PrivacyView: View {
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Vigil does not collect your credentials or usage data.")
-                    .font(.title3.weight(.semibold))
+        ZStack {
+            VigilScreenBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: VigilSpacing.large) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        VigilEyebrow(text: "Privacy")
+                        Text("Your watch stays yours.")
+                            .font(.system(.largeTitle, design: .rounded).weight(.bold))
+                            .foregroundStyle(VigilPalette.ink)
+                        Text("Vigil does not collect your credentials or usage data.")
+                            .font(.subheadline)
+                            .foregroundStyle(VigilPalette.inkMuted)
+                    }
 
-                bullet("There is no Vigil server, no Vigil account, no cloud sync, no analytics, no crash reporting that phones home.")
-                bullet("Credentials may exist in a provider's files on your computer, transiently in vigil-link and its plaintext QR code while linking, and in this device's ThisDeviceOnly Keychain.")
-                bullet("The app sends credentials and usage requests directly to the providers you activate. Vigil does not receive those requests or responses.")
-                bullet("vigil-link never writes credentials or usage values. It stores only poll timestamps and 429 counters in your user cache so repeated commands respect provider limits.")
-                bullet("Removing an account deletes its Keychain item and local usage metadata. Vigil shows an error if any deletion fails.")
-
-                Text("Because Keychain items are ThisDeviceOnly, each device is linked with its own scan. That is a feature: no credential ever transits a sync service.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 14) {
+                        privacyPoint(
+                            symbol: "server.rack",
+                            title: "No Vigil server",
+                            text: "No account, cloud sync, analytics, or crash reporting phones home."
+                        )
+                        privacyPoint(
+                            symbol: "key.fill",
+                            title: "Device-only credentials",
+                            text: "Credentials live in this device's ThisDeviceOnly Keychain. Each device links separately."
+                        )
+                        privacyPoint(
+                            symbol: "arrow.left.arrow.right",
+                            title: "Direct provider requests",
+                            text: "The app sends credentials and usage requests only to providers you activate."
+                        )
+                        privacyPoint(
+                            symbol: "qrcode",
+                            title: "Short-lived pairing",
+                            text: "Vigil Link holds credentials only while producing the plaintext QR or paste code. Codes expire after 10 minutes."
+                        )
+                        privacyPoint(
+                            symbol: "trash",
+                            title: "Visible deletion",
+                            text: "Removing an account deletes its Keychain item and local usage metadata. Vigil reports any failed deletion."
+                        )
+                    }
+                    .vigilCard(padding: VigilSpacing.medium)
+                }
+                .frame(maxWidth: 720, alignment: .leading)
+                .padding(VigilSpacing.medium)
+                .padding(.bottom, 44)
+                .frame(maxWidth: .infinity)
             }
-            .padding()
         }
         .navigationTitle("Privacy")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(VigilPalette.canvas.opacity(0.96), for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        #endif
     }
 
-    private func bullet(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text("•")
-            Text(text)
+    private func privacyPoint(
+        symbol: String,
+        title: String,
+        text: String
+    ) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: symbol)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(VigilPalette.signal)
+                .frame(width: 36, height: 36)
+                .background(
+                    VigilPalette.signal.opacity(0.11),
+                    in: RoundedRectangle(cornerRadius: 11)
+                )
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(VigilPalette.ink)
+                Text(text)
+                    .font(.callout)
+                    .foregroundStyle(VigilPalette.inkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        .font(.callout)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .vigilInsetSurface()
     }
 }
