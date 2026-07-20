@@ -52,7 +52,37 @@ struct CodexSignInView: View {
             Text("Open the sign-in page, approve Vigil, and enter the code below. No computer needed.")
                 .font(.subheadline)
                 .foregroundStyle(VigilPalette.inkMuted)
+            deviceAuthNotice
         }
+    }
+
+    /// OpenAI gates the device-code flow behind a per-account toggle. If it's
+    /// off, the approval page shows "Enable device code authorization for Codex"
+    /// — so tell the user to flip it first, once.
+    private var deviceAuthNotice: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(
+                "One-time setup on your ChatGPT account",
+                systemImage: "exclamationmark.shield"
+            )
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(VigilPalette.caution)
+            Text("In ChatGPT → Settings → Security, turn on **Device code authorization** before you continue. Without it, OpenAI's page will refuse the code.")
+                .font(.caption)
+                .foregroundStyle(VigilPalette.inkMuted)
+            Button {
+                openURL(URL(string: "https://chatgpt.com/#settings/Security")!)
+            } label: {
+                Label("Open ChatGPT security settings", systemImage: "arrow.up.right.square")
+                    .font(.caption.weight(.medium))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(VigilPalette.signal)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(VigilPalette.caution.opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.top, 4)
     }
 
     @ViewBuilder private var content: some View {
