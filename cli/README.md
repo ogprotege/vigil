@@ -15,6 +15,19 @@ npx vigil-link doctor
 npx vigil-link
 ```
 
+## Guided setup
+
+Running `npx vigil-link` with no arguments starts a guided wizard (when your terminal is interactive):
+
+1. It scans this computer for all supported providers and shows what it found (`✓ Claude — Claude Code sign-in`) and what it didn't (`✗ OpenRouter — enter an API key now`).
+2. You pick which accounts to link — everything found is preselected; press Enter to accept.
+3. For any provider it couldn't find, it walks you through pasting an API key (input hidden), or signs you in to Claude via your browser.
+4. It verifies each account, shows the QR code (auto-sized to your terminal; multiple codes cycle until you press a key), and clears the screen when you're done.
+
+No flags to memorize. The flags below are for scripting and advanced use — passing any of `--provider`, `--json`, `--yes`, `--copy`, or `--mint` opts out of the wizard.
+
+You can also skip the terminal entirely: on the iPhone, **Add account → Add a provider directly** lets you type an API key straight into the app.
+
 ## Supported providers
 
 | Provider | Data | Activation | Default |
@@ -39,10 +52,11 @@ Claude and Codex use undocumented consumer usage endpoints and can change withou
 ## Commands
 
 ```text
-vigil-link                  Link accounts to Vigil with QR codes
+vigil-link                  Guided setup: scan this computer, pick accounts, show the QR
 vigil-link status           Print current usage, spend, and balances
 vigil-link doctor           Show credential-discovery diagnostics
 vigil-link doctor --live    Add a provider request to the diagnostics
+vigil-link --version        Print the vigil-link version
 ```
 
 Use `--provider` with comma-separated provider IDs. A command without that option selects only the default providers.

@@ -7,7 +7,7 @@
 | Provider | Default | Credential activation | Normalized data | Poll floor | Token refresh | Endpoint status | Vigil confidence |
 |---|---:|---|---|---:|---|---|---|
 | Claude | Yes | Vigil-owned OAuth mint, Claude Code file, or macOS Keychain | Session, weekly, Sonnet, and Opus windows | 300 s | Yes, only for credentials Vigil minted | Undocumented consumer endpoint | Supported, live-validated July 2026, fixture-covered |
-| ChatGPT / Codex | Yes | Codex CLI file; access token and account ID required | Session, weekly, and optional additional windows | 300 s | No independent refresh | Undocumented consumer endpoint | Supported, live-validated July 2026, fixture-covered |
+| ChatGPT / Codex | Yes | On-device device-code sign-in, or Codex CLI file | Session, weekly, and optional additional windows | 300 s | Minted tokens refresh independently; copied ones do not | Undocumented consumer endpoint | Supported, live-validated July 2026, fixture-covered; on-device sign-in pending device walk |
 | OpenRouter | No | `OPENROUTER_API_KEY`, QR/paste handoff, or app manual entry | Spend, credit limit, remaining credits | 300 s | Not applicable; API key | Documented key endpoint | Opt-in preview, fixture-covered; live validation remains a release check |
 | DeepSeek | No | `DEEPSEEK_API_KEY`, QR/paste handoff, or app manual entry | Balance by returned currency | 300 s | Not applicable; API key | Documented balance endpoint | Opt-in preview, fixture-covered; live validation remains a release check |
 | Moonshot (Kimi) | No | `MOONSHOT_API_KEY` (`MOONSHOT_CN_API_KEY` for the China provider), QR/paste, or app manual entry | Available, cash, and voucher balances (USD global, CNY China) | 300 s | Not applicable; API key | Documented balance endpoint (`/v1/users/me/balance`) | Opt-in preview, fixture-covered (research-verified 2026-07-19); live validation remains a release check |
@@ -143,9 +143,10 @@ Field behavior:
 - `usage.query` adds query parameters: `{ "value": "literal" }` or `{ "compute": ... }` where compute is one of `monthStartUnixSeconds`, `currentYear`, `currentMonth` — evaluated client-side in UTC at request time (billing APIs need time ranges).
 - `poll` is enforced independently by the CLI safety gate and the Apple scheduler.
 - `discovery.adapter` selects code registered by the CLI. Registry data cannot create a new discovery or OAuth implementation.
-- `windows` maps reset-based percentages. A window may carry `fields: { utilization, resetsAt }` overriding the provider `responseFields` for that window alone (MiniMax keeps session and weekly numbers under different keys of one bucket).
+- `windows` maps reset-based percentages. A window may carry `fields: { utilization, resetsAt }` overriding the provider `responseFields` for that window alone (MiniMax keeps session and weekly numbers under different keys of one bucket). A window may also carry a `label` (a model name) when the response supplies one; static windows have no label and are named at the UI layer.
+- `additionalWindows` maps a response array of dynamically-named windows (Codex per-model lanes, Claude `limits[]` model caps). It takes `sourceKey` (the array), `idKey` (a dot path within each entry to the id string), and `secondary`, plus optional: `filter: { key, equals }` (keep only matching entries — e.g. Claude's `kind == "weekly_scoped"`), `idPrefix` (synthesize a stable normalized id `prefix_<slug>`; absent means the raw id stands), `labelKey` (dot path to a display label carried on the window), `resetFormat` (default `unixSeconds`), `windowSeconds`, and `fields` (per-entry `responseFields` override).
 - `responseFields.utilizationKind: "remaining"` inverts the percentage (utilization = 100 − value) for providers that report quota left. `responseFields.allowStringNumbers: true` accepts string-encoded window numbers ("46.5") for that provider only.
-- `metricMappings` maps fixed scalar paths. With `aggregate: "sum"`, path segments ending in `[]` flat-map arrays (`data[].results[].amount.value`) and every resolved value is added. `scale` multiplies the result (0.01 converts cents to dollars).
+- `metricMappings` maps fixed scalar paths. With `aggregate: "sum"`, path segments ending in `[]` flat-map arrays (`data[].results[].amount.value`) and every resolved value is added. `scale` multiplies the result (0.01 converts cents to dollars). `unitKey` (a dot path to a currency/unit string) overrides the static `unit` when it resolves.
 - `metricCollectionMappings` maps arrays such as balances returned in several currencies.
 - `capabilities` describes the provider but does not, by itself, add rendering behavior.
 
@@ -163,12 +164,14 @@ A successful response becomes `schemaChanged` when no valid window or metric can
 
 - Request: `GET https://api.anthropic.com/api/oauth/usage`.
 - Required headers include `Authorization`, `anthropic-beta: oauth-2025-04-20`, `Accept`, and a Claude Code-style `User-Agent`.
-- Response buckets: `five_hour`, `seven_day`, `seven_day_sonnet`, and `seven_day_opus`.
+- Response buckets: `five_hour`, `seven_day`, `seven_day_sonnet`, `seven_day_opus`, and (null-tolerant, unverified) `seven_day_oauth_apps` / `seven_day_cowork`.
+- Model-scoped weekly caps: the response's `limits[]` array carries `weekly_scoped` entries (`scope.model.display_name`, `utilization`, `resets_at`). Vigil maps each as a labeled secondary window (`weekly_scoped_<model>`), rendered as "&lt;Model&gt; weekly". **Fixture-modeled from prior research, not yet live-validated** — the `additionalWindows.fields` override exists to fix a field-name mismatch (e.g. `used_percent` vs `utilization`) once a live payload is captured.
+- Overage credits: `extra_usage` (when `is_enabled`) maps to two metrics — `extra_used` (spend) and `extra_limit` (limit) — in the response's own `currency` (via `unitKey`). Disabled/absent extra usage carries null numbers and is skipped.
 - Poll floor: 300 seconds. Do not lower it. The endpoint can return hard 429 responses without `Retry-After`.
 - Discovery: `~/.claude/.credentials.json`, then the macOS Keychain service `Claude Code-credentials`.
 - Preferred link path: mint a separate Vigil token pair. Copying another client's refresh token can cause rotation conflicts.
 - Refresh: `POST https://platform.claude.com/v1/oauth/token`, only for pairs marked `src: "mint"`.
-- Stability: the usage and OAuth behavior is not a public contract. The details were live-validated in July 2026 and can drift.
+- Stability: the usage and OAuth behavior is not a public contract. The window buckets were live-validated in July 2026; the `limits[]`/`extra_usage` shapes are fixture-modeled pending a live capture, and can drift.
 
 The verified OAuth flow currently requires the registered scope set, a literal `localhost` loopback host, `code=true`, and the PKCE verifier as `state`. Preserve the live tests and ADR-0005 when modifying it.
 
@@ -177,9 +180,10 @@ The verified OAuth flow currently requires the registered scope set, a literal `
 - Request: `GET https://chatgpt.com/backend-api/wham/usage`.
 - Required headers include `Authorization`, `ChatGPT-Account-Id`, `Accept`, and a Codex-style `User-Agent`.
 - Response buckets: `rate_limit.primary_window`, `rate_limit.secondary_window`, and optional `additional_rate_limits`.
-- Discovery: `~/.codex/auth.json` or `$CODEX_HOME/auth.json`.
-- Refresh: not independently verified. An expired token becomes `authExpired`, and the user must refresh Codex and re-link.
-- Stability: the usage endpoint is an internal consumer surface and can change without notice.
+- Discovery: `~/.codex/auth.json` or `$CODEX_HOME/auth.json` (copied, `source: "file"` — never auto-refreshed).
+- **On-device sign-in (mint):** OpenAI's OAuth device-code flow (`POST auth.openai.com/api/accounts/deviceauth/usercode` → poll `…/deviceauth/token` where 403/404 mean "pending" and success returns an `authorization_code` + server PKCE → exchange at `auth.openai.com/oauth/token`). The account id comes from the id_token `chatgpt_account_id` claim. Minted tokens (`source: "mint"`) refresh independently via `auth.openai.com/oauth/token`. Implemented in VigilKit `CodexAuth` (unit-tested against the Codex CLI source shapes); **pending a live device walk** against a real ChatGPT account.
+- Refresh: minted tokens refresh independently; a copied (`file`) token that expires becomes `authExpired` and the user re-links.
+- Stability: both the usage endpoint and the device-code login are internal consumer surfaces (undocumented for third parties) and can change without notice.
 
 ## OpenRouter
 
@@ -200,6 +204,13 @@ Official reference: <https://openrouter.ai/docs/api-reference/limits>
 
 Official reference: <https://api-docs.deepseek.com/api/get-user-balance/>
 
+## MiniMax (and MiniMax China)
+
+- Request: `GET https://api.minimax.io/v1/token_plan/remains` (China: `api.minimaxi.com`).
+- Credential: bearer API key from `MINIMAX_CODING_API_KEY` (China: `MINIMAX_CN_CODING_API_KEY`).
+- Windows: session and weekly for both the `general` model (primary) and the `video` model (secondary), selected from `data.model_remains[]` by `model_name`. Percentages are reported as remaining and inverted to used.
+- Intentionally unmapped: the `current_interval_usage_count` / `current_interval_total_count` absolute counts — `UsageWindow` is percentage-based, and the percentage already normalizes them; carrying raw counts as metrics would misrepresent them as currency/credits.
+
 ## Provider candidates
 
 Provider count alone is not the goal. Vigil should add a provider only when it can report a meaningful value through a supportable authentication path.
@@ -208,6 +219,8 @@ Every candidate below was researched against vendor documentation and real clien
 
 | Backlog candidate | Why it is not shipped yet |
 |---|---|
+| Codex `rate_limits_by_limit_id` | The response also carries per-limit-id windows as an object keyed by id (not the array `additionalWindows` iterates). Supporting it needs an object-fan-out engine primitive; the shipped Codex windows already cover primary/secondary plus `additional_rate_limits` lanes. |
+| Codex reset-credit balance | `chatgpt.com/backend-api/wham/rate-limit-reset-credits` is a *second* endpoint; the registry models one usage request per provider. Multi-request providers need an engine change. |
 | GitHub Copilot percent windows | The only per-user quota window is the undocumented `copilot_internal/user` endpoint, which needs a GitHub device-flow OAuth mint — new machinery. The shipped GitHub provider covers spend/credits honestly via the documented billing API. |
 | Kimi coding plan (`api.kimi.com/coding/v1/usages`) | Official-CLI-backed but undocumented, with several observed response spellings; a fixture-pinned mapper would guess. |
 | Anthropic Admin API cost report | Organization accounts only, and the query-parameter shape has not been verified against a live key. |

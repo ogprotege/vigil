@@ -10,6 +10,7 @@ exports[`doctor > reports discovery results without any network calls (golden) 1
 ChatGPT / Codex
   ✓ credentials found (file)
   access token valid ~26h
+  refresh token: present
   account id: present
   plan: pro
 

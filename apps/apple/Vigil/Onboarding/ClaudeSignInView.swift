@@ -1,0 +1,174 @@
+import SwiftUI
+import VigilKit
+
+/// On-phone "Sign in with Claude" — no computer required. Opens Claude's OAuth
+/// consent in the browser, the user pastes back the code Claude shows, and the
+/// app exchanges it for a Vigil-owned (mintable, refreshable) token pair. This
+/// is the mobile twin of the CLI's browser mint (ADR-0005), using Claude's
+/// out-of-band redirect instead of a desktop loopback server.
+struct ClaudeSignInView: View {
+    let onComplete: (Credentials) -> Void
+
+    @Environment(\.openURL) private var openURL
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var pkce = ClaudeAuth.generatePKCE()
+    @State private var pastedCode = ""
+    @State private var didOpen = false
+    @State private var isExchanging = false
+    @State private var errorMessage: String?
+
+    private var oauth: OAuthEndpoint { ProviderRegistry.claude.oauth! }
+    private var redirectURI: String { oauth.manualRedirectUri }
+    private var authorizeURL: URL {
+        ClaudeAuth.authorizeURL(
+            oauth: oauth,
+            redirectURI: redirectURI,
+            challenge: pkce.challenge,
+            state: pkce.state
+        )
+    }
+    private var canLink: Bool {
+        !pastedCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isExchanging
+    }
+
+    var body: some View {
+        ZStack {
+            VigilScreenBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: VigilSpacing.large) {
+                    header
+                    stepOne
+                    stepTwo
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundStyle(VigilPalette.caution)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .frame(maxWidth: 820, alignment: .leading)
+                .padding(VigilSpacing.medium)
+            }
+        }
+        .navigationTitle("Sign in with Claude")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .overlay { if isExchanging { exchangingOverlay } }
+        .preferredColorScheme(.dark)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            VigilEyebrow(text: "Claude")
+            Text("Sign in on your phone.")
+                .font(.system(.title2, design: .rounded).weight(.bold))
+                .foregroundStyle(VigilPalette.ink)
+            Text("No computer needed. You approve access in your browser, then paste the short code Claude gives you.")
+                .font(.subheadline)
+                .foregroundStyle(VigilPalette.inkMuted)
+        }
+    }
+
+    private var stepOne: some View {
+        VStack(alignment: .leading, spacing: VigilSpacing.medium) {
+            Text("1  Approve access")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(VigilPalette.ink)
+            Text("Open Claude's sign-in, approve Vigil, and Claude will show you a code to copy.")
+                .font(.caption)
+                .foregroundStyle(VigilPalette.inkMuted)
+            Button {
+                didOpen = true
+                openURL(authorizeURL)
+            } label: {
+                Label(didOpen ? "Reopen Claude sign-in" : "Open Claude sign-in", systemImage: "safari")
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 46)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(VigilPalette.signal)
+            .foregroundStyle(VigilPalette.canvas)
+        }
+        .vigilCard(padding: VigilSpacing.large)
+    }
+
+    private var stepTwo: some View {
+        VStack(alignment: .leading, spacing: VigilSpacing.medium) {
+            Text("2  Paste the code")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(VigilPalette.ink)
+            Text("Paste the code Claude showed you. Vigil finishes signing in with its own token that renews automatically.")
+                .font(.caption)
+                .foregroundStyle(VigilPalette.inkMuted)
+            TextField("Paste code from Claude", text: $pastedCode)
+                .textFieldStyle(.plain)
+                .padding(12)
+                .background(VigilPalette.canvas.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+                #if os(iOS)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled(true)
+                #endif
+            Button("Finish signing in") { link() }
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 50)
+                .buttonStyle(.borderedProminent)
+                .tint(VigilPalette.signal)
+                .foregroundStyle(VigilPalette.canvas)
+                .disabled(!canLink)
+        }
+        .vigilCard(padding: VigilSpacing.large)
+    }
+
+    private var exchangingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.48).ignoresSafeArea()
+            VStack(spacing: 12) {
+                ProgressView().controlSize(.large).tint(VigilPalette.signal)
+                Text("Finishing sign-in…")
+                    .font(.headline)
+                    .foregroundStyle(VigilPalette.ink)
+            }
+            .padding(24)
+            .vigilCard(padding: VigilSpacing.large)
+        }
+    }
+
+    private func link() {
+        errorMessage = nil
+        guard let code = ClaudeAuth.parsePastedCode(pastedCode, expectedState: pkce.state) else {
+            errorMessage = "That code didn't look right. Copy the whole code Claude showed you and try again."
+            return
+        }
+        Task {
+            isExchanging = true
+            defer { isExchanging = false }
+            let request = ClaudeAuth.exchangeRequest(
+                oauth: oauth,
+                code: code,
+                redirectURI: redirectURI,
+                verifier: pkce.verifier,
+                state: pkce.state
+            )
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let http = response as? HTTPURLResponse,
+                      (200..<300).contains(http.statusCode),
+                      let credentials = ClaudeAuth.credentials(fromExchange: data)
+                else {
+                    // A fresh PKCE for the next attempt: a used/expired code can't be retried.
+                    pkce = ClaudeAuth.generatePKCE()
+                    pastedCode = ""
+                    errorMessage = "Claude didn't accept that code — it may have expired. Tap “Reopen Claude sign-in” to start over."
+                    return
+                }
+                onComplete(credentials)
+                dismiss()
+            } catch {
+                errorMessage = "Couldn't reach Claude to finish signing in. Check your connection and try again."
+            }
+        }
+    }
+}

@@ -95,8 +95,8 @@ describe("link --copy --json end-to-end", () => {
       err: (t) => err.push(t),
     });
     expect(code).toBe(1);
-    expect(err.join("\n")).toContain("authExpired");
-    expect(err.join("\n")).toContain("No account verified successfully");
+    expect(err.join("\n")).toContain("rejected these credentials");
+    expect(err.join("\n")).toContain("Nothing left to link");
   });
 
   it("returns 1 with guidance when no credentials exist at all", async () => {
@@ -120,7 +120,7 @@ describe("link --copy --json end-to-end", () => {
     expect(err.join("\n")).toContain("Nothing to link");
   });
 
-  it("does not double-poll when status is followed immediately by link verification", async () => {
+  it("includes a poll-deferred account instead of dropping it, and does not double-poll", async () => {
     server = await startFixtureServer({
       "/api/oauth/usage": json(200, loadFixture("claude-usage-ok.json")),
     });
@@ -129,7 +129,10 @@ describe("link --copy --json end-to-end", () => {
     const discovery = { homeDir, platform: "linux" as const, env: {} };
     const http = fixtureHttp(server.url);
 
+    // A status check moments earlier reserves the poll slot, so link's own
+    // verification is deferred by the cross-process gate.
     await statusReport({ registry, discovery, http, now }, ["claude"]);
+    const out: string[] = [];
     const err: string[] = [];
     const code = await runLink({
       providers: ["claude"],
@@ -144,13 +147,19 @@ describe("link --copy --json end-to-end", () => {
       discovery,
       http,
       now,
-      out: () => {},
+      out: (text) => out.push(text),
       err: (text) => err.push(text),
     });
 
-    expect(code).toBe(1);
+    // The deferred account still ships; the terminal (not the CLI) verifies it.
+    expect(code).toBe(0);
     expect(server.requests).toHaveLength(1);
-    expect(err.join("\n")).toContain("deferred");
+    expect(err.join("\n")).toContain("couldn't verify right now");
+    expect(err.join("\n")).toContain("iPhone will verify");
+
+    const payload = assembleAndDecode(out.join("").trim().split("\n"));
+    expect(payload.accounts).toHaveLength(1);
+    expect(payload.accounts[0]!.p).toBe("claude");
   });
 });
 

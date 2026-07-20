@@ -9,6 +9,36 @@ npx vigil-link doctor --live
 
 Use `--provider <id>` to isolate one provider. Live checks consume a poll slot.
 
+If you're new here, start with [getting-started.md](getting-started.md) and the [FAQ](faq.md); the sections below are for specific symptoms.
+
+## The setup wizard didn't find my Claude or Codex sign-in
+
+`npx vigil-link` reads existing sign-ins from `~/.claude/.credentials.json` (or the macOS Keychain) and `~/.codex/auth.json`. If a provider shows as `✗ not found`:
+
+- Make sure you've signed in with that tool at least once on this computer (for Codex, run `codex login`).
+- Run `npx vigil-link doctor` to see exactly which locations were checked.
+- You don't have to fix this to proceed — pick the accounts it *did* find, or add an API-key provider directly on your phone (**Add account → Add a provider directly**).
+
+## The QR code won't scan
+
+- **Too small / unreadable:** the wizard auto-sizes the code to your terminal. If it still won't scan, widen the terminal window or reduce the font size and re-run; you can also force the larger rendering with `npx vigil-link --big`.
+- **Low contrast:** scan against a light terminal background; some dark/transparent themes make the code unscannable.
+- **Multiple codes:** a large payload splits into several codes that cycle automatically — hold the camera steady and let it capture each; the app shows "Captured N of M".
+- **On macOS with no camera:** use the paste path — `npx vigil-link --json --yes` prints a code you paste into **Add account → Paste code** — then clear your terminal scrollback.
+
+## The app says it will "verify on the next refresh"
+
+This is expected, not an error. If this computer polled a provider very recently, the CLI can't re-check it without tripping the 5-minute poll floor, so Vigil ships the account anyway and lets the phone verify it on its next allowed refresh. Wait a few minutes and the account goes live. (See the [FAQ](faq.md).)
+
+## A card shows Stale / Cooling down / Re-link needed / Offline
+
+These are honest states, not crashes:
+
+- **Cooling down** — the provider returned a 429; Vigil backs off and retries. Normal.
+- **Stale** — a fetch didn't land; the last-known numbers are shown but marked. Usually resolves on the next refresh.
+- **Re-link needed** — the credentials were rejected (expired/revoked). Refresh the underlying sign-in (open the provider's own CLI, or re-create the API key) and add the account again.
+- **Offline** — a network problem reaching the provider.
+
 ## Credentials are not found
 
 ### Claude

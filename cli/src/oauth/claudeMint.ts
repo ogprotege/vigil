@@ -7,8 +7,10 @@ import { generatePkce } from "./pkce.js";
 export interface MintOptions {
   fetchImpl?: typeof fetch;
   openBrowser?: (url: string) => void;
-  /** Prompt for the manual "code#state" paste fallback. */
-  promptPaste?: (authorizeUrl: string) => Promise<string>;
+  /** Prompt for the manual "code#state" paste fallback. The optional signal
+   * fires when another lane (loopback or timeout) wins, so a delayed prompt can
+   * cancel itself instead of interrupting after success. */
+  promptPaste?: (authorizeUrl: string, signal?: AbortSignal) => Promise<string>;
   port?: number;
   timeoutMs?: number;
   /** Timeout for the final token exchange. Defaults to 15 seconds. */
@@ -194,6 +196,7 @@ export async function mintClaude(oauth: OAuthSpec, opts: MintOptions = {}): Prom
     // listener when resolving localhost.
     const redirectUri = `http://localhost:${port}/callback`;
     const url = authorizeUrl(oauth, redirectUri, pkce.challenge, pkce.state);
+    const pasteAbort = new AbortController();
     try {
       open(url);
       const timeout = new Promise<never>((_, reject) =>
@@ -203,7 +206,7 @@ export async function mintClaude(oauth: OAuthSpec, opts: MintOptions = {}): Prom
       if (opts.promptPaste) {
         // Recovery lane: if the browser can't reach the loopback (or the user
         // prefers pasting), accept the callback URL / code at any time.
-        const paste = opts.promptPaste(url).then(async (pasted) => {
+        const paste = opts.promptPaste(url, pasteAbort.signal).then(async (pasted) => {
           if (!pasted.trim()) return new Promise<never>(() => {}); // ignore stray Enter
           return parsePastedCallback(pasted, pkce.state);
         });
@@ -214,6 +217,9 @@ export async function mintClaude(oauth: OAuthSpec, opts: MintOptions = {}): Prom
       if (state !== pkce.state) throw new Error("state mismatch — possible interception, aborting");
       return await exchangeCode(oauth, opts, { code, redirectUri, verifier: pkce.verifier, state });
     } finally {
+      // Retire a still-pending paste prompt so a delayed hint never prints after
+      // the loopback (or timeout) already resolved the flow.
+      pasteAbort.abort();
       loopback.server.close();
     }
   }

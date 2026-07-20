@@ -545,12 +545,16 @@ final class TokenRefresherTests: XCTestCase {
         refreshless.refreshToken = nil
         XCTAssertNil(TokenRefresher.refreshRequest(spec: ProviderRegistry.claude, credentials: refreshless))
 
-        let codex = Credentials(
-            providerId: "codex", accessToken: "a", refreshToken: "r", source: TokenRefresher.mintSource
+        // A Codex credential COPIED from the Codex CLI (source "file") must never
+        // be refreshed — that would race the CLI's own rotation (ADR-0005). Only
+        // Vigil-minted (device-flow, source "mint") Codex tokens are refreshable,
+        // which CodexAuthTests covers.
+        let copiedCodex = Credentials(
+            providerId: "codex", accessToken: "a", refreshToken: "r", source: "file"
         )
         XCTAssertNil(
-            TokenRefresher.refreshRequest(spec: ProviderRegistry.codex, credentials: codex),
-            "codex has no verified refresh endpoint in v1"
+            TokenRefresher.refreshRequest(spec: ProviderRegistry.codex, credentials: copiedCodex),
+            "copied codex credentials must not be refreshed (ADR-0005)"
         )
     }
 

@@ -1,0 +1,35 @@
+{
+  "five_hour": { "utilization": 70, "resets_at": "2026-07-25T18:00:00Z" },
+  "seven_day": { "utilization": 40, "resets_at": "2026-07-27T07:00:00Z" },
+  "seven_day_sonnet": { "utilization": 30, "resets_at": "2026-07-27T07:00:00Z" },
+  "seven_day_opus": { "utilization": 20, "resets_at": "2026-07-29T07:00:00Z" },
+  "seven_day_oauth_apps": null,
+  "seven_day_cowork": null,
+  "limits": [
+    {
+      "kind": "weekly_scoped",
+      "scope": { "model": { "display_name": "Fable" } },
+      "utilization": 55,
+      "resets_at": "2026-07-27T07:00:00Z"
+    },
+    {
+      "kind": "monthly_overage",
+      "scope": { "model": { "display_name": "Ignore Me" } },
+      "utilization": 5,
+      "resets_at": "2026-07-27T07:00:00Z"
+    },
+    {
+      "kind": "weekly_scoped",
+      "scope": { "model": { "display_name": "Broken" } },
+      "resets_at": "2026-07-27T07:00:00Z"
+    }
+  ],
+  "extra_usage": {
+    "is_enabled": true,
+    "monthly_limit": 50,
+    "used_credits": 12.5,
+    "utilization": 25,
+    "currency": "USD",
+    "disabled_reason": null
+  }
+}

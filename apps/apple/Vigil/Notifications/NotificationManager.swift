@@ -64,6 +64,8 @@ final class NotificationManager: Sendable {
         case "weekly": return "weekly"
         case "weekly_sonnet": return "Sonnet weekly"
         case "weekly_opus": return "Opus weekly"
+        case "session_video": return "Video session"
+        case "weekly_video": return "Video weekly"
         default: return id.replacingOccurrences(of: "_", with: " ")
         }
     }

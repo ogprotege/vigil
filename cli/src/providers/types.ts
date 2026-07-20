@@ -3,6 +3,10 @@ import type { PollDeferReason } from "../polling.js";
 
 export interface UsageWindow {
   id: string;
+  /** Human display name for a provider-scoped window (e.g. a model name),
+   * present only when the response carries one; null for static windows whose
+   * name is derived from the id at the UI layer. */
+  label: string | null;
   utilization: number;
   resetsAt: string | null;
   windowSeconds: number | null;
@@ -51,5 +55,5 @@ export interface Credentials {
   accountId?: string;
   label?: string;
   plan?: string;
-  source: "file" | "keychain" | "environment" | "mint";
+  source: "file" | "keychain" | "environment" | "mint" | "manual";
 }

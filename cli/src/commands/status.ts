@@ -3,7 +3,7 @@ import type { DiscoveryOptions } from "../discovery/paths.js";
 import { discoverProvider, type DiscoveryResult } from "../discovery/index.js";
 import type { HttpOptions } from "../http.js";
 import { getSnapshot } from "../service.js";
-import type { Credentials, ProviderSnapshot } from "../providers/types.js";
+import type { Credentials, ProviderSnapshot, UsageWindow } from "../providers/types.js";
 import type { PollGateOptions } from "../polling.js";
 import { humanizeUntil } from "../util/time.js";
 import { sanitizeTerminalText } from "../util/terminal.js";
@@ -20,9 +20,26 @@ export function prettyWindowId(id: string): string {
       return "Weekly (Sonnet)";
     case "weekly_opus":
       return "Weekly (Opus)";
+    case "weekly_oauth_apps":
+      return "Weekly (OAuth apps)";
+    case "weekly_cowork":
+      return "Weekly (Cowork)";
+    case "session_video":
+      return "Video session";
+    case "weekly_video":
+      return "Video weekly";
     default:
       return id;
   }
+}
+
+/** Display name for a window, preferring a provider-supplied label (model
+ * name) for scoped windows over the raw id. */
+export function prettyWindow(window: UsageWindow): string {
+  if (window.label) {
+    return window.id.startsWith("weekly_scoped") ? `Weekly (${window.label})` : window.label;
+  }
+  return prettyWindowId(window.id);
 }
 
 function bar(utilization: number): string {
@@ -78,7 +95,7 @@ export function renderSnapshot(snapshot: ProviderSnapshot, displayName: string, 
   }
   if (snapshot.windows.length > 0) {
     const windowNames = snapshot.windows.map((window) =>
-      sanitizeTerminalText(prettyWindowId(window.id))
+      sanitizeTerminalText(prettyWindow(window))
     );
     const idWidth = Math.max(...windowNames.map((name) => name.length), 7);
     for (const [index, window] of snapshot.windows.entries()) {

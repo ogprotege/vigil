@@ -6,7 +6,106 @@ Anything that changes shipped behavior gets an entry here: `vigil-link` npm vers
 
 ## Unreleased
 
-- Nothing yet.
+### Native on-phone "Sign in with Codex" (PR E)
+
+- **Codex can now be added entirely on the iPhone too** — every account is now
+  phone-native. Add account → **Sign in with Codex** uses OpenAI's OAuth
+  **device-code flow**: Vigil requests a one-time code, you approve it in the
+  browser and enter the code, and Vigil polls for the tokens and mints its own
+  renewable pair (`source: "mint"`). No computer, no `codex login`, no redirect
+  handling. New `CodexAuth` in VigilKit (device-code request/poll builders,
+  poll-status classification, form-encoded exchange, id_token account-id
+  extraction — all unit-tested against the exact OpenAI shapes from the Codex
+  CLI source).
+- Codex gained an `oauth` block in the registry (`auth.openai.com` authorize/
+  token/device endpoints, public client `app_EMoamEEZ73f0CkXaXp7hrann`),
+  mirrored in Swift with spec-parity. `OAuthEndpoint` gained optional
+  `deviceCodeUrl`/`deviceTokenUrl`. Minted Codex tokens now refresh through the
+  shared `TokenRefresher` (independent of the Codex CLI — the "mint, don't copy"
+  posture of ADR-0005); copied Codex tokens (`source: "file"`) still never refresh.
+  `doctor` now reports Codex's refresh token.
+- Onboarding now offers **Sign in with Claude** and **Sign in with Codex** as
+  co-equal on-phone cards; the computer/QR handoff is fully optional.
+- **Needs a device walk:** the on-device Codex flow (device-code request →
+  browser approval → poll → exchange) is built and unit-tested against the
+  documented OpenAI shapes but must be run once against a real ChatGPT account
+  to confirm the live behavior (and Cloudflare posture — iOS's native TLS is
+  expected to clear it where Linux CLIs are blocked).
+
+### Set up on the phone — native "Sign in with Claude" (PR D)
+
+- **Claude can now be added entirely on the iPhone**, no computer. Add account →
+  **Sign in with Claude** opens Claude's OAuth approval in the browser; you paste
+  back the code Claude shows, and Vigil exchanges it on-device for its own token
+  pair (`source: "mint"`, so it auto-renews). This is the mobile twin of the CLI
+  browser mint (ADR-0005), using Claude's out-of-band redirect instead of a
+  desktop loopback server. New `ClaudeAuth` in VigilKit (PKCE, authorize URL,
+  code parsing, token exchange — all unit-tested); `OAuthEndpoint` now carries
+  `authorizeUrl`/`scopes`/`manualRedirectUri` (mirrored + spec-parity asserted).
+- **Onboarding is now phone-first.** Add account leads with Sign in with Claude
+  and the on-phone API-key providers; the `npx vigil-link` computer handoff is
+  demoted to an optional path (and labeled as the only current way to add Codex).
+- Hand-entered credentials are now marked `source: "manual"` (never auto-refreshed,
+  per ADR-0005) — previously they were saved with no source.
+- **Needs a device walk:** the on-device Claude OAuth (browser approval + code
+  paste + token exchange) is built and unit-tested but must be run once against a
+  real account to confirm the live browser/redirect behavior.
+- **Codex research (GO):** confirmed OpenAI's Codex CLI uses an OAuth device-code
+  flow that makes Codex fully on-phone too — now implemented in PR E above.
+
+### Per-model and overage limit windows (PR B)
+
+- **Claude model-scoped weekly caps** now surface. The live `api/oauth/usage`
+  response carries model-specific caps only inside a structured `limits[]`
+  array (`kind: "weekly_scoped"`, `scope.model.display_name`); Vigil maps each
+  as a labeled secondary window (e.g. "Fable weekly") under **Model and special
+  limits**. Fixture-modeled; **pending live re-verification** against a real
+  account (field names / `kind` string may need the `additionalWindows.fields`
+  override).
+- **Claude extra-usage (overage) credits** now show as account metrics —
+  spend-to-date and the monthly limit, in the response's own currency — instead
+  of being dropped.
+- **MiniMax `video` model** session and weekly windows are now mapped
+  (previously only the `general` model was read), for both MiniMax and MiniMax
+  China.
+- Also added Claude's `weekly_oauth_apps` / `weekly_cowork` windows (null-safe,
+  unverified) and a generalized `additionalWindows` registry mechanism (filter,
+  dot-path id/label, id-prefix normalization, reset format, static duration,
+  field overrides) plus a `unitKey` for currency-driven metric units.
+- **Schema:** `UsageWindow` gains an optional `label` (model name). Additive and
+  backward/forward-compatible — old persisted snapshots and older app/widget
+  builds decode unchanged (the field is absent → nil). Both mappers, the Swift
+  mirror, fixture parity, and spec parity updated in lockstep.
+- Deferred (follow-up): Codex `rate_limits_by_limit_id` and the
+  `rate_limit_reset_credits` balance (a second endpoint) — see the provider-spec
+  backlog.
+
+### vigil-link — guided setup wizard (PR A)
+
+- `npx vigil-link` with no arguments now runs a guided wizard on an interactive
+  terminal: it scans this computer for all 13 providers, shows what it found and
+  what it didn't, lets you pick accounts (everything found preselected), walks
+  you through pasting an API key for a missing provider (input hidden, held in
+  memory only — ADR-0004), or signs you in to Claude via the browser. It then
+  verifies each account, shows an auto-sized QR (multi-code handoff cycles until
+  a keypress instead of manual Enter-advancing), and clears the screen.
+- **A poll-deferred account is now included in the handoff instead of dropped.**
+  Running `status` and then linking immediately no longer fails with "No account
+  verified" — the account ships and the phone verifies it on its next refresh.
+  The exit code is 0 whenever a payload is emitted.
+- Added `--version` / `-V`, and friendly "did you mean" errors for unknown flags
+  and commands.
+- Deprecated `--loop` (multi-code cycling is now the default); it is accepted as
+  a no-op with a notice. `--big`, `--no-clear`, `--no-verify` still work as
+  overrides inside the wizard. `--provider`, `--json`, `--yes`, `--copy`, and
+  `--mint` opt out of the wizard into the classic scripted flow (unchanged; the
+  macOS app's `npx vigil-link --json --yes` paste path is untouched).
+- The Claude browser-OAuth "paste a URL" prompt is now delayed ~15s and cancels
+  itself when the loopback lane wins, so the happy path never shows it.
+- No new runtime dependency: the prompts are hand-rolled (see
+  [ADR-0007](docs/decisions/0007-hand-rolled-prompts.md)); the runtime supply
+  chain stays at one package (`qrcode-terminal`). No protocol or registry change.
+- iOS pairing copy updated to describe the wizard and rotating codes.
 
 ## 0.11.0 (3) — TestFlight internal, 2026-07-20
 

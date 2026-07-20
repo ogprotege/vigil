@@ -1,28 +1,36 @@
 #!/usr/bin/env node
-import { parseArgs } from "node:util";
+import { createRequire } from "node:module";
 import { createInterface } from "node:readline/promises";
 import { loadRegistry, providerIds, type ProviderId, type Registry } from "./spec/registry.js";
+import { parseCli, selectLinkMode } from "./cli.js";
 import { statusReport } from "./commands/status.js";
 import { doctorReport } from "./commands/doctor.js";
 import { runLink } from "./commands/link.js";
+import { runWizard, type WizardPrompts } from "./commands/wizard.js";
+import { InputManager } from "./ui/prompts.js";
+import { CLEAR_SCREEN } from "./qr/present.js";
+import type { MintOptions } from "./oauth/claudeMint.js";
 import { redactedMessage } from "./util/redact.js";
 import { sanitizeTerminalText } from "./util/terminal.js";
+
+const require = createRequire(import.meta.url);
+const packageVersion = (require("../package.json") as { version: string }).version;
 
 const HELP = `vigil-link — link your AI accounts to the Vigil usage monitor
 
 Usage:
-  npx vigil-link            Link accounts to the app (QR handoff)
+  npx vigil-link            Guided setup: scan this computer, pick accounts, show the QR
   npx vigil-link status     Show your usage windows in the terminal
   npx vigil-link doctor     Diagnose credential discovery ( --live adds a network check )
+  npx vigil-link --version  Print the vigil-link version
 
-Link options:
+Link options (advanced — plain \`npx vigil-link\` needs none of these):
   --provider <ids>   Comma-separated registry IDs (default: enabled providers)
   --mint             Mint Vigil its own Claude token via browser sign-in (default)
   --copy             Copy existing CLI credentials instead of minting
   --json             Print the paste-code to stdout instead of rendering QRs
   --yes              Consent to credential-bearing output without a prompt
                      (required with --json or when stdin is not a terminal)
-  --loop             Auto-cycle multi-chunk QRs every 3s (hands-free scanning)
   --big              Render larger QR blocks (finicky terminals)
   --no-clear         Don't clear the terminal after linking
   --no-verify        Skip the live verification fetch before rendering
@@ -45,32 +53,16 @@ function parseProviders(value: string | undefined, registry: Registry): Provider
 }
 
 async function main(): Promise<number> {
-  const { values, positionals } = parseArgs({
-    args: process.argv.slice(2),
-    allowPositionals: true,
-    options: {
-      provider: { type: "string" },
-      mint: { type: "boolean" },
-      copy: { type: "boolean" },
-      json: { type: "boolean" },
-      yes: { type: "boolean" },
-      loop: { type: "boolean" },
-      big: { type: "boolean" },
-      "no-clear": { type: "boolean" },
-      "no-verify": { type: "boolean" },
-      live: { type: "boolean" },
-      help: { type: "boolean" },
-    },
-  });
-
-  if (values.help) {
-    process.stdout.write(HELP);
-    return 0;
+  const outcome = parseCli(process.argv.slice(2), { version: packageVersion, help: HELP });
+  if (outcome.kind === "print") {
+    const stream = outcome.stream === "stdout" ? process.stdout : process.stderr;
+    stream.write(outcome.text + "\n");
+    return outcome.exitCode;
   }
 
-  const command = positionals[0] ?? "link";
+  const { command, provider, flags, classicFlagUsed } = outcome.invocation;
   const registry = loadRegistry();
-  const providers = parseProviders(values.provider, registry);
+  const providers = parseProviders(provider, registry);
 
   if (command === "status") {
     process.stdout.write((await statusReport({ registry }, providers)) + "\n");
@@ -78,39 +70,84 @@ async function main(): Promise<number> {
   }
 
   if (command === "doctor") {
-    process.stdout.write(await doctorReport({ registry, live: values.live ?? false }, providers));
+    process.stdout.write(await doctorReport({ registry, live: flags.live }, providers));
     return 0;
   }
 
-  if (command !== "link") {
-    process.stderr.write(`unknown command "${command}"\n\n${HELP}`);
-    return 1;
+  if (flags.loop) {
+    process.stderr.write(
+      "Note: --loop is deprecated — multi-code handoff now cycles automatically until you press a key.\n"
+    );
   }
 
-  const interactive = process.stdin.isTTY === true && !values.json;
+  const out = (text: string) => process.stdout.write(text.endsWith("\n") ? text : text + "\n");
+  const err = (text: string) => process.stderr.write(text + "\n");
+
+  const mode = selectLinkMode({
+    classicFlagUsed,
+    stdinTTY: process.stdin.isTTY === true,
+    stdoutTTY: process.stdout.isTTY === true,
+  });
+
+  if (mode === "wizard") {
+    const manager = new InputManager({
+      input: process.stdin,
+      write: (text) => process.stderr.write(text),
+      onInterrupt: () => {
+        // Abort should never leave a credential-bearing QR on screen: scrub it.
+        process.stdout.write(CLEAR_SCREEN);
+        process.exit(130);
+      },
+    });
+    try {
+      const prompts: WizardPrompts = {
+        confirmStrict: (question) => manager.confirmStrict(question),
+        choose: (title, options, defaultIndex) => manager.choose(title, options, defaultIndex),
+        multiToggle: (title, items) => manager.multiToggle(title, items),
+        textInput: (label, textOpts) => manager.textInput(label, textOpts),
+        waitKey: () => manager.nextKey(),
+      };
+      return await runWizard({
+        registry,
+        big: flags.big,
+        clear: !flags.noClear,
+        verify: !flags.noVerify,
+        columns: process.stdout.columns,
+        out,
+        err,
+        prompts,
+        mint: delayedMintPrompt(manager),
+      });
+    } finally {
+      manager.close();
+    }
+  }
+
+  const interactive = process.stdin.isTTY === true && !flags.json;
   const rl = interactive ? createInterface({ input: process.stdin, output: process.stderr }) : null;
   try {
     return await runLink({
       providers,
-      mode: values.copy ? "copy" : "mint",
-      json: values.json ?? false,
-      yes: values.yes ?? false,
-      loop: values.loop ?? false,
-      big: values.big ?? false,
-      clear: !(values["no-clear"] ?? false),
-      verify: !(values["no-verify"] ?? false),
+      mode: flags.copy ? "copy" : "mint",
+      json: flags.json,
+      yes: flags.yes,
+      loop: flags.loop,
+      big: flags.big,
+      clear: !flags.noClear,
+      verify: !flags.noVerify,
       registry,
-      out: (text) => process.stdout.write(text.endsWith("\n") ? text : text + "\n"),
-      err: (text) => process.stderr.write(text + "\n"),
+      out,
+      err,
+      columns: process.stdout.columns,
       confirm: rl
         ? async (question) => {
             const answer = await rl.question(`${question} [y/N] `);
             return answer.trim().toLowerCase().startsWith("y");
           }
         : undefined,
-      waitForKey: rl
-        ? async (message) => {
-            await rl.question(message);
+      waitKey: rl
+        ? async () => {
+            await rl.question("");
           }
         : undefined,
       mint: rl
@@ -129,6 +166,47 @@ async function main(): Promise<number> {
   } finally {
     rl?.close();
   }
+}
+
+/** Resolves after `ms`, or early if the signal aborts. Never rejects. */
+function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) return resolve();
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    timer.unref?.();
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+/**
+ * Mint options whose paste prompt only appears if the browser flow stalls: it
+ * waits ~15s, and cancels itself (no spurious prompt) when the loopback lane
+ * wins, so the happy path never shows the "paste a URL" step.
+ */
+function delayedMintPrompt(manager: InputManager): MintOptions {
+  return {
+    promptPaste: async (url, signal) => {
+      await abortableDelay(15_000, signal);
+      if (signal?.aborted) return "";
+      process.stderr.write(
+        "\nStill waiting for the browser. If it showed an error after you approved, " +
+          "paste that page's full URL (or the code) here.\n" +
+          `Or open this link yourself:\n${sanitizeTerminalText(url, 4096)}\n`
+      );
+      try {
+        return await manager.question("Paste URL/code here: ", { signal });
+      } catch {
+        return ""; // aborted because another lane resolved the flow
+      }
+    },
+  };
 }
 
 main()
