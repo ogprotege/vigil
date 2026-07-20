@@ -4,7 +4,15 @@
 
 Anything that changes shipped behavior gets an entry here: `vigil-link` npm versions, TestFlight app builds, and protocol or registry changes that affect both. Provider-schema and local-state migration notes are recorded per release so an existing installation can be upgraded deliberately.
 
-## Unreleased
+## 0.12.0 (4) — TestFlight internal, 2026-07-20
+
+The mobile-first release: **every account now sets up entirely on the iPhone** —
+Claude and ChatGPT/Codex sign in natively on-device (no computer), alongside the
+API-key providers. Adds per-model and overage limit windows, a guided
+`npx vigil-link` wizard for the optional computer path, and a full docs overhaul.
+Detailed notes by track below. Both on-device OAuth flows are unit-tested and
+build on iOS + macOS but still need a real-account device walk to confirm the
+live sign-in round-trips.
 
 ### Native on-phone "Sign in with Codex" (PR E)
 
