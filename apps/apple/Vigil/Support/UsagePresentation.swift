@@ -125,6 +125,29 @@ enum UsagePresentation {
             }
     }
 
+    /// Every per-model / special limit across all accounts, tightest first —
+    /// the data behind the dedicated Models view.
+    static func modelLimits(
+        accounts: [AccountRef],
+        snapshots: [String: ProviderSnapshot]
+    ) -> [LimitCandidate] {
+        accounts
+            .compactMap { account -> [LimitCandidate]? in
+                guard let snapshot = snapshots[account.key] else { return nil }
+                return snapshot.windows
+                    .filter(isSpecialWindow)
+                    .map { LimitCandidate(account: account, snapshot: snapshot, window: $0) }
+            }
+            .flatMap { $0 }
+            .sorted {
+                let left = remainingPercent(for: $0.window)
+                let right = remainingPercent(for: $1.window)
+                if left != right { return left < right }
+                return title(for: $0.window)
+                    .localizedCaseInsensitiveCompare(title(for: $1.window)) == .orderedAscending
+            }
+    }
+
     static func watchlineCoverage(
         accounts: [AccountRef],
         snapshots: [String: ProviderSnapshot],
