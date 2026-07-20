@@ -3,20 +3,33 @@
 ## System overview
 
 ```
-┌─────────────── computer ───────────────┐        ┌──────────── iPhone / Mac ────────────┐
-│  ~/.claude/.credentials.json           │        │  Vigil app (SwiftUI)                 │
-│  ~/.codex/auth.json                    │        │   ├─ VigilKit                        │
-│  macOS Keychain                        │  QR /  │   │   ├─ ProviderRegistry ──────────┼──▶ provider usage endpoints
-│        │                               │ paste  │   │   ├─ FetchScheduler (ledger)    │
-│        ▼                               │ ─────▶ │   │   ├─ Vault (Keychain)           │
-│  npx vigil-link                        │        │   │   ├─ SnapshotStore (App Group)  │
-│   ├─ discover / mint credentials       │        │   │   └─ ThresholdEngine → notifs   │
-│   ├─ live-verify against provider      │        │   └─ Widgets (read snapshots,       │
-│   └─ render vigil1 QR chunks           │        │       tick countdowns client-side)  │
-└────────────────────────────────────────┘        └──────────────────────────────────────┘
+┌───────────────────────── iPhone / Mac (primary) ─────────────────────────┐
+│  Vigil app (SwiftUI)                                                      │
+│   ├─ Onboarding / "Add account"                                           │
+│   │   ├─ Sign in with Claude (ClaudeAuth, on-device OAuth)                ┼─▶ provider OAuth /
+│   │   ├─ Sign in with Codex  (CodexAuth, device-code sign-in)             ┼─▶ token endpoints
+│   │   └─ Add a provider directly (paste an API key)                       │
+│   ├─ VigilKit                                                             │
+│   │   ├─ ProviderRegistry                                                 ┼─▶ provider usage endpoints
+│   │   ├─ FetchScheduler (ledger)                                          │
+│   │   ├─ Vault (Keychain)                                                 │
+│   │   ├─ SnapshotStore (App Group)                                        │
+│   │   └─ ThresholdEngine → notifs                                         │
+│   └─ Widgets (read snapshots, tick countdowns client-side)                │
+└───────────────────────────────────────────────────────────────────────────┘
+                            ▲
+                            │  optional: reuse an existing Claude Code /
+                            │  Codex sign-in  ·  vigil1 QR / paste
+┌───────────────────── computer (optional) ──────────────────────┐
+│  npx vigil-link  —  optional reuse lane                         │
+│   ├─ reads ~/.claude/.credentials.json, ~/.codex/auth.json,     │
+│   │   or the macOS Keychain  →  discover / mint credentials     │
+│   ├─ live-verify against the provider                           │
+│   └─ render vigil1 QR chunks (or paste output)                  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-There is no Vigil server. The phone talks directly to provider endpoints with credentials handed off from the computer or entered manually.
+There is no Vigil server. The phone talks directly to provider endpoints, and credentials are provisioned on the phone itself: Claude through on-device "Sign in with Claude" OAuth (VigilKit `ClaudeAuth`), Codex through OpenAI's device-code sign-in (VigilKit `CodexAuth`), and each API-key provider by pasting a key. Reusing a Claude Code / Codex sign-in that already exists on a computer — via the `npx vigil-link` `vigil1` QR / paste handoff — is an optional convenience lane, not the primary path.
 
 ## The three reliability mechanisms
 

@@ -67,6 +67,89 @@ struct LimitWindowView: View {
     }
 }
 
+/// A compact stacked limit bar: name (+ optional account) on top, a full-width
+/// reservoir, and reset + used underneath. Reads as a clean scannable list —
+/// used by the account cards and the Models view.
+struct LimitMeterRow: View {
+    let window: UsageWindow
+    /// Shown under the title when the same row appears across accounts (Models view).
+    var accountName: String? = nil
+
+    private var remaining: Double {
+        UsagePresentation.remainingPercent(for: window)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(UsagePresentation.title(for: window))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(VigilPalette.ink)
+                        .lineLimit(1)
+                    if let accountName {
+                        Text(accountName)
+                            .font(.caption2)
+                            .foregroundStyle(VigilPalette.inkFaint)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 8)
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text("\(Int(remaining.rounded()))%")
+                        .font(.callout.weight(.bold).monospacedDigit())
+                        .foregroundStyle(UsageTint.color(for: window.utilization))
+                    Text("left")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(VigilPalette.inkMuted)
+                }
+            }
+
+            LimitReservoirBar(
+                remaining: remaining,
+                tint: UsageTint.color(for: window.utilization)
+            )
+
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                ResetCountdownView(resetsAt: window.resetsAt)
+                Spacer()
+                Text("\(Int(window.utilization.rounded()))% used")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(VigilPalette.inkFaint)
+            }
+        }
+        .padding(.vertical, 9)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            Text((accountName.map { "\($0), " } ?? "") + UsagePresentation.title(for: window))
+        )
+        .accessibilityValue(
+            Text(
+                "\(Int(remaining.rounded())) percent left, "
+                    + "\(Int(window.utilization.rounded())) percent used"
+            )
+        )
+        .accessibilityHint(accessibilityCountdown(window.resetsAt))
+    }
+}
+
+/// A vertical, divider-separated stack of LimitMeterRows.
+struct LimitMeterStack: View {
+    let windows: [UsageWindow]
+    var accountName: String? = nil
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(windows.enumerated()), id: \.element.id) { index, window in
+                if index > 0 {
+                    Divider().overlay(VigilPalette.ink.opacity(0.08))
+                }
+                LimitMeterRow(window: window, accountName: accountName)
+            }
+        }
+    }
+}
+
 struct LimitReservoirBar: View {
     let remaining: Double
     let tint: Color

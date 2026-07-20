@@ -2,6 +2,7 @@ import SwiftUI
 
 private enum VigilDestination: String, CaseIterable, Identifiable {
     case limits
+    case models
     case connections
     case settings
 
@@ -10,6 +11,7 @@ private enum VigilDestination: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .limits: return "Limits"
+        case .models: return "Models"
         case .connections: return "Connections"
         case .settings: return "Settings"
         }
@@ -18,6 +20,7 @@ private enum VigilDestination: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .limits: return "scope"
+        case .models: return "cpu"
         case .connections: return "link"
         case .settings: return "gearshape"
         }
@@ -83,6 +86,13 @@ struct RootView: View {
             }
 
             NavigationStack {
+                ModelsView()
+            }
+            .tabItem {
+                Label(VigilDestination.models.title, systemImage: VigilDestination.models.symbol)
+            }
+
+            NavigationStack {
                 ConnectionsView()
             }
             .tabItem {
@@ -112,6 +122,8 @@ struct RootView: View {
         switch destination {
         case .limits:
             DashboardView()
+        case .models:
+            ModelsView()
         case .connections:
             ConnectionsView()
         case .settings:

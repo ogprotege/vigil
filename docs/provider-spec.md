@@ -6,7 +6,7 @@
 
 | Provider | Default | Credential activation | Normalized data | Poll floor | Token refresh | Endpoint status | Vigil confidence |
 |---|---:|---|---|---:|---|---|---|
-| Claude | Yes | Vigil-owned OAuth mint, Claude Code file, or macOS Keychain | Session, weekly, Sonnet, and Opus windows | 300 s | Yes, only for credentials Vigil minted | Undocumented consumer endpoint | Supported, live-validated July 2026, fixture-covered |
+| Claude | Yes | Vigil-owned OAuth mint, Claude Code file, or macOS Keychain | Session, weekly, Sonnet, and Opus windows | 300 s | Yes, only for credentials Vigil minted | Undocumented consumer endpoint | Supported, live-validated July 2026, fixture-covered; on-device sign-in pending device walk |
 | ChatGPT / Codex | Yes | On-device device-code sign-in, or Codex CLI file | Session, weekly, and optional additional windows | 300 s | Minted tokens refresh independently; copied ones do not | Undocumented consumer endpoint | Supported, live-validated July 2026, fixture-covered; on-device sign-in pending device walk |
 | OpenRouter | No | `OPENROUTER_API_KEY`, QR/paste handoff, or app manual entry | Spend, credit limit, remaining credits | 300 s | Not applicable; API key | Documented key endpoint | Opt-in preview, fixture-covered; live validation remains a release check |
 | DeepSeek | No | `DEEPSEEK_API_KEY`, QR/paste handoff, or app manual entry | Balance by returned currency | 300 s | Not applicable; API key | Documented balance endpoint | Opt-in preview, fixture-covered; live validation remains a release check |
@@ -30,6 +30,8 @@ Definitions:
 Region variants (`moonshot` / `moonshot_cn`, `minimax` / `minimax_cn`) are separate providers because the vendors run separate key namespaces: a China-platform key against the global host returns 401, and MiniMax's global host answers wrong-region keys with an HTTP 200 error body, which Vigil surfaces as `schemaChanged`.
 
 ## Activating providers
+
+Claude and Codex are set up **on-device in the app** — "Add account" → "Sign in with Claude" (approve in a browser, then paste the code back) or "Sign in with Codex" (the app shows a code, you approve it in a browser, and the app polls until it completes) — and each API-key provider is added by pasting its key under "Add a provider directly". `npx vigil-link` is an **optional** path for reusing a Claude Code / Codex sign-in that already lives on a computer; the CLI commands below are that optional/advanced lane, not a prerequisite.
 
 The default command selects Claude and Codex:
 
@@ -169,11 +171,12 @@ A successful response becomes `schemaChanged` when no valid window or metric can
 - Overage credits: `extra_usage` (when `is_enabled`) maps to two metrics — `extra_used` (spend) and `extra_limit` (limit) — in the response's own `currency` (via `unitKey`). Disabled/absent extra usage carries null numbers and is skipped.
 - Poll floor: 300 seconds. Do not lower it. The endpoint can return hard 429 responses without `Retry-After`.
 - Discovery: `~/.claude/.credentials.json`, then the macOS Keychain service `Claude Code-credentials`.
+- **On-device sign-in (mint):** PKCE authorize at `https://claude.ai/oauth/authorize` (`code=true`, the PKCE verifier passed as `state`), with an out-of-band redirect to `https://console.anthropic.com/oauth/code/callback`; the user pastes the returned code back into the app, which exchanges it at `https://platform.claude.com/v1/oauth/token`. Minted pairs (`src: "mint"`) refresh via the same token URL. Implemented in VigilKit `ClaudeAuth` (unit-tested); **pending a live device walk** against a real Claude account.
 - Preferred link path: mint a separate Vigil token pair. Copying another client's refresh token can cause rotation conflicts.
 - Refresh: `POST https://platform.claude.com/v1/oauth/token`, only for pairs marked `src: "mint"`.
 - Stability: the usage and OAuth behavior is not a public contract. The window buckets were live-validated in July 2026; the `limits[]`/`extra_usage` shapes are fixture-modeled pending a live capture, and can drift.
 
-The verified OAuth flow currently requires the registered scope set, a literal `localhost` loopback host, `code=true`, and the PKCE verifier as `state`. Preserve the live tests and ADR-0005 when modifying it.
+The CLI's desktop OAuth flow (the `npx vigil-link` mint path) currently requires the registered scope set, a literal `localhost` loopback host, `code=true`, and the PKCE verifier as `state`; the on-device app flow above uses the out-of-band `console.anthropic.com` redirect instead of the loopback host. Preserve the live tests and ADR-0005 when modifying either.
 
 ## ChatGPT / Codex
 

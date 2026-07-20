@@ -14,6 +14,7 @@ Credentials can exist in:
 - environment variables supplied to `vigil-link`;
 - `vigil-link` process memory;
 - terminal output, scrollback, or QR pixels during linking;
+- the phone's browser and app memory during an on-device sign-in (Sign in with Claude / Sign in with Codex), before the token is stored in Apple Keychain;
 - Apple Keychain after the app accepts the account.
 
 The Apple app uses `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. The credentials do not sync through iCloud Keychain. Each device must be linked separately.

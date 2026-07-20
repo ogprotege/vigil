@@ -127,6 +127,35 @@ final class UsagePresentationTests: XCTestCase {
         )
     }
 
+    func testModelLimitsGathersOnlySpecialWindowsAcrossAccountsTightestFirst() {
+        let claude = AccountRef(key: "claude:one", providerId: "claude", label: nil, plan: "max")
+        let codex = AccountRef(key: "codex:two", providerId: "codex", label: nil, plan: "pro")
+        let claudeSnapshot = snapshot(
+            account: claude,
+            windows: [
+                window(id: "session", used: 30),                       // primary — excluded
+                window(id: "weekly", used: 40),                        // primary — excluded
+                window(id: "weekly_opus", used: 80, secondary: true),  // model — 20% left
+                window(id: "weekly_sonnet", used: 30, secondary: true), // model — 70% left
+            ]
+        )
+        let codexSnapshot = snapshot(
+            account: codex,
+            windows: [
+                window(id: "gpt-5-codex-spark", used: 95, secondary: true), // model — 5% left
+            ]
+        )
+
+        let result = UsagePresentation.modelLimits(
+            accounts: [claude, codex],
+            snapshots: [claude.key: claudeSnapshot, codex.key: codexSnapshot]
+        )
+
+        // Only the three model/special windows, none of the primary ones, tightest first.
+        XCTAssertEqual(result.map { $0.window.id }, ["gpt-5-codex-spark", "weekly_opus", "weekly_sonnet"])
+        XCTAssertEqual(result.first?.account, codex)
+    }
+
     func testWatchlineChoosesTightestWindowAcrossAccounts() throws {
         let claude = AccountRef(
             key: "claude:one",

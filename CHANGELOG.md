@@ -4,6 +4,26 @@
 
 Anything that changes shipped behavior gets an entry here: `vigil-link` npm versions, TestFlight app builds, and protocol or registry changes that affect both. Provider-schema and local-state migration notes are recorded per release so an existing installation can be upgraded deliberately.
 
+## 0.13.0 (6) — TestFlight internal, 2026-07-20
+
+Follow-up to the mobile-first release:
+
+- **Dedicated Models view.** A new Models tab gathers every per-model cap across
+  all accounts — Claude Opus/Sonnet weekly, model-scoped caps, Codex per-model
+  lanes, MiniMax video — into one tightest-first list, so model limits are no
+  longer buried in an account-card subsection. The Limits view's windows now
+  render as clean stacked meter bars (same colour scheme). Modeled on
+  token-monitor's Limits + Models views.
+- **Codex sign-in guidance.** The Codex device-code sign-in screen now shows the
+  one-time OpenAI account requirement up front — enable "device code
+  authorization" in ChatGPT → Settings → Security — so you don't hit OpenAI's
+  refusal page first. (The on-device Codex flow itself is confirmed reaching
+  OpenAI's device-code page from the phone.)
+- **Documentation overhaul.** Fixed 26 audit findings: removed leftover
+  terminal-first framing, corrected stale provider counts / ADR range / build
+  number, fixed the deprecated `--loop` / QR auto-cycle description, and
+  documented the on-device Claude/Codex sign-in flows across the doc set.
+
 ## 0.12.0 (4) — TestFlight internal, 2026-07-20
 
 The mobile-first release: **every account now sets up entirely on the iPhone** —
@@ -52,7 +72,9 @@ live sign-in round-trips.
   `authorizeUrl`/`scopes`/`manualRedirectUri` (mirrored + spec-parity asserted).
 - **Onboarding is now phone-first.** Add account leads with Sign in with Claude
   and the on-phone API-key providers; the `npx vigil-link` computer handoff is
-  demoted to an optional path (and labeled as the only current way to add Codex).
+  demoted to an optional path (at the time this was PR D's interim state, the
+  only way to add Codex — superseded within this same release by PR E's on-phone
+  Sign in with Codex).
 - Hand-entered credentials are now marked `source: "manual"` (never auto-refreshed,
   per ADR-0005) — previously they were saved with no source.
 - **Needs a device walk:** the on-device Claude OAuth (browser approval + code

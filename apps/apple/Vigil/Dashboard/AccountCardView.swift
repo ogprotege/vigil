@@ -37,7 +37,7 @@ struct AccountCardView: View {
 
             if let snapshot, (!snapshot.windows.isEmpty || !snapshot.metrics.isEmpty) {
                 if !primaryWindows.isEmpty {
-                    limitGrid(primaryWindows)
+                    LimitMeterStack(windows: primaryWindows)
                 }
 
                 if !specialWindows.isEmpty {
@@ -47,7 +47,7 @@ struct AccountCardView: View {
                             eyebrow: "Provider quotas",
                             detail: "\(specialWindows.count)"
                         )
-                        limitGrid(specialWindows, compact: true)
+                        LimitMeterStack(windows: specialWindows)
                     }
                 }
 
@@ -174,18 +174,6 @@ struct AccountCardView: View {
                         ? "Vigil has not reached this provider yet."
                         : "Offline · showing the last known provider values."
                 )
-            }
-        }
-    }
-
-    private func limitGrid(_ windows: [UsageWindow], compact: Bool = false) -> some View {
-        LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 210), spacing: 12)],
-            alignment: .leading,
-            spacing: 12
-        ) {
-            ForEach(windows, id: \.id) { window in
-                LimitWindowView(window: window, compact: compact)
             }
         }
     }

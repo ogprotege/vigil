@@ -42,6 +42,7 @@ The CLI routes discovery by `discovery.adapter`.
 - Reuse `environment` for a user-supplied API key.
 - Add a discovery adapter when credentials live in a provider-owned file or Keychain item.
 - Add an OAuth mint adapter only for a public-client flow that has been verified.
+- For an OAuth provider, also add an on-device sign-in implementation in VigilKit (pure request/response construction with no UI, unit-tested, minting its own token pair with source `"mint"`) alongside any CLI mint adapter, so the phone can provision the credential without a computer — this is the primary path (see `ClaudeAuth`/`CodexAuth`).
 - Do not refresh credentials copied from another client if refresh-token rotation could invalidate that client.
 
 Credential discovery must isolate failures. A broken provider must not stop the remaining `status`, `doctor`, or link report.
@@ -92,6 +93,7 @@ Check more than the core mapper:
 - CLI `status` labels and scalar formatting;
 - `doctor` activation guidance;
 - QR and paste payload size;
+- on-device OAuth sign-in view + flow (ClaudeAuth/CodexAuth-style) for OAuth providers;
 - Apple manual-entry hint and required fields;
 - dashboard rendering for windows and metrics;
 - menu-bar fallback for providers without a session window;

@@ -51,7 +51,7 @@ QR capacity at version 25 / EC level M is 997 bytes; codes past ~v25 scan unreli
 
 ### Multi-chunk UX
 
-- CLI: renders chunk 1, waits for keypress to advance (`--loop` auto-cycles every 3 s for hands-free scanning).
+- CLI: a single code draws once and waits for a keypress; multiple codes auto-cycle in place every 3 s until you press a key (the app can capture them in any order). The old `--loop` flag is deprecated and no longer needed.
 - App: accepts chunks in any order, shows "captured 2 of 3", assembles when complete.
 
 ## Receiver algorithm

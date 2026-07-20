@@ -21,8 +21,8 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    CURRENT_PROJECT_VERSION: 4
-    MARKETING_VERSION: 0.12.0
+    CURRENT_PROJECT_VERSION: 6
+    MARKETING_VERSION: 0.13.0
     # Local/simulator builds need no team; device runs set DEVELOPMENT_TEAM in
     # Xcode's Signing pane (mac-checklist §M4 step 7).
     CODE_SIGN_STYLE: Automatic

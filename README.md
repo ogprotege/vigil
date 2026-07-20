@@ -102,7 +102,7 @@ The CLI never persists credentials or usage values. It does persist poll timesta
 
 **Are my tokens safe?** They only ever travel between your own devices and the providers you turn on, and they live in your device Keychain. There's no Vigil server. The QR code does contain your credentials, so show it only somewhere private. See [docs/threat-model.md](docs/threat-model.md).
 
-**Do I have to use the terminal?** No — API-key providers can be added entirely on the phone (**Add account → Add a provider directly**). The terminal is only the fastest path for your existing Claude/Codex sign-ins.
+**Do I have to use the terminal?** No. Claude and ChatGPT/Codex both sign in right in the app (a browser approval and a short code), and every API-key provider is added by pasting a key (**Add account → Add a provider directly**). The terminal (`npx vigil-link`) is only an optional shortcut for reusing a Claude Code or Codex sign-in already on a computer.
 
 More answers — per-provider quirks, freshness details, and setup edge cases — are in **[docs/faq.md](docs/faq.md)**. Hitting a specific problem? See **[docs/troubleshooting.md](docs/troubleshooting.md)**.
 

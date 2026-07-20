@@ -17,12 +17,14 @@ Credentials are the highest-risk assets. Usage and account metadata are less sen
 
 Data crosses these boundaries:
 
-1. provider-owned CLI files or macOS Keychain into `vigil-link`;
-2. the CLI process into terminal output or a QR image;
-3. the QR, paste code, or `vigil1:` URL into the Vigil app;
-4. the app into Apple Keychain and the App Group container;
-5. the app or CLI over TLS to the activated provider;
-6. the app's App Group container into the widget extension.
+1. a provider OAuth browser session or device-code approval into the Vigil app (on-device Sign in with Claude / Sign in with Codex);
+2. a directly pasted API key into the Vigil app;
+3. provider-owned CLI files or macOS Keychain into `vigil-link` — now an optional path for reusing a sign-in already present on a computer;
+4. the CLI process into terminal output or a QR image;
+5. the QR, paste code, or `vigil1:` URL into the Vigil app;
+6. the app into Apple Keychain and the App Group container;
+7. the app or CLI over TLS to the activated provider;
+8. the app's App Group container into the widget extension.
 
 Vigil has no application server, account service, telemetry collector, or cloud relay.
 
@@ -111,7 +113,7 @@ control. The in-app scanner does not route through the URL scheme.
 
 ### Provider endpoint stability
 
-Claude and Codex consumer usage endpoints are undocumented. They can change, reject third-party traffic, or disappear. OpenRouter and DeepSeek expose documented endpoints, but their authentication and response policies can still change.
+Claude and Codex consumer usage endpoints are undocumented. They can change, reject third-party traffic, or disappear. The opt-in API-key gateways — OpenRouter, DeepSeek, Moonshot (and Moonshot CN), MiniMax (and MiniMax CN), OpenAI, and GitHub, plus the experimental xAI, Z.ai, and Cursor — expose documented or semi-documented endpoints (the experimental tier's are undocumented), but their authentication and response policies can still change.
 
 Fixtures detect regressions against known shapes. They do not provide production monitoring or advance warning of vendor drift.
 
