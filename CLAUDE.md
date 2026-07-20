@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What Vigil is
 
-An on-device AI usage monitor. It polls Claude and ChatGPT/Codex subscription windows, plus opt-in OpenRouter and DeepSeek gateway metrics, directly from the user's phone or Mac. There is **no Vigil server**. Credentials move from the computer to the phone via the `vigil1` QR protocol and live in the device Keychain (ADR-0001).
+An on-device AI usage monitor. It polls Claude and ChatGPT/Codex subscription windows, plus 11 opt-in API-key providers (OpenRouter, DeepSeek, Moonshot/Kimi and its China variant, MiniMax and its China variant, OpenAI, GitHub Copilot, and the experimental xAI, Z.ai, and Cursor), directly from the user's phone or Mac. There is **no Vigil server**. Credentials are provisioned on the phone and live in the device Keychain (ADR-0001): Claude via on-device "Sign in with Claude" OAuth, Codex via OpenAI's device-code sign-in, and each API-key provider by pasting a key. The `vigil1` QR handoff via `npx vigil-link` is an **optional** way to reuse a Claude Code / Codex sign-in that already exists on a computer.
 
 ## Commands
 
@@ -86,5 +86,5 @@ Envelope per code: `vigil1:<index>/<total>:<sid>:<data>` where data is a ≤700-
 - `docs/troubleshooting.md`: provider, linking, polling, widget, and storage failures
 - `docs/threat-model.md`: assets, trust boundaries, controls, and accepted limitations
 - `docs/qr-protocol.md` — payload/envelope format, security posture
-- `docs/decisions/` — ADRs 0001–0006 (the rationale behind the invariants above)
+- `docs/decisions/` — ADRs 0001–0007 (the rationale behind the invariants above)
 - `docs/local-next-steps.md` — status ledger of the executed milestones (M1–M8 shipped); the living docs are `docs/mac-checklist.md` (on-device walk) and `docs/release.md` (TestFlight releases)

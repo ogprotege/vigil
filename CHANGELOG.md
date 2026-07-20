@@ -52,7 +52,9 @@ live sign-in round-trips.
   `authorizeUrl`/`scopes`/`manualRedirectUri` (mirrored + spec-parity asserted).
 - **Onboarding is now phone-first.** Add account leads with Sign in with Claude
   and the on-phone API-key providers; the `npx vigil-link` computer handoff is
-  demoted to an optional path (and labeled as the only current way to add Codex).
+  demoted to an optional path (at the time this was PR D's interim state, the
+  only way to add Codex — superseded within this same release by PR E's on-phone
+  Sign in with Codex).
 - Hand-entered credentials are now marked `source: "manual"` (never auto-refreshed,
   per ADR-0005) — previously they were saved with no source.
 - **Needs a device walk:** the on-device Claude OAuth (browser approval + code

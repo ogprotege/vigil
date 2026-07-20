@@ -66,7 +66,7 @@ npx vigil-link doctor   # what credentials Vigil can find, and where it looked
 
 ## Where to get each provider's key
 
-Claude and Codex come from your existing CLI sign-ins (Path A). The rest are API keys you can paste on the phone (Path B) or set as an environment variable before running the wizard.
+Claude and ChatGPT/Codex sign in right on the phone (**Add account → Sign in with Claude** / **Sign in with Codex**); reusing a sign-in already on a computer is optional. Every other provider is an API key you paste on the phone (**Add account → Add a provider directly**) or set as an environment variable before running `vigil-link`.
 
 | Provider | Where to get it |
 |---|---|

@@ -26,9 +26,11 @@ Running `npx vigil-link` with no arguments starts a guided wizard (when your ter
 
 No flags to memorize. The flags below are for scripting and advanced use — passing any of `--provider`, `--json`, `--yes`, `--copy`, or `--mint` opts out of the wizard.
 
-You can also skip the terminal entirely: on the iPhone, **Add account → Add a provider directly** lets you type an API key straight into the app.
+This wizard is an optional path, not the main way in. On the iPhone, **Add account → Sign in with Claude** and **Sign in with Codex** sign in to Claude and ChatGPT/Codex directly (a browser approval and a short code), and **Add a provider directly** lets you paste any API key straight into the app — no terminal required. Reach for `vigil-link` when you'd rather reuse a Claude Code or Codex sign-in already on a computer and hand it to the phone by QR.
 
 ## Supported providers
+
+Thirteen providers ship in the registry. Claude and ChatGPT/Codex are enabled by default; the rest are opt-in and activate when you set their environment variable(s). Plain `npx vigil-link` (and `status`/`doctor`) scans **every** provider in the registry — see [docs/provider-spec.md](https://github.com/ogprotege/vigil/blob/main/docs/provider-spec.md) for the full list and verified endpoint facts.
 
 | Provider | Data | Activation | Default |
 |---|---|---|---|
@@ -36,8 +38,19 @@ You can also skip the terminal entirely: on the iPhone, **Add account → Add a 
 | ChatGPT / Codex | Session, weekly, and additional windows | Codex CLI credentials | Yes |
 | OpenRouter | Spend, credit limit, and remaining credits | `OPENROUTER_API_KEY` | No |
 | DeepSeek | Balance by currency | `DEEPSEEK_API_KEY` | No |
+| Moonshot (Kimi) | Balance | `MOONSHOT_API_KEY` | No |
+| Moonshot (Kimi) China | Balance | `MOONSHOT_CN_API_KEY` | No |
+| MiniMax Coding Plan | Session and weekly windows | `MINIMAX_CODING_API_KEY` | No |
+| MiniMax Coding Plan China | Session and weekly windows | `MINIMAX_CN_CODING_API_KEY` | No |
+| OpenAI API | Month-to-date spend | `OPENAI_ADMIN_KEY` (Admin key) | No |
+| GitHub Copilot | AI-credit spend | `GITHUB_BILLING_TOKEN` + `GITHUB_BILLING_USER` | No |
+| xAI API *(experimental)* | Prepaid balance | `XAI_MANAGEMENT_KEY` + `XAI_TEAM_ID` | No |
+| Z.ai / GLM Coding Plan *(experimental)* | Session and monthly windows | `ZAI_API_KEY` | No |
+| Cursor *(experimental)* | Plan usage and on-demand spend | `CURSOR_SESSION_TOKEN` | No |
 
-OpenRouter and DeepSeek are opt-in:
+**xAI, Z.ai, and Cursor are experimental** — their endpoints are undocumented and can drift.
+
+For example, OpenRouter and DeepSeek activate like this:
 
 ```sh
 OPENROUTER_API_KEY='...' npx vigil-link status --provider openrouter

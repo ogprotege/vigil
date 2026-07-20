@@ -1,11 +1,13 @@
 # Mac-side build & smoke checklist
 
-> **Status (2026-07-18):** steps 1–4 below are ✅ done (foundation validated
+> **Status (2026-07-20):** steps 1–4 below are ✅ done (foundation validated
 > live, `vigil-link@0.1.1` published). M4–M7 are built and M8 shipped —
-> build 0.9.0 (1) is in TestFlight internal testing (see
-> [release.md](release.md)). **The remaining work is steps 5–17: the
-> on-device walk**, starting by installing Vigil from the TestFlight app
-> instead of a tethered Xcode run.
+> build **0.12.0 (4)** is the current TestFlight internal build (see
+> [release.md](release.md)). Shipped since 0.9.0 (1): **0.10.0** (13-provider
+> expansion), **0.11.0** (UI redesign), and **0.12.0** (phone-native setup +
+> per-model limits). **The remaining work is steps 5–17: the on-device walk**,
+> starting by installing Vigil from the TestFlight app instead of a tethered
+> Xcode run.
 
 ## After this pass (foundation smoke — no Xcode needed)
 
@@ -36,7 +38,9 @@
 5. Install **TestFlight** on your iPhone, sign in with the team Apple ID, and install Vigil from the Internal group (see [release.md](release.md)). *(A tethered Xcode run also works, but requires registering the device first — the team's signing is manual distribution because it has no registered devices; see release.md.)*
 6. — merged into step 5 —
 7. — merged into step 5 —
-8. Add Account → "Scan from computer" → `npx vigil-link` on the Mac → scan → live verify succeeds → dashboard shows real percentages.
+8. **Add account → Sign in with Claude** (primary): approve in the browser, paste the code back → on-device token mint → live verify succeeds → dashboard shows real percentages.
+8a. **Add account → Sign in with Codex** (primary): approve the device code in the browser → Vigil polls and mints its own token pair → poll completes and the account goes live.
+8b. **Optional variant — Scan from computer:** reuse a Claude Code / Codex sign-in already on a computer via **Add account → Scan from computer** → `npx vigil-link` on the Mac → scan → live verify succeeds → dashboard shows real percentages.
 9. Kill/relaunch the app: percentages render instantly from the stored snapshot.
 10. Airplane mode: staleness tint + "last updated" appear; countdown keeps ticking.
 11. Remove account → re-add prompts fresh (Keychain actually cleared).
