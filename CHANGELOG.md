@@ -4,7 +4,7 @@
 
 Anything that changes shipped behavior gets an entry here: `vigil-link` npm versions, TestFlight app builds, and protocol or registry changes that affect both. Provider-schema and local-state migration notes are recorded per release so an existing installation can be upgraded deliberately.
 
-## 0.13.0 (5) — TestFlight internal, 2026-07-20
+## 0.13.0 (6) — TestFlight internal, 2026-07-20
 
 Follow-up to the mobile-first release:
 
