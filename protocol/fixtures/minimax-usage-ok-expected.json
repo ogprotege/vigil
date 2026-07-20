@@ -13,6 +13,20 @@
       "resetsAt": "2026-07-20T07:00:00Z",
       "windowSeconds": null,
       "secondary": false
+    },
+    {
+      "id": "session_video",
+      "utilization": 0,
+      "resetsAt": "2026-07-18T21:00:00Z",
+      "windowSeconds": null,
+      "secondary": true
+    },
+    {
+      "id": "weekly_video",
+      "utilization": 0,
+      "resetsAt": "2026-07-20T07:00:00Z",
+      "windowSeconds": null,
+      "secondary": true
     }
   ]
 }

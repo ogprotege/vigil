@@ -2,20 +2,24 @@ import type { ProviderId, Registry } from "../spec/registry.js";
 import type { DiscoveryOptions } from "../discovery/paths.js";
 import type { HttpOptions } from "../http.js";
 import type { PollGateOptions } from "../polling.js";
-import type { Credentials } from "../providers/types.js";
+import type { Credentials, ProviderSnapshot, SnapshotStatus } from "../providers/types.js";
 import { collectCredentials } from "./status.js";
-import { getSnapshot } from "../service.js";
+import { getSnapshot, type PollSafetyWarning } from "../service.js";
 import { hasMintAdapter, mintProvider } from "../oauth/index.js";
 import type { MintOptions } from "../oauth/claudeMint.js";
 import { buildPayload, chunkEncoded, encodePayload, makeSid } from "../qr/payload.js";
-import { renderQr } from "../qr/render.js";
+import { presentChunks } from "../qr/present.js";
 import { redactedMessage } from "../util/redact.js";
 import { sanitizeTerminalText } from "../util/terminal.js";
+import { humanizeUntil } from "../util/time.js";
 
-export interface LinkOptions {
-  providers: ProviderId[];
-  /** "mint" (default): mint Claude its own pair; "copy": reuse existing CLI creds. */
-  mode: "mint" | "copy";
+/**
+ * Everything the handoff back-end (verify -> payload -> consent -> present)
+ * needs, independent of how the account list was gathered. Both the classic
+ * flow (`runLink`) and the wizard (`runWizard`) build a `Credentials[]` and
+ * pass it to `emitLink` with these options.
+ */
+export interface EmitLinkOptions {
   json: boolean;
   /**
    * Explicit consent (--yes) to emit credential-bearing output without an
@@ -24,7 +28,6 @@ export interface LinkOptions {
    * always obtained before credentials are displayed.
    */
   yes: boolean;
-  loop: boolean;
   big: boolean;
   clear: boolean;
   verify: boolean;
@@ -32,14 +35,25 @@ export interface LinkOptions {
   discovery?: DiscoveryOptions;
   http?: HttpOptions;
   poll?: PollGateOptions | false;
-  mint?: MintOptions;
   now?: () => Date;
   out: (text: string) => void;
   err: (text: string) => void;
   confirm?: (question: string) => Promise<boolean>;
-  waitForKey?: (message: string) => Promise<void>;
+  /** Resolves on the next keypress; drives QR cycling. Absent => draw once. */
+  waitKey?: () => Promise<void>;
+  /** Terminal width, for auto-sizing the QR. Undefined keeps the compact code. */
+  columns?: number;
   sleep?: (ms: number) => Promise<void>;
   sid?: string;
+}
+
+export interface LinkOptions extends EmitLinkOptions {
+  providers: ProviderId[];
+  /** "mint" (default): mint Claude its own pair; "copy": reuse existing CLI creds. */
+  mode: "mint" | "copy";
+  /** @deprecated Multi-chunk codes now cycle until a keypress by default. */
+  loop: boolean;
+  mint?: MintOptions;
 }
 
 export async function collectLinkAccounts(opts: LinkOptions): Promise<Credentials[]> {
@@ -82,8 +96,41 @@ export async function collectLinkAccounts(opts: LinkOptions): Promise<Credential
   return accounts;
 }
 
-async function verifyAccounts(opts: LinkOptions, accounts: Credentials[]): Promise<Credentials[]> {
-  const verified: Credentials[] = [];
+/**
+ * The result of live-verifying one candidate account before handoff.
+ *
+ * - `verified`: the provider answered (ok or rateLimited — reachability proven).
+ * - `deferred`: the local cross-process poll gate refused the request (this
+ *   computer polled recently). The credential is still handoff-worthy; the
+ *   phone verifies it on its own next refresh, so we never drop it.
+ * - `failed`: the provider rejected the credential or was unreachable
+ *   (authExpired / network / schemaChanged). Excluded from the payload.
+ */
+export interface VerifyOutcome {
+  kind: "verified" | "deferred" | "failed";
+  credentials: Credentials;
+  displayName: string;
+  /** Absent only for the (near-impossible) missing-registry guard. */
+  snapshot?: ProviderSnapshot;
+  pollSafetyWarning?: PollSafetyWarning;
+}
+
+function classifyStatus(status: SnapshotStatus): VerifyOutcome["kind"] {
+  if (status === "ok" || status === "rateLimited") return "verified";
+  if (status === "deferred") return "deferred";
+  return "failed";
+}
+
+/**
+ * Live-verifies every candidate account and classifies the result. Pure with
+ * respect to output: callers render the human messages (see
+ * `verifyOutcomeMessages`) and decide inclusion, so the wizard and the classic
+ * flow can present the same outcomes differently.
+ */
+export async function verifyLinkAccounts(
+  opts: EmitLinkOptions,
+  accounts: Credentials[]
+): Promise<VerifyOutcome[]> {
   const now = opts.now ?? (() => new Date());
   const poll =
     opts.poll === false
@@ -94,47 +141,79 @@ async function verifyAccounts(opts: LinkOptions, accounts: Credentials[]): Promi
           ...opts.poll,
           now,
         };
-  const results = await Promise.all(accounts.map(async (creds) => {
-    const spec = opts.registry.providers[creds.providerId];
-    if (!spec) {
+  return Promise.all(
+    accounts.map(async (creds): Promise<VerifyOutcome> => {
+      const spec = opts.registry.providers[creds.providerId];
+      if (!spec) {
+        return {
+          kind: "failed",
+          credentials: creds,
+          displayName: sanitizeTerminalText(creds.providerId),
+        };
+      }
+      const { snapshot, credentials, pollSafetyWarning } = await getSnapshot(opts.registry, creds, {
+        ...opts.http,
+        now,
+        poll,
+      });
       return {
-        credentials: null,
-        messages: [
-          `✗ ${sanitizeTerminalText(creds.providerId)}: missing registry entry. Not including in link payload.`,
-        ],
+        kind: classifyStatus(snapshot.status),
+        credentials,
+        displayName: sanitizeTerminalText(spec.displayName),
+        snapshot,
+        ...(pollSafetyWarning ? { pollSafetyWarning } : {}),
       };
-    }
-    const { snapshot, credentials, pollSafetyWarning } = await getSnapshot(opts.registry, creds, {
-      ...opts.http,
-      now,
-      poll,
-    });
-    const displayName = sanitizeTerminalText(spec.displayName);
-    const messages: string[] = [];
-    if (pollSafetyWarning) {
-      messages.push(
-        `⚠ ${displayName}: poll safety result could not be saved ` +
-          `(${pollSafetyWarning.reason}); conservative pause remains until ${pollSafetyWarning.retryAt}`
+    })
+  );
+}
+
+function failedMessage(name: string, status: SnapshotStatus | undefined): string {
+  switch (status) {
+    case "authExpired":
+      return (
+        `✗ ${name}: the provider rejected these credentials (expired or revoked). ` +
+        "Not included — refresh them (open the provider's own CLI or sign in again), then re-run."
       );
-    }
-    if (snapshot.status === "ok" || snapshot.status === "rateLimited") {
-      // rateLimited still proves the credential reaches the provider.
-      messages.push(`✓ ${displayName}: verified (${snapshot.status})`);
-      return { credentials, messages };
-    } else {
-      const retry =
-        snapshot.status === "deferred" && snapshot.retryAt ? ` until ${snapshot.retryAt}` : "";
-      messages.push(
-        `✗ ${displayName}: ${snapshot.status}${retry}. Not including in link payload.`
-      );
-      return { credentials: null, messages };
-    }
-  }));
-  for (const result of results) {
-    for (const message of result.messages) opts.err(message);
-    if (result.credentials) verified.push(result.credentials);
+    case "network":
+      return `✗ ${name}: couldn't reach the provider (network problem). Not included — check your connection and re-run.`;
+    case "schemaChanged":
+      return `✗ ${name}: the provider returned an unexpected response. Not included — check for a vigil-link update.`;
+    default:
+      return `✗ ${name}: verification failed (${status ?? "unknown"}). Not included.`;
   }
-  return verified;
+}
+
+/** Human-readable lines for one verification outcome, for the classic flow. */
+export function verifyOutcomeMessages(outcome: VerifyOutcome, now: Date): string[] {
+  const name = outcome.displayName;
+  const messages: string[] = [];
+  if (outcome.pollSafetyWarning) {
+    messages.push(
+      `⚠ ${name}: poll safety result could not be saved ` +
+        `(${outcome.pollSafetyWarning.reason}); conservative pause remains until ${outcome.pollSafetyWarning.retryAt}`
+    );
+  }
+  if (outcome.kind === "verified") {
+    messages.push(`✓ ${name}: verified (${outcome.snapshot?.status ?? "ok"})`);
+  } else if (outcome.kind === "deferred") {
+    const next = outcome.snapshot?.retryAt
+      ? `; next allowed in ${humanizeUntil(outcome.snapshot.retryAt, now)}`
+      : "";
+    messages.push(
+      `◌ ${name}: couldn't verify right now — this computer polled recently ` +
+        `(Vigil waits 5 minutes between checks${next}). ` +
+        "Including it anyway; your iPhone will verify it on its next refresh."
+    );
+    if (outcome.snapshot?.deferredReason === "corruptState" && outcome.snapshot.pollStatePath) {
+      messages.push(
+        `  ⚠ poll-state file is corrupt or unreadable: ${sanitizeTerminalText(outcome.snapshot.pollStatePath)}`
+      );
+      messages.push("  recovery: delete that file to reset this provider's poll clock");
+    }
+  } else {
+    messages.push(failedMessage(name, outcome.snapshot?.status));
+  }
+  return messages;
 }
 
 const CONSENT =
@@ -142,8 +221,6 @@ const CONSENT =
   "Anyone who can see or record your screen can capture them. Continue?";
 
 export async function runLink(opts: LinkOptions): Promise<number> {
-  const now = opts.now ?? (() => new Date());
-
   // Consent gate, checked before any discovery or minting: without an
   // interactive prompt available, credential-bearing output requires --yes.
   if (!opts.yes && (opts.json || !opts.confirm)) {
@@ -155,17 +232,41 @@ export async function runLink(opts: LinkOptions): Promise<number> {
     return 1;
   }
 
-  let accounts = await collectLinkAccounts(opts);
+  const accounts = await collectLinkAccounts(opts);
   if (accounts.length === 0) {
     opts.err(
       "Nothing to link. Configure credentials for at least one selected provider, then re-run `vigil-link doctor`."
     );
     return 1;
   }
+  return emitLink(opts, accounts);
+}
+
+/**
+ * Shared handoff back-end: verify (dropping only hard failures, keeping
+ * deferred accounts), build the payload, obtain display consent, and render the
+ * QR (or print the paste-code in --json mode). Both the classic flow and the
+ * wizard funnel their gathered accounts through here.
+ */
+export async function emitLink(opts: EmitLinkOptions, gathered: Credentials[]): Promise<number> {
+  const now = opts.now ?? (() => new Date());
+  let accounts = gathered;
+
   if (opts.verify) {
-    accounts = await verifyAccounts(opts, accounts);
+    const outcomes = await verifyLinkAccounts(opts, accounts);
+    for (const outcome of outcomes) {
+      for (const message of verifyOutcomeMessages(outcome, now())) opts.err(message);
+    }
+    // Verified and deferred accounts both ship: a deferred one just means this
+    // computer polled recently, and the phone will verify it on its own.
+    accounts = outcomes
+      .filter((outcome) => outcome.kind === "verified" || outcome.kind === "deferred")
+      .map((outcome) => outcome.credentials);
     if (accounts.length === 0) {
-      opts.err("No account verified successfully; not rendering a link code.");
+      opts.err(
+        "Nothing left to link — no selected account could be verified or included. " +
+          "Fix the errors above and re-run."
+      );
       return 1;
     }
   }
@@ -191,34 +292,17 @@ export async function runLink(opts: LinkOptions): Promise<number> {
   }
 
   const chunks = chunkEncoded(encoded, sid);
-  const wait = opts.waitForKey ?? (async () => {});
-  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
-
-  if (opts.loop && chunks.length > 1) {
-    opts.err(`Cycling ${chunks.length} codes every 3s — press Ctrl+C when the app shows all captured.`);
-    // Two full passes is enough for the app to capture all chunks in any order.
-    for (let pass = 0; pass < 2; pass++) {
-      for (let i = 0; i < chunks.length; i++) {
-        opts.out(`\nVigil link — code ${i + 1} of ${chunks.length} (open Vigil → Add Account → Scan)\n`);
-        opts.out(await renderQr(chunks[i]!, { big: opts.big }));
-        await sleep(3000);
-      }
+  await presentChunks(
+    chunks,
+    { size: opts.big ? "big" : "auto" },
+    {
+      out: opts.out,
+      err: opts.err,
+      clear: opts.clear,
+      ...(opts.columns !== undefined ? { columns: opts.columns } : {}),
+      ...(opts.waitKey ? { waitKey: opts.waitKey } : {}),
+      ...(opts.sleep ? { sleep: opts.sleep } : {}),
     }
-  } else {
-    for (let i = 0; i < chunks.length; i++) {
-      opts.out(`\nVigil link — code ${i + 1} of ${chunks.length} (open Vigil → Add Account → Scan)\n`);
-      opts.out(await renderQr(chunks[i]!, { big: opts.big }));
-      if (i < chunks.length - 1) await wait("Press Enter for the next code...");
-    }
-    await wait("Press Enter once the app has captured everything...");
-  }
-
-  if (opts.clear) {
-    // ANSI clear screen + scrollback, best effort.
-    opts.out("[2J[3J[H");
-    opts.err("Screen cleared. Done — check the Vigil app.");
-  } else {
-    opts.err("Done — check the Vigil app. (Screen NOT cleared: --no-clear)");
-  }
+  );
   return 0;
 }

@@ -105,7 +105,9 @@ function windowNumber(value: unknown, lenient: boolean): number | null {
 function readBucket(
   spec: ProviderSpec,
   bucket: Record<string, unknown>,
-  windowSpec: Pick<WindowSpec, "id" | "resetFormat" | "windowSeconds" | "secondary" | "fields">
+  windowSpec: Pick<WindowSpec, "id" | "resetFormat" | "windowSeconds" | "secondary" | "fields"> & {
+    label?: string | null;
+  }
 ): UsageWindow | null {
   if (!spec.responseFields) return null;
   const utilizationKey = windowSpec.fields?.utilization ?? spec.responseFields.utilization;
@@ -141,6 +143,7 @@ function readBucket(
 
   return {
     id: windowSpec.id,
+    label: windowSpec.label ?? null,
     utilization: Math.min(100, Math.max(0, utilization)),
     resetsAt: reset,
     windowSeconds,
@@ -157,9 +160,12 @@ function metricNumber(value: unknown): number | null {
   return null;
 }
 
+function normalizedIdSuffix(raw: string): string {
+  return raw.toLowerCase().replace(/[^a-z0-9]/g, "_");
+}
+
 function normalizedMetricId(raw: string, kind: UsageMetricKind): string {
-  const suffix = raw.toLowerCase().replace(/[^a-z0-9]/g, "_");
-  return `${kind}_${suffix}`;
+  return `${kind}_${normalizedIdSuffix(raw)}`;
 }
 
 function boundedProviderText(raw: unknown, maximumLength: number): string | null {
@@ -195,17 +201,27 @@ export function mapUsageResponse(spec: ProviderSpec, body: unknown): MappedUsage
   }
 
   if (spec.additionalWindows) {
-    const extra = getPath(body, spec.additionalWindows.sourceKey);
+    const aw = spec.additionalWindows;
+    const extra = getPath(body, aw.sourceKey);
     if (Array.isArray(extra)) {
       for (const entry of extra.slice(0, 128)) {
         if (entry === null || typeof entry !== "object") continue;
         const record = entry as Record<string, unknown>;
-        const id = boundedProviderText(record[spec.additionalWindows.idKey], 128);
-        if (!id) continue;
+        // Optional per-entry filter (e.g. keep only kind === "weekly_scoped").
+        if (aw.filter && getPath(record, aw.filter.key) !== aw.filter.equals) continue;
+        const rawId = boundedProviderText(getPath(record, aw.idKey), 128);
+        if (!rawId) continue;
+        // A prefix means synthesize a stable normalized id (weekly_scoped_fable);
+        // without one, the raw id stands (Codex lane names like gpt-5-codex-spark).
+        const id = aw.idPrefix ? `${aw.idPrefix}_${normalizedIdSuffix(rawId)}` : rawId;
+        const label = aw.labelKey ? boundedProviderText(getPath(record, aw.labelKey), 64) : null;
         const mapped = readBucket(spec, record, {
           id,
-          resetFormat: "unixSeconds",
-          secondary: spec.additionalWindows.secondary,
+          resetFormat: aw.resetFormat ?? "unixSeconds",
+          secondary: aw.secondary,
+          label,
+          ...(aw.windowSeconds !== undefined ? { windowSeconds: aw.windowSeconds } : {}),
+          ...(aw.fields ? { fields: aw.fields } : {}),
         });
         if (mapped && !windowIds.has(mapped.id)) {
           windowIds.add(mapped.id);
@@ -247,12 +263,19 @@ export function mapUsageResponse(spec: ProviderSpec, body: unknown): MappedUsage
       value *= mapping.scale;
     }
     if (!Number.isFinite(value)) continue;
+    // A unitKey (e.g. extra_usage.currency) overrides the static unit when it
+    // resolves to a usable string; otherwise the static unit stands.
+    let unit: string | null = mapping.unit ?? null;
+    if (mapping.unitKey) {
+      const resolved = boundedProviderText(getPath(body, mapping.unitKey), 32);
+      if (resolved) unit = resolved;
+    }
     const metric = {
       id: mapping.id,
       label: mapping.label,
       kind: mapping.kind,
       value,
-      unit: mapping.unit ?? null,
+      unit,
       secondary: mapping.secondary,
     };
     if (!metricIds.has(metric.id)) {

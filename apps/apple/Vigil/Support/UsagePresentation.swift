@@ -27,7 +27,8 @@ enum UsagePresentation {
     }
 
     static func title(for window: UsageWindow) -> String {
-        switch window.id.lowercased() {
+        let id = window.id.lowercased()
+        switch id {
         case "session":
             return durationTitle(seconds: window.windowSeconds) ?? "Session limit"
         case "weekly":
@@ -42,8 +43,21 @@ enum UsagePresentation {
             return "Sonnet weekly"
         case "weekly_opus":
             return "Opus weekly"
+        case "weekly_oauth_apps":
+            return "OAuth apps weekly"
+        case "weekly_cowork":
+            return "Cowork weekly"
+        case "session_video":
+            return "Video session"
+        case "weekly_video":
+            return "Video weekly"
         default:
-            return humanizedIdentifier(window.id)
+            // Model-scoped windows (Claude limits[]) carry the model name as a
+            // label; render "<Model> weekly" to match the Sonnet/Opus style.
+            if id.hasPrefix("weekly_scoped"), let label = window.label {
+                return "\(label) weekly"
+            }
+            return window.label ?? humanizedIdentifier(window.id)
         }
     }
 
@@ -61,9 +75,13 @@ enum UsagePresentation {
         case "billing": return "BILLING WINDOW"
         default:
             if window.secondary {
-                return window.id.lowercased().hasPrefix("weekly_")
-                    ? "MODEL LIMIT"
-                    : "SPECIAL LIMIT"
+                let id = window.id.lowercased()
+                // A model name (label), a weekly_* id, or a per-model video lane
+                // all read as a model-scoped quota rather than a special one.
+                let isModelScoped = window.label != nil
+                    || id.hasPrefix("weekly_")
+                    || id.hasSuffix("_video")
+                return isModelScoped ? "MODEL LIMIT" : "SPECIAL LIMIT"
             }
             return "USAGE WINDOW"
         }

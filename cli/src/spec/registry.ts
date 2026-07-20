@@ -35,6 +35,10 @@ export interface OAuthSpec {
   scopes: string[];
   loopbackPort: number;
   manualRedirectUri: string;
+  /** OpenAI Codex device-authorization-grant endpoints (app-side, on-device
+   * sign-in). Absent for providers that use the auth-code flow. */
+  deviceCodeUrl?: string;
+  deviceTokenUrl?: string;
 }
 
 /**
@@ -80,9 +84,25 @@ export interface ResponseFieldsSpec {
 }
 
 export interface AdditionalWindowsSpec {
+  /** Array of dynamic window entries in the response. */
   sourceKey: string;
+  /** Dot-path (within each entry) to the string used as the window id. */
   idKey: string;
   secondary: boolean;
+  /** Keep only entries whose `key` string-equals `equals` (e.g. Claude's
+   * limits[] carries many kinds; take just `weekly_scoped`). */
+  filter?: { key: string; equals: string };
+  /** Reset encoding for these entries. Defaults to unixSeconds (Codex). */
+  resetFormat?: "iso8601" | "unixSeconds" | "unixMillis";
+  /** When set, the id is `${idPrefix}_${normalized(idKey value)}` — a stable,
+   * safe key. Absent means the raw idKey value is the id (Codex lanes). */
+  idPrefix?: string;
+  /** Dot-path to a human display label carried verbatim on the window. */
+  labelKey?: string;
+  /** Static duration for these windows, in seconds. */
+  windowSeconds?: number;
+  /** Per-entry override of the provider's responseFields. */
+  fields?: { utilization: string; resetsAt: string };
 }
 
 export type UsageMetricKind = "balance" | "spend" | "limit" | "remaining";
@@ -95,6 +115,9 @@ export interface MetricMappingSpec {
   sourceKey: string;
   kind: UsageMetricKind;
   unit?: string;
+  /** Dot-path to a unit/currency string in the response; overrides `unit`
+   * when it resolves (e.g. Claude extra_usage.currency). */
+  unitKey?: string;
   secondary: boolean;
   /** "sum" adds every value the sourceKey resolves to (billing buckets). */
   aggregate?: "sum";

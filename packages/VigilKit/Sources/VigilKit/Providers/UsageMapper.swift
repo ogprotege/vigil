@@ -127,7 +127,8 @@ public enum UsageMapper {
         resetFormat: ResetFormat,
         specWindowSeconds: Int?,
         secondary: Bool,
-        fieldOverride: WindowFieldOverride? = nil
+        fieldOverride: WindowFieldOverride? = nil,
+        label: String? = nil
     ) -> UsageWindow? {
         guard let fields = spec.responseFields else { return nil }
         let utilizationKey = fieldOverride?.utilization ?? fields.utilization
@@ -165,11 +166,12 @@ public enum UsageMapper {
             utilization: min(100, max(0, utilization)),
             resetsAt: resetsAt,
             windowSeconds: windowSeconds,
-            secondary: secondary
+            secondary: secondary,
+            label: label
         )
     }
 
-    private static func normalizedMetricID(_ raw: String, prefix: String) -> String {
+    private static func normalizedID(_ raw: String, prefix: String) -> String {
         // Mirrors the TS regex `[^a-z0-9]` applied per UTF-16 code unit:
         // non-ASCII letters (e.g. currency names like 元) normalize to "_"
         // on both sides instead of surviving only in Swift.
@@ -216,17 +218,30 @@ public enum UsageMapper {
         if let additional = spec.additionalWindows,
            let entries = value(at: additional.sourceKey, in: root) as? [Any] {
             for entry in entries.prefix(128) {
-                guard let record = entry as? [String: Any],
-                      let rawID = record[additional.idKey] as? String,
-                      let id = boundedProviderText(rawID, maximumLength: 128)
+                guard let record = entry as? [String: Any] else { continue }
+                // Optional per-entry filter (e.g. keep only kind == "weekly_scoped").
+                if let filter = additional.filter,
+                   (value(at: filter.key, in: record) as? String) != filter.equals {
+                    continue
+                }
+                guard let rawID = value(at: additional.idKey, in: record) as? String,
+                      let boundedID = boundedProviderText(rawID, maximumLength: 128)
                 else { continue }
+                // A prefix means synthesize a stable normalized id
+                // (weekly_scoped_fable); without one, the raw id stands.
+                let id = additional.idPrefix.map { normalizedID(boundedID, prefix: $0) } ?? boundedID
+                let label = additional.labelKey
+                    .flatMap { value(at: $0, in: record) as? String }
+                    .flatMap { boundedProviderText($0, maximumLength: 64) }
                 if let window = readBucket(
                     spec: spec,
                     bucket: record,
                     id: id,
-                    resetFormat: .unixSeconds,
-                    specWindowSeconds: nil,
-                    secondary: additional.secondary
+                    resetFormat: additional.resetFormat,
+                    specWindowSeconds: additional.windowSeconds,
+                    secondary: additional.secondary,
+                    fieldOverride: additional.fields,
+                    label: label
                 ), windowIDs.insert(window.id).inserted {
                     windows.append(window)
                 }
@@ -260,12 +275,17 @@ public enum UsageMapper {
                 resolved *= scale
             }
             guard resolved.isFinite else { continue }
+            // A unitKey (e.g. extra_usage.currency) overrides the static unit
+            // when it resolves to a usable string; otherwise the static unit stands.
+            let unit = mapping.unitKey
+                .flatMap { value(at: $0, in: root) as? String }
+                .flatMap { boundedProviderText($0, maximumLength: 32) } ?? mapping.unit
             let metric = UsageMetric(
                 id: mapping.id,
                 label: mapping.label,
                 kind: mapping.kind,
                 value: resolved,
-                unit: mapping.unit,
+                unit: unit,
                 secondary: mapping.secondary
             )
             if metricIDs.insert(metric.id).inserted {
@@ -286,7 +306,7 @@ public enum UsageMapper {
                     .flatMap { boundedProviderText($0, maximumLength: 32) }
                 let suffix = unit ?? safeID
                 let metric = UsageMetric(
-                    id: normalizedMetricID(safeID, prefix: collection.kind.rawValue),
+                    id: normalizedID(safeID, prefix: collection.kind.rawValue),
                     label: "\(collection.label) (\(suffix))",
                     kind: collection.kind,
                     value: amount,

@@ -76,10 +76,55 @@
           "resetFormat": "iso8601",
           "windowSeconds": 604800,
           "secondary": true
+        },
+        {
+          "id": "weekly_oauth_apps",
+          "sourceKey": "seven_day_oauth_apps",
+          "resetFormat": "iso8601",
+          "windowSeconds": 604800,
+          "secondary": true
+        },
+        {
+          "id": "weekly_cowork",
+          "sourceKey": "seven_day_cowork",
+          "resetFormat": "iso8601",
+          "windowSeconds": 604800,
+          "secondary": true
+        }
+      ],
+      "additionalWindows": {
+        "sourceKey": "limits",
+        "filter": { "key": "kind", "equals": "weekly_scoped" },
+        "idKey": "scope.model.display_name",
+        "idPrefix": "weekly_scoped",
+        "labelKey": "scope.model.display_name",
+        "resetFormat": "iso8601",
+        "windowSeconds": 604800,
+        "secondary": true
+      },
+      "metricMappings": [
+        {
+          "id": "extra_used",
+          "label": "Extra usage (month)",
+          "sourceKey": "extra_usage.used_credits",
+          "kind": "spend",
+          "unit": "USD",
+          "unitKey": "extra_usage.currency",
+          "secondary": false
+        },
+        {
+          "id": "extra_limit",
+          "label": "Extra usage limit",
+          "sourceKey": "extra_usage.monthly_limit",
+          "kind": "limit",
+          "unit": "USD",
+          "unitKey": "extra_usage.currency",
+          "secondary": true
         }
       ],
       "capabilities": [
-        "rate_windows"
+        "rate_windows",
+        "spend"
       ]
     },
     "codex": {
@@ -95,6 +140,16 @@
           "Accept": "application/json",
           "User-Agent": "codex_cli_rs/0.34.0"
         }
+      },
+      "oauth": {
+        "authorizeUrl": "https://auth.openai.com/oauth/authorize",
+        "tokenUrl": "https://auth.openai.com/oauth/token",
+        "clientId": "app_EMoamEEZ73f0CkXaXp7hrann",
+        "scopes": ["openid", "profile", "email", "offline_access", "api.connectors.read", "api.connectors.invoke"],
+        "loopbackPort": 1455,
+        "manualRedirectUri": "https://auth.openai.com/deviceauth/callback",
+        "deviceCodeUrl": "https://auth.openai.com/api/accounts/deviceauth/usercode",
+        "deviceTokenUrl": "https://auth.openai.com/api/accounts/deviceauth/token"
       },
       "poll": {
         "minSeconds": 300,
@@ -401,6 +456,22 @@
             "utilization": "current_weekly_remaining_percent",
             "resetsAt": "weekly_end_time"
           }
+        },
+        {
+          "id": "session_video",
+          "sourceKey": "data.model_remains[model_name=video]",
+          "resetFormat": "unixMillis",
+          "secondary": true
+        },
+        {
+          "id": "weekly_video",
+          "sourceKey": "data.model_remains[model_name=video]",
+          "resetFormat": "unixMillis",
+          "secondary": true,
+          "fields": {
+            "utilization": "current_weekly_remaining_percent",
+            "resetsAt": "weekly_end_time"
+          }
         }
       ],
       "capabilities": [
@@ -451,6 +522,22 @@
           "sourceKey": "data.model_remains[model_name=general]",
           "resetFormat": "unixMillis",
           "secondary": false,
+          "fields": {
+            "utilization": "current_weekly_remaining_percent",
+            "resetsAt": "weekly_end_time"
+          }
+        },
+        {
+          "id": "session_video",
+          "sourceKey": "data.model_remains[model_name=video]",
+          "resetFormat": "unixMillis",
+          "secondary": true
+        },
+        {
+          "id": "weekly_video",
+          "sourceKey": "data.model_remains[model_name=video]",
+          "resetFormat": "unixMillis",
+          "secondary": true,
           "fields": {
             "utilization": "current_weekly_remaining_percent",
             "resetsAt": "weekly_end_time"

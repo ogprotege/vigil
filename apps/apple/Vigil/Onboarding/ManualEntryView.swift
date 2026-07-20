@@ -237,7 +237,10 @@ struct ManualEntryView: View {
                     accountId: requiresAccountId && !trimmedAccount.isEmpty
                         ? trimmedAccount
                         : nil,
-                    label: trimmedLabel.isEmpty ? nil : trimmedLabel
+                    label: trimmedLabel.isEmpty ? nil : trimmedLabel,
+                    // Hand-entered keys are never auto-refreshed (only Vigil-minted
+                    // tokens are — ADR-0005); marking them keeps that explicit.
+                    source: "manual"
                 )
             )
             dismiss()

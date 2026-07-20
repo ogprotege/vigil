@@ -7,6 +7,7 @@ import XCTest
 final class FixtureParityTests: XCTestCase {
     private struct ExpectedWindow: Decodable {
         let id: String
+        let label: String?
         let utilization: Double
         let resetsAt: String?
         let windowSeconds: Int?
@@ -60,6 +61,7 @@ final class FixtureParityTests: XCTestCase {
             XCTAssertEqual(mapped.windows.count, expected.windows.count, expectedName)
             for (got, want) in zip(mapped.windows, expected.windows) {
                 XCTAssertEqual(got.id, want.id, expectedName)
+                XCTAssertEqual(got.label, want.label, expectedName)
                 XCTAssertEqual(got.utilization, want.utilization, accuracy: 0.0001, expectedName)
                 XCTAssertEqual(got.windowSeconds, want.windowSeconds, expectedName)
                 XCTAssertEqual(got.secondary, want.secondary, expectedName)

@@ -4,14 +4,26 @@ import Foundation
 /// Mirrors the shape defined in docs/architecture.md and cli/src/providers/types.ts.
 public struct UsageWindow: Codable, Equatable, Sendable {
     public let id: String
+    /// Human display name for a provider-scoped window (e.g. a model name),
+    /// present only when the response carries one; nil for static windows whose
+    /// name is derived from the id at the UI layer. Mirrors cli UsageWindow.label.
+    public let label: String?
     /// Percent used, clamped to 0...100.
     public let utilization: Double
     public let resetsAt: Date?
     public let windowSeconds: Int?
     public let secondary: Bool
 
-    public init(id: String, utilization: Double, resetsAt: Date?, windowSeconds: Int?, secondary: Bool) {
+    public init(
+        id: String,
+        utilization: Double,
+        resetsAt: Date?,
+        windowSeconds: Int?,
+        secondary: Bool,
+        label: String? = nil
+    ) {
         self.id = id
+        self.label = label
         self.utilization = utilization
         self.resetsAt = resetsAt
         self.windowSeconds = windowSeconds

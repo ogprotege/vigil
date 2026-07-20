@@ -87,15 +87,50 @@ public struct ResponseFields: Sendable, Equatable {
     }
 }
 
+/// Keep only entries whose `key` string-equals `equals`.
+public struct AdditionalWindowFilter: Sendable, Equatable {
+    public let key: String
+    public let equals: String
+
+    public init(key: String, equals: String) {
+        self.key = key
+        self.equals = equals
+    }
+}
+
 public struct AdditionalWindows: Sendable, Equatable {
     public let sourceKey: String
     public let idKey: String
     public let secondary: Bool
+    public let filter: AdditionalWindowFilter?
+    public let resetFormat: ResetFormat
+    /// When set, the id is `${idPrefix}_${normalized(idKey value)}`; absent
+    /// means the raw idKey value is the id (Codex lanes).
+    public let idPrefix: String?
+    public let labelKey: String?
+    public let windowSeconds: Int?
+    public let fields: WindowFieldOverride?
 
-    public init(sourceKey: String, idKey: String, secondary: Bool) {
+    public init(
+        sourceKey: String,
+        idKey: String,
+        secondary: Bool,
+        filter: AdditionalWindowFilter? = nil,
+        resetFormat: ResetFormat = .unixSeconds,
+        idPrefix: String? = nil,
+        labelKey: String? = nil,
+        windowSeconds: Int? = nil,
+        fields: WindowFieldOverride? = nil
+    ) {
         self.sourceKey = sourceKey
         self.idKey = idKey
         self.secondary = secondary
+        self.filter = filter
+        self.resetFormat = resetFormat
+        self.idPrefix = idPrefix
+        self.labelKey = labelKey
+        self.windowSeconds = windowSeconds
+        self.fields = fields
     }
 }
 
@@ -111,6 +146,9 @@ public struct MetricMapping: Sendable, Equatable {
     public let sourceKey: String
     public let kind: UsageMetricKind
     public let unit: String?
+    /// Dot-path to a unit/currency string in the response; overrides `unit`
+    /// when it resolves (e.g. Claude extra_usage.currency).
+    public let unitKey: String?
     public let secondary: Bool
     public let aggregate: MetricAggregate?
     /// Multiplier applied after resolution (0.01 converts cents to dollars).
@@ -123,6 +161,7 @@ public struct MetricMapping: Sendable, Equatable {
         kind: UsageMetricKind,
         unit: String?,
         secondary: Bool,
+        unitKey: String? = nil,
         aggregate: MetricAggregate? = nil,
         scale: Double? = nil
     ) {
@@ -131,6 +170,7 @@ public struct MetricMapping: Sendable, Equatable {
         self.sourceKey = sourceKey
         self.kind = kind
         self.unit = unit
+        self.unitKey = unitKey
         self.secondary = secondary
         self.aggregate = aggregate
         self.scale = scale
@@ -165,15 +205,39 @@ public struct MetricCollectionMapping: Sendable, Equatable {
     }
 }
 
-/// The subset of the provider's oauth block the app needs at runtime: the
-/// refresh grant. Mint/authorize flows stay in the CLI.
+/// The provider's oauth block the app needs at runtime: the refresh grant AND
+/// (for on-device sign-in) the authorization-code mint. The desktop-only
+/// loopback port is deliberately not mirrored — iOS uses the out-of-band
+/// `manualRedirectUri`.
 public struct OAuthEndpoint: Sendable, Equatable {
+    public let authorizeUrl: URL
     public let tokenUrl: URL
     public let clientId: String
+    public let scopes: [String]
+    /// Out-of-band redirect that displays the code for the user to paste — the
+    /// mobile-friendly lane (no localhost server, no custom-scheme allowlisting).
+    public let manualRedirectUri: String
+    /// Device-authorization-grant endpoints (OpenAI Codex): request a user code,
+    /// then poll for tokens. nil for providers that use the auth-code flow.
+    public let deviceCodeUrl: URL?
+    public let deviceTokenUrl: URL?
 
-    public init(tokenUrl: URL, clientId: String) {
+    public init(
+        authorizeUrl: URL,
+        tokenUrl: URL,
+        clientId: String,
+        scopes: [String],
+        manualRedirectUri: String,
+        deviceCodeUrl: URL? = nil,
+        deviceTokenUrl: URL? = nil
+    ) {
+        self.authorizeUrl = authorizeUrl
         self.tokenUrl = tokenUrl
         self.clientId = clientId
+        self.scopes = scopes
+        self.manualRedirectUri = manualRedirectUri
+        self.deviceCodeUrl = deviceCodeUrl
+        self.deviceTokenUrl = deviceTokenUrl
     }
 }
 
@@ -287,17 +351,35 @@ public enum ProviderRegistry {
         poll: PollPolicy(minSeconds: 300, jitterSeconds: 60, backoff429BaseSeconds: 900, backoffMaxSeconds: 3600),
         responseFields: ResponseFields(utilization: "utilization", resetsAt: "resets_at", windowSeconds: nil),
         planKey: nil,
-        additionalWindows: nil,
+        additionalWindows: AdditionalWindows(
+            sourceKey: "limits",
+            idKey: "scope.model.display_name",
+            secondary: true,
+            filter: AdditionalWindowFilter(key: "kind", equals: "weekly_scoped"),
+            resetFormat: .iso8601,
+            idPrefix: "weekly_scoped",
+            labelKey: "scope.model.display_name",
+            windowSeconds: 604_800
+        ),
         windows: [
             WindowMapping(id: "session", sourceKey: "five_hour", resetFormat: .iso8601, windowSeconds: 18000, secondary: false),
             WindowMapping(id: "weekly", sourceKey: "seven_day", resetFormat: .iso8601, windowSeconds: 604_800, secondary: false),
             WindowMapping(id: "weekly_sonnet", sourceKey: "seven_day_sonnet", resetFormat: .iso8601, windowSeconds: 604_800, secondary: true),
             WindowMapping(id: "weekly_opus", sourceKey: "seven_day_opus", resetFormat: .iso8601, windowSeconds: 604_800, secondary: true),
+            WindowMapping(id: "weekly_oauth_apps", sourceKey: "seven_day_oauth_apps", resetFormat: .iso8601, windowSeconds: 604_800, secondary: true),
+            WindowMapping(id: "weekly_cowork", sourceKey: "seven_day_cowork", resetFormat: .iso8601, windowSeconds: 604_800, secondary: true),
+        ],
+        metricMappings: [
+            MetricMapping(id: "extra_used", label: "Extra usage (month)", sourceKey: "extra_usage.used_credits", kind: .spend, unit: "USD", secondary: false, unitKey: "extra_usage.currency"),
+            MetricMapping(id: "extra_limit", label: "Extra usage limit", sourceKey: "extra_usage.monthly_limit", kind: .limit, unit: "USD", secondary: true, unitKey: "extra_usage.currency"),
         ],
         manualEntryHint: "From npx vigil-link --json, or ~/.claude/.credentials.json (claudeAiOauth.accessToken).",
         oauth: OAuthEndpoint(
+            authorizeUrl: URL(string: "https://claude.ai/oauth/authorize")!,
             tokenUrl: URL(string: "https://platform.claude.com/v1/oauth/token")!,
-            clientId: "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+            clientId: "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
+            scopes: ["org:create_api_key", "user:profile", "user:inference"],
+            manualRedirectUri: "https://console.anthropic.com/oauth/code/callback"
         )
     )
 
@@ -320,7 +402,16 @@ public enum ProviderRegistry {
             WindowMapping(id: "session", sourceKey: "rate_limit.primary_window", resetFormat: .unixSeconds, windowSeconds: nil, secondary: false),
             WindowMapping(id: "weekly", sourceKey: "rate_limit.secondary_window", resetFormat: .unixSeconds, windowSeconds: nil, secondary: false),
         ],
-        manualEntryHint: "From ~/.codex/auth.json: tokens.access_token and tokens.account_id."
+        manualEntryHint: "From ~/.codex/auth.json: tokens.access_token and tokens.account_id.",
+        oauth: OAuthEndpoint(
+            authorizeUrl: URL(string: "https://auth.openai.com/oauth/authorize")!,
+            tokenUrl: URL(string: "https://auth.openai.com/oauth/token")!,
+            clientId: "app_EMoamEEZ73f0CkXaXp7hrann",
+            scopes: ["openid", "profile", "email", "offline_access", "api.connectors.read", "api.connectors.invoke"],
+            manualRedirectUri: "https://auth.openai.com/deviceauth/callback",
+            deviceCodeUrl: URL(string: "https://auth.openai.com/api/accounts/deviceauth/usercode")!,
+            deviceTokenUrl: URL(string: "https://auth.openai.com/api/accounts/deviceauth/token")!
+        )
     )
 
     public static let openRouter = ProviderSpec(
@@ -450,6 +541,15 @@ public enum ProviderRegistry {
                     resetFormat: .unixMillis,
                     windowSeconds: nil,
                     secondary: false,
+                    fields: WindowFieldOverride(utilization: "current_weekly_remaining_percent", resetsAt: "weekly_end_time")
+                ),
+                WindowMapping(id: "session_video", sourceKey: "data.model_remains[model_name=video]", resetFormat: .unixMillis, windowSeconds: nil, secondary: true),
+                WindowMapping(
+                    id: "weekly_video",
+                    sourceKey: "data.model_remains[model_name=video]",
+                    resetFormat: .unixMillis,
+                    windowSeconds: nil,
+                    secondary: true,
                     fields: WindowFieldOverride(utilization: "current_weekly_remaining_percent", resetsAt: "weekly_end_time")
                 ),
             ],

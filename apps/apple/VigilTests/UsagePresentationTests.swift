@@ -60,6 +60,22 @@ final class UsagePresentationTests: XCTestCase {
         )
     }
 
+    func testModelScopedWindowUsesLabelAndReadsAsModelLimit() {
+        let scoped = window(id: "weekly_scoped_fable", used: 55, seconds: 604_800, secondary: true, label: "Fable")
+        XCTAssertEqual(UsagePresentation.title(for: scoped), "Fable weekly")
+        XCTAssertEqual(UsagePresentation.category(for: scoped), "MODEL LIMIT")
+        XCTAssertTrue(UsagePresentation.isSpecialWindow(scoped))
+    }
+
+    func testVideoModelWindowsHaveSpecificTitlesAndModelCategory() {
+        let session = window(id: "session_video", used: 0, secondary: true)
+        let weekly = window(id: "weekly_video", used: 0, secondary: true)
+        XCTAssertEqual(UsagePresentation.title(for: session), "Video session")
+        XCTAssertEqual(UsagePresentation.title(for: weekly), "Video weekly")
+        XCTAssertEqual(UsagePresentation.category(for: session), "MODEL LIMIT")
+        XCTAssertEqual(UsagePresentation.category(for: weekly), "MODEL LIMIT")
+    }
+
     func testProviderSuppliedSpecialModelNameIsHumanizedWithoutLosingIdentity() {
         XCTAssertEqual(
             UsagePresentation.title(
@@ -227,14 +243,16 @@ final class UsagePresentationTests: XCTestCase {
         id: String,
         used: Double,
         seconds: Int? = nil,
-        secondary: Bool = false
+        secondary: Bool = false,
+        label: String? = nil
     ) -> UsageWindow {
         UsageWindow(
             id: id,
             utilization: used,
             resetsAt: Date(timeIntervalSince1970: 2_000_000_000),
             windowSeconds: seconds,
-            secondary: secondary
+            secondary: secondary,
+            label: label
         )
     }
 

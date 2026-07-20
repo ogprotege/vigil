@@ -9,6 +9,7 @@ interface ExpectedFile {
   planLabel?: string;
   windows: Array<{
     id: string;
+    label?: string | null;
     utilization: number;
     resetsAt: string | null;
     windowSeconds: number;
@@ -50,7 +51,11 @@ describe("fixture parity", () => {
       const want = loadFixture(expected) as ExpectedFile;
       expect(mapped).not.toBeNull();
       expect(mapped!.windows).toEqual(
-        want.windows.map((w) => ({ ...w, windowSeconds: w.windowSeconds ?? null }))
+        want.windows.map((w) => ({
+          ...w,
+          windowSeconds: w.windowSeconds ?? null,
+          label: w.label ?? null,
+        }))
       );
       expect(mapped!.metrics).toEqual(want.metrics ?? []);
       expect(mapped!.planLabel).toBe(want.planLabel ?? null);
@@ -157,6 +162,56 @@ describe("schema-drift tolerance", () => {
       },
     });
     expect(mapped!.windows[0]!.windowSeconds).toBeNull();
+  });
+
+  it("maps Claude limits[] weekly_scoped entries, filtering other kinds and skipping malformed ones", () => {
+    const mapped = mapUsageResponse(registry.providers.claude, {
+      seven_day: { utilization: 40, resets_at: "2026-07-27T07:00:00Z" },
+      limits: [
+        { kind: "weekly_scoped", scope: { model: { display_name: "Fable" } }, utilization: 55, resets_at: "2026-07-27T07:00:00Z" },
+        { kind: "monthly_overage", scope: { model: { display_name: "Ignore" } }, utilization: 5, resets_at: "2026-07-27T07:00:00Z" },
+        { kind: "weekly_scoped", scope: { model: { display_name: "Broken" } }, resets_at: "2026-07-27T07:00:00Z" },
+      ],
+    });
+    const scoped = mapped!.windows.filter((w) => w.id.startsWith("weekly_scoped"));
+    expect(scoped.map((w) => [w.id, w.label])).toEqual([["weekly_scoped_fable", "Fable"]]);
+    expect(scoped[0]!.utilization).toBe(55);
+    expect(scoped[0]!.windowSeconds).toBe(604800);
+  });
+
+  it("keeps a scoped window but drops an over-long label", () => {
+    const longName = "M".repeat(80); // > 64 (label cap) but <= 128 (id cap)
+    const mapped = mapUsageResponse(registry.providers.claude, {
+      seven_day: { utilization: 40, resets_at: "2026-07-27T07:00:00Z" },
+      limits: [
+        { kind: "weekly_scoped", scope: { model: { display_name: longName } }, utilization: 33, resets_at: "2026-07-27T07:00:00Z" },
+      ],
+    });
+    const scoped = mapped!.windows.find((w) => w.id.startsWith("weekly_scoped"));
+    expect(scoped).toBeDefined();
+    expect(scoped!.label).toBeNull();
+    expect(scoped!.utilization).toBe(33);
+  });
+
+  it("resolves a metric unit from unitKey and falls back to the static unit", () => {
+    const withCurrency = mapUsageResponse(registry.providers.claude, {
+      five_hour: { utilization: 10, resets_at: null },
+      extra_usage: { is_enabled: true, monthly_limit: 50, used_credits: 5, utilization: 10, currency: "EUR" },
+    });
+    expect(withCurrency!.metrics.find((m) => m.id === "extra_used")!.unit).toBe("EUR");
+
+    const withoutCurrency = mapUsageResponse(registry.providers.claude, {
+      five_hour: { utilization: 10, resets_at: null },
+      extra_usage: { is_enabled: true, monthly_limit: 50, used_credits: 5, utilization: 10 },
+    });
+    expect(withoutCurrency!.metrics.find((m) => m.id === "extra_used")!.unit).toBe("USD");
+  });
+
+  it("carries a null label on static (non-scoped) windows", () => {
+    const mapped = mapUsageResponse(registry.providers.claude, {
+      five_hour: { utilization: 10, resets_at: null },
+    });
+    expect(mapped!.windows[0]!.label).toBeNull();
   });
 
   it("drops oversized or control-bearing provider labels", () => {

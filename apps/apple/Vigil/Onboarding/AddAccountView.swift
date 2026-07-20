@@ -31,8 +31,10 @@ struct AddAccountView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: VigilSpacing.large) {
                         intro
-                        computerPairingCard
+                        claudeSignInCard
+                        codexSignInCard
                         directProviderSection
+                        computerPairingCard
                         privacyNote
                     }
                     .frame(maxWidth: 820, alignment: .leading)
@@ -99,10 +101,76 @@ struct AddAccountView: View {
             Text("Bring an account under watch.")
                 .font(.system(.largeTitle, design: .rounded).weight(.bold))
                 .foregroundStyle(VigilPalette.ink)
-            Text("Pair from your computer in under a minute, or add one provider directly.")
+            Text("Set up right here on your phone — sign in to Claude or paste a provider key. No computer needed.")
                 .font(.subheadline)
                 .foregroundStyle(VigilPalette.inkMuted)
         }
+    }
+
+    private var claudeSignInCard: some View {
+        VStack(alignment: .leading, spacing: VigilSpacing.medium) {
+            HStack(alignment: .top, spacing: 12) {
+                VigilProviderMark(providerId: "claude", displayName: "Claude", size: 48)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Sign in with Claude")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(VigilPalette.ink)
+                        Spacer()
+                        VigilStatusPill(text: "On phone", color: VigilPalette.signal)
+                    }
+                    Text("Approve access in your browser and paste the code back — Vigil gets its own token that renews itself.")
+                        .font(.caption)
+                        .foregroundStyle(VigilPalette.inkMuted)
+                }
+            }
+            NavigationLink {
+                ClaudeSignInView { credentials in
+                    attempt(.credentials(credentials))
+                }
+            } label: {
+                Label("Sign in with Claude", systemImage: "person.badge.key")
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 46)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(VigilPalette.signal)
+            .foregroundStyle(VigilPalette.canvas)
+        }
+        .vigilCard(padding: VigilSpacing.large)
+    }
+
+    private var codexSignInCard: some View {
+        VStack(alignment: .leading, spacing: VigilSpacing.medium) {
+            HStack(alignment: .top, spacing: 12) {
+                VigilProviderMark(providerId: "codex", displayName: "ChatGPT / Codex", size: 48)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Sign in with Codex")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(VigilPalette.ink)
+                        Spacer()
+                        VigilStatusPill(text: "On phone", color: VigilPalette.signal)
+                    }
+                    Text("Open ChatGPT's sign-in, enter the code Vigil shows you, and you're done — Vigil keeps its own token that renews itself.")
+                        .font(.caption)
+                        .foregroundStyle(VigilPalette.inkMuted)
+                }
+            }
+            NavigationLink {
+                CodexSignInView { credentials in
+                    attempt(.credentials(credentials))
+                }
+            } label: {
+                Label("Sign in with Codex", systemImage: "person.badge.key")
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 46)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(VigilPalette.signal)
+            .foregroundStyle(VigilPalette.canvas)
+        }
+        .vigilCard(padding: VigilSpacing.large)
     }
 
     private var computerPairingCard: some View {
@@ -118,13 +186,13 @@ struct AddAccountView: View {
                     )
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text("Pair from your computer")
+                        Text("Already signed in on a computer?")
                             .font(.title3.weight(.semibold))
                             .foregroundStyle(VigilPalette.ink)
                         Spacer()
-                        VigilStatusPill(text: "Fastest", color: VigilPalette.signal)
+                        VigilStatusPill(text: "Optional", color: VigilPalette.inkMuted)
                     }
-                    Text("Vigil Link finds supported sign-ins and provider keys you explicitly enable.")
+                    Text("Prefer to reuse the sign-ins already on your computer? Hand your Claude Code or Codex session to your phone with a QR.")
                         .font(.caption)
                         .foregroundStyle(VigilPalette.inkMuted)
                 }
@@ -182,7 +250,7 @@ struct AddAccountView: View {
         #if os(macOS)
         "Paste mode prints credential-bearing lines because --yes confirms that choice. Paste them into Vigil, then clear your terminal scrollback. The link expires after 10 minutes."
         #else
-        "Scanning keeps credentials out of the clipboard. Paste mode uses npx vigil-link --json --yes and requires clearing terminal scrollback. The link expires after 10 minutes."
+        "The codes rotate on screen until you confirm capture, then the terminal clears. Scanning keeps credentials out of the clipboard. The link expires after 10 minutes."
         #endif
     }
 
@@ -190,10 +258,10 @@ struct AddAccountView: View {
         VStack(alignment: .leading, spacing: VigilSpacing.medium) {
             VigilSectionHeading(
                 "Add a provider directly",
-                eyebrow: "Manual connection",
+                eyebrow: "On phone",
                 detail: "\(ProviderRegistry.all.count) available"
             )
-            Text("Choose a provider first. Vigil will ask only for the fields that provider needs.")
+            Text("Enter any provider's key or token directly. Vigil asks only for the fields that provider needs. (Claude is easiest via Sign in with Claude above.)")
                 .font(.caption)
                 .foregroundStyle(VigilPalette.inkMuted)
 

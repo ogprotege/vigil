@@ -3,5 +3,9 @@
     { "id": "session", "utilization": 0, "resetsAt": null, "windowSeconds": 18000, "secondary": false },
     { "id": "weekly", "utilization": 12, "resetsAt": "2026-07-20T07:00:00Z", "windowSeconds": 604800, "secondary": false },
     { "id": "weekly_sonnet", "utilization": 8, "resetsAt": null, "windowSeconds": 604800, "secondary": true }
+  ],
+  "metrics": [
+    { "id": "extra_used", "label": "Extra usage (month)", "kind": "spend", "value": 0, "unit": "USD", "secondary": false },
+    { "id": "extra_limit", "label": "Extra usage limit", "kind": "limit", "value": 50, "unit": "USD", "secondary": true }
   ]
 }

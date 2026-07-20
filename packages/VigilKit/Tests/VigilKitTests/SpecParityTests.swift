@@ -33,8 +33,13 @@ final class SpecParityTests: XCTestCase {
     }
 
     private struct SpecOAuth: Decodable {
+        let authorizeUrl: String
         let tokenUrl: String
         let clientId: String
+        let scopes: [String]
+        let manualRedirectUri: String
+        let deviceCodeUrl: String?
+        let deviceTokenUrl: String?
     }
 
     private struct SpecUsage: Decodable {
@@ -59,10 +64,21 @@ final class SpecParityTests: XCTestCase {
         let allowStringNumbers: Bool?
     }
 
+    private struct SpecAdditionalFilter: Decodable {
+        let key: String
+        let equals: String
+    }
+
     private struct SpecAdditional: Decodable {
         let sourceKey: String
         let idKey: String
         let secondary: Bool
+        let filter: SpecAdditionalFilter?
+        let resetFormat: String?
+        let idPrefix: String?
+        let labelKey: String?
+        let windowSeconds: Int?
+        let fields: SpecWindowFields?
     }
 
     private struct SpecWindowFields: Decodable {
@@ -85,6 +101,7 @@ final class SpecParityTests: XCTestCase {
         let sourceKey: String
         let kind: String
         let unit: String?
+        let unitKey: String?
         let secondary: Bool
         let aggregate: String?
         let scale: Double?
@@ -151,11 +168,26 @@ final class SpecParityTests: XCTestCase {
         XCTAssertEqual(swift.planKey, json.planKey, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.sourceKey, json.additionalWindows?.sourceKey, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.idKey, json.additionalWindows?.idKey, file: file, line: line)
+        XCTAssertEqual(swift.additionalWindows?.secondary, json.additionalWindows?.secondary, file: file, line: line)
+        XCTAssertEqual(swift.additionalWindows?.filter?.key, json.additionalWindows?.filter?.key, file: file, line: line)
+        XCTAssertEqual(swift.additionalWindows?.filter?.equals, json.additionalWindows?.filter?.equals, file: file, line: line)
+        // JSON omits resetFormat to mean the Swift default (unixSeconds).
+        XCTAssertEqual(swift.additionalWindows?.resetFormat.rawValue, json.additionalWindows.map { $0.resetFormat ?? "unixSeconds" }, file: file, line: line)
+        XCTAssertEqual(swift.additionalWindows?.idPrefix, json.additionalWindows?.idPrefix, file: file, line: line)
+        XCTAssertEqual(swift.additionalWindows?.labelKey, json.additionalWindows?.labelKey, file: file, line: line)
+        XCTAssertEqual(swift.additionalWindows?.windowSeconds, json.additionalWindows?.windowSeconds, file: file, line: line)
+        XCTAssertEqual(swift.additionalWindows?.fields?.utilization, json.additionalWindows?.fields?.utilization, file: file, line: line)
+        XCTAssertEqual(swift.additionalWindows?.fields?.resetsAt, json.additionalWindows?.fields?.resetsAt, file: file, line: line)
         // The Swift mirror carries oauth only for providers whose refresh
         // grant is verified; when present it must match the JSON.
         if let oauth = swift.oauth {
+            XCTAssertEqual(oauth.authorizeUrl.absoluteString, json.oauth?.authorizeUrl, file: file, line: line)
             XCTAssertEqual(oauth.tokenUrl.absoluteString, json.oauth?.tokenUrl, file: file, line: line)
             XCTAssertEqual(oauth.clientId, json.oauth?.clientId, file: file, line: line)
+            XCTAssertEqual(oauth.scopes, json.oauth?.scopes, file: file, line: line)
+            XCTAssertEqual(oauth.manualRedirectUri, json.oauth?.manualRedirectUri, file: file, line: line)
+            XCTAssertEqual(oauth.deviceCodeUrl?.absoluteString, json.oauth?.deviceCodeUrl, file: file, line: line)
+            XCTAssertEqual(oauth.deviceTokenUrl?.absoluteString, json.oauth?.deviceTokenUrl, file: file, line: line)
         }
         XCTAssertEqual(swift.windows.count, json.windows.count, file: file, line: line)
         for (got, want) in zip(swift.windows, json.windows) {
@@ -175,6 +207,7 @@ final class SpecParityTests: XCTestCase {
             XCTAssertEqual(got.sourceKey, want.sourceKey, file: file, line: line)
             XCTAssertEqual(got.kind.rawValue, want.kind, file: file, line: line)
             XCTAssertEqual(got.unit, want.unit, file: file, line: line)
+            XCTAssertEqual(got.unitKey, want.unitKey, file: file, line: line)
             XCTAssertEqual(got.secondary, want.secondary, file: file, line: line)
             XCTAssertEqual(got.aggregate?.rawValue, want.aggregate, file: file, line: line)
             XCTAssertEqual(got.scale, want.scale, file: file, line: line)

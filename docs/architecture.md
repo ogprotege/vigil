@@ -43,7 +43,7 @@ Adding a provider is not a data-only change. Credential discovery, OAuth, respon
 ## Normalized model (all languages)
 
 ```
-UsageWindow      { id, utilization: 0–100, resetsAt?: Date, windowSeconds?: Int, secondary: Bool }
+UsageWindow      { id, label?: String, utilization: 0–100, resetsAt?: Date, windowSeconds?: Int, secondary: Bool }
 UsageMetric      { id, label, kind: balance | spend | limit | remaining,
                    value: Double, unit?: String, secondary: Bool }
 ProviderSnapshot { providerId, accountKey, accountLabel?, planLabel?, fetchedAt,
