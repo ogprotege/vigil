@@ -1,9 +1,9 @@
 import SwiftUI
 import VigilKit
 
-/// Home / Limits — token-monitor style: period picker, hero summary, LIMITS
-/// section with a one-tap refresh, then compact per-provider cards with dual
-/// session/weekly bars. Vigil's night-watch palette stays.
+/// Home / Limits — matched to token-monitor's Limits view: period picker,
+/// hero, a single provider list with stacked Session/Weekly/model bars, and a
+/// bottom-trailing refresh control (the circled button in your screenshot).
 struct DashboardView: View {
     @Environment(AppModel.self) private var model
     @State private var showAddAccount = false
@@ -28,7 +28,7 @@ struct DashboardView: View {
                     heroBlock
 
                     if model.hasAccounts {
-                        limitsSection
+                        providerList
                     } else {
                         EmptyDashboardView(addAccount: { showAddAccount = true })
                     }
@@ -36,11 +36,23 @@ struct DashboardView: View {
                 .frame(maxWidth: 720, alignment: .leading)
                 .padding(.horizontal, VigilSpacing.medium)
                 .padding(.top, VigilSpacing.medium)
-                .padding(.bottom, 44)
+                .padding(.bottom, 72)
                 .frame(maxWidth: .infinity)
             }
             .refreshable {
                 await refresh()
+            }
+
+            if model.hasAccounts {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        refreshFab
+                    }
+                    .padding(.trailing, VigilSpacing.medium)
+                    .padding(.bottom, VigilSpacing.medium)
+                }
             }
         }
         .navigationTitle("Home")
@@ -77,6 +89,36 @@ struct DashboardView: View {
         }
     }
 
+    /// The circled control from token-monitor: always available, bottom-trailing.
+    private var refreshFab: some View {
+        Button {
+            Task { await refresh() }
+        } label: {
+            Group {
+                if isRefreshing {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(VigilPalette.ink)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(VigilPalette.ink)
+                }
+            }
+            .frame(width: 44, height: 44)
+            .background(VigilPalette.surfaceRaised.opacity(0.95), in: RoundedRectangle(cornerRadius: 12))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(VigilPalette.border.opacity(0.8), lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
+        }
+        .buttonStyle(.plain)
+        .disabled(isRefreshing)
+        .accessibilityLabel("Refresh limits")
+        .accessibilityHint("Fetches each provider when the shared poll floor allows")
+    }
+
     private var periodPicker: some View {
         HStack {
             Spacer(minLength: 0)
@@ -85,30 +127,30 @@ struct DashboardView: View {
                 set: { model.selectedPeriod = $0 }
             )) {
                 ForEach(UsagePeriod.allCases) { period in
-                    Text(period.title).tag(period)
+                    Text(period.title.uppercased()).tag(period)
                 }
             }
             .pickerStyle(.segmented)
-            .frame(maxWidth: 420)
+            .frame(maxWidth: 480)
             .accessibilityLabel("Usage period")
         }
     }
 
     private var heroBlock: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(hero.title.uppercased())
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(VigilPalette.inkMuted)
-                .tracking(0.6)
+                .tracking(0.8)
             Text(hero.primaryValue)
-                .font(.system(size: 44, weight: .bold, design: .rounded))
+                .font(.system(size: 42, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(VigilPalette.ink)
-                .minimumScaleFactor(0.6)
+                .minimumScaleFactor(0.55)
                 .lineLimit(1)
             if let secondary = hero.secondaryValue {
                 Text(secondary)
-                    .font(.title3.weight(.medium))
+                    .font(.title3)
                     .foregroundStyle(VigilPalette.inkMuted)
             }
             Text(hero.detail)
@@ -119,49 +161,31 @@ struct DashboardView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private var limitsSection: some View {
-        VStack(alignment: .leading, spacing: VigilSpacing.medium) {
-            HStack(alignment: .center) {
-                Text("LIMITS")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(VigilPalette.inkMuted)
-                    .tracking(1.0)
-                Spacer()
-                Button {
-                    Task { await refresh() }
-                } label: {
-                    if isRefreshing {
-                        ProgressView()
-                            .controlSize(.small)
-                            .frame(width: 32, height: 32)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(VigilPalette.signal)
-                            .frame(width: 32, height: 32)
-                            .background(
-                                VigilPalette.signal.opacity(0.12),
-                                in: Circle()
-                            )
-                    }
+    /// One continuous panel — providers separated by hairlines, like token-monitor.
+    private var providerList: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(model.accounts.enumerated()), id: \.element.id) { index, account in
+                if index > 0 {
+                    Divider().overlay(VigilPalette.ink.opacity(0.10))
                 }
-                .buttonStyle(.plain)
-                .disabled(isRefreshing)
-                .accessibilityLabel("Refresh limits")
-                .accessibilityHint("Fetches each provider when the shared poll floor allows")
+                ProviderHomeRow(
+                    account: account,
+                    snapshot: model.snapshots[account.key],
+                    nextAllowed: model.nextAllowed[account.key],
+                    period: model.selectedPeriod,
+                    connectionLabel: model.connectionLabel(for: account),
+                    relink: { showAddAccount = true }
+                )
             }
-
-            VStack(spacing: VigilSpacing.medium) {
-                ForEach(model.accounts) { account in
-                    ProviderHomeCard(
-                        account: account,
-                        snapshot: model.snapshots[account.key],
-                        nextAllowed: model.nextAllowed[account.key],
-                        period: model.selectedPeriod,
-                        relink: { showAddAccount = true }
-                    )
-                }
-            }
+        }
+        .padding(.vertical, 4)
+        .background(
+            VigilPalette.surface.opacity(0.92),
+            in: RoundedRectangle(cornerRadius: VigilRadius.large, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: VigilRadius.large, style: .continuous)
+                .stroke(VigilPalette.border.opacity(0.55), lineWidth: 1)
         }
     }
 
@@ -173,74 +197,81 @@ struct DashboardView: View {
     }
 }
 
-/// Compact token-monitor-style provider card: icon + name + updated, then
-/// Session / Weekly (and Month when present) as dual progress columns.
-struct ProviderHomeCard: View {
+/// One provider block inside the shared list — matches token-monitor rows:
+/// icon + name + plan on the right, "Updated · OAuth/API", then full-width
+/// Session / Weekly / model bars stacked with % left and reset.
+struct ProviderHomeRow: View {
     let account: AccountRef
     let snapshot: ProviderSnapshot?
     let nextAllowed: Date?
     let period: UsagePeriod
+    let connectionLabel: String
     let relink: () -> Void
 
     private var displayWindows: [UsageWindow] {
         guard let snapshot else { return [] }
         let filtered = period.filteredWindows(snapshot.windows)
-        // Prefer at most three primary-ish bars for the dual-column layout.
         let primary = filtered.filter { !UsagePresentation.isSpecialWindow($0) }
         let special = filtered.filter(UsagePresentation.isSpecialWindow)
-        if primary.isEmpty { return Array(special.prefix(3)) }
-        return Array((primary + special).prefix(4))
+        // Show primary first, then model caps (Fable, Opus, …) — up to 5 bars.
+        if primary.isEmpty { return Array(special.prefix(5)) }
+        return Array((primary + special).prefix(5))
+    }
+
+    private var planLabel: String? {
+        let raw = snapshot?.planLabel ?? account.plan
+        guard let raw, !raw.isEmpty else { return nil }
+        return raw
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: VigilSpacing.small) {
+        VStack(alignment: .leading, spacing: 10) {
             header
             if let snapshot {
                 statusBanner(snapshot)
             }
 
             if !displayWindows.isEmpty {
-                windowGrid
+                VStack(spacing: 10) {
+                    ForEach(displayWindows, id: \.id) { window in
+                        StackedLimitBar(window: window)
+                    }
+                }
             } else if let snapshot, !snapshot.metrics.isEmpty {
-                metricsStrip(snapshot.metrics.filter { !$0.secondary })
+                metricsStrip(snapshot.metrics)
             } else if snapshot == nil {
                 Text("Waiting for first check")
                     .font(.caption)
                     .foregroundStyle(VigilPalette.inkMuted)
             }
         }
-        .padding(VigilSpacing.medium)
+        .padding(.horizontal, VigilSpacing.medium)
+        .padding(.vertical, VigilSpacing.medium)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            VigilPalette.surface.opacity(0.96),
-            in: RoundedRectangle(cornerRadius: VigilRadius.large, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: VigilRadius.large, style: .continuous)
-                .stroke(VigilPalette.border.opacity(0.6), lineWidth: 1)
-        }
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .top, spacing: 10) {
             VigilProviderMark(
                 providerId: account.providerId,
                 displayName: account.displayName,
-                size: 36
+                size: 32
             )
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(account.displayName)
-                        .font(.headline.weight(.semibold))
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(VigilPalette.ink)
                         .lineLimit(1)
                     if ProviderPresentation.isExperimental(providerId: account.providerId) {
                         ExperimentalBadge()
                     }
-                    if let plan = snapshot?.planLabel ?? account.plan, !plan.isEmpty {
-                        Text(plan.capitalized)
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(VigilPalette.signal)
+                    Spacer(minLength: 4)
+                    if let planLabel {
+                        Text(planLabel)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(VigilPalette.inkMuted)
+                            .lineLimit(1)
                     }
                 }
                 if let label = account.label, !label.isEmpty {
@@ -251,28 +282,29 @@ struct ProviderHomeCard: View {
                 }
                 updatedLine
             }
-            Spacer(minLength: 4)
         }
     }
 
     @ViewBuilder
     private var updatedLine: some View {
-        if let snapshot, snapshot.fetchedAt > .distantPast {
-            HStack(spacing: 4) {
+        HStack(spacing: 4) {
+            if let snapshot, snapshot.fetchedAt > .distantPast {
                 Text("Updated")
                 Text(snapshot.fetchedAt, style: .relative)
                 Text("ago")
-                if let nextAllowed, nextAllowed > .now {
-                    Text("· next \(nextAllowed.formatted(date: .omitted, time: .shortened))")
-                }
+            } else {
+                Text("No update yet")
             }
-            .font(.caption2)
-            .foregroundStyle(Staleness.tint(for: snapshot.fetchedAt))
-        } else {
-            Text("No successful update yet")
-                .font(.caption2)
-                .foregroundStyle(VigilPalette.inkFaint)
+            Text("·")
+            Text(connectionLabel)
+            if let nextAllowed, nextAllowed > .now {
+                Text("· next \(nextAllowed.formatted(date: .omitted, time: .shortened))")
+            }
         }
+        .font(.caption2)
+        .foregroundStyle(
+            snapshot.map { Staleness.tint(for: $0.fetchedAt) } ?? VigilPalette.inkFaint
+        )
     }
 
     @ViewBuilder
@@ -317,21 +349,9 @@ struct ProviderHomeCard: View {
         }
     }
 
-    private var windowGrid: some View {
-        let columns = [
-            GridItem(.flexible(), spacing: 12),
-            GridItem(.flexible(), spacing: 12),
-        ]
-        return LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
-            ForEach(displayWindows, id: \.id) { window in
-                CompactLimitCell(window: window)
-            }
-        }
-    }
-
     private func metricsStrip(_ metrics: [UsageMetric]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(metrics.prefix(3), id: \.id) { metric in
+            ForEach(metrics.filter { !$0.secondary }.prefix(4), id: \.id) { metric in
                 HStack {
                     Text(metric.label)
                         .font(.caption)
@@ -342,12 +362,24 @@ struct ProviderHomeCard: View {
                         .foregroundStyle(VigilPalette.ink)
                 }
             }
+            // Secondary details like Cursor credits / DeepSeek spend sit quieter.
+            ForEach(metrics.filter(\.secondary).prefix(2), id: \.id) { metric in
+                HStack {
+                    Text(metric.label)
+                        .font(.caption2)
+                        .foregroundStyle(VigilPalette.inkFaint)
+                    Spacer()
+                    Text(MetricFormat.value(metric))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(VigilPalette.inkMuted)
+                }
+            }
         }
     }
 }
 
-/// One Session / Weekly cell: label, % left, bar, reset — token-monitor style.
-struct CompactLimitCell: View {
+/// Full-width Session / Weekly / Fable bar — token-monitor Limits row.
+struct StackedLimitBar: View {
     let window: UsageWindow
 
     private var remaining: Double {
@@ -355,12 +387,12 @@ struct CompactLimitCell: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 5) {
             HStack(alignment: .firstTextBaseline) {
-                Text(shortTitle)
+                Text(barTitle)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(VigilPalette.inkMuted)
-                Spacer(minLength: 4)
+                Spacer(minLength: 8)
                 Text("\(Int(remaining.rounded()))% left")
                     .font(.caption.weight(.bold).monospacedDigit())
                     .foregroundStyle(UsageTint.color(for: window.utilization))
@@ -376,15 +408,27 @@ struct CompactLimitCell: View {
         .accessibilityValue(Text("\(Int(remaining.rounded())) percent left"))
     }
 
-    private var shortTitle: String {
-        let title = UsagePresentation.compactTitle(for: window)
-        // Token-monitor uses "Session" / "Weekly" / "Monthly".
-        if title.lowercased().contains("hour") || title.lowercased().hasPrefix("session") {
+    /// Prefer short labels: Session, Weekly, Fable, Opus — like the screenshot.
+    private var barTitle: String {
+        let id = window.id.lowercased()
+        if id == "session" || id.hasPrefix("session_") {
+            if id.contains("video") { return "Video session" }
+            if let seconds = window.windowSeconds, seconds == 18_000 {
+                return "5-hour"
+            }
             return "Session"
         }
-        if title.lowercased().hasPrefix("weekly") { return "Weekly" }
-        if title.lowercased().hasPrefix("monthly") { return "Monthly" }
-        return title
+        if id == "weekly" { return "Weekly" }
+        if id.hasPrefix("weekly_scoped"), let label = window.label {
+            return label
+        }
+        if id == "weekly_opus" { return "Opus" }
+        if id == "weekly_sonnet" { return "Sonnet" }
+        if id == "weekly_video" { return "Video weekly" }
+        if id == "monthly" { return "Monthly" }
+        if id == "plan" { return "Total" }
+        if id == "billing" { return "Billing" }
+        return UsagePresentation.compactTitle(for: window)
     }
 }
 
