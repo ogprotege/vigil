@@ -120,11 +120,20 @@ enum UsageService {
         var persistenceIssue: PersistenceIssue?
         var effectiveCredentials = credentials
         var credentialState = CredentialState.unchanged
+        /// True once the provider has returned an HTTP response of any kind.
+        /// Distinguishes "the provider answered" (401/403, 429, 5xx, 2xx that
+        /// did not map) from "no request ever reached the provider" (the
+        /// credential could not build a request, or the transport failed).
+        var providerAnswered = false
 
         if let request = RequestBuilder.usageRequest(spec: spec, credentials: credentials) {
             do {
                 let (data, response) = try await session.data(for: request)
                 let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+                // The provider completed a round-trip. Whatever the code says,
+                // this request counted against its rate limits and must charge
+                // the poll clock — see `shouldChargePollClock` below.
+                providerAnswered = true
                 let outcome = UsageClient.classify(data: data, statusCode: code, spec: spec)
                 status = outcome.status
                 planLabel = outcome.planLabel
@@ -262,14 +271,19 @@ enum UsageService {
                 )
             }
         }
-        // Link verification must not burn the poll floor on a failed first
-        // attempt. A wrong API key or flaky network was trapping users in the
-        // "deferred / save anyway" loop for five minutes — and the Models /
-        // Limits screens stayed empty. Charge the clock only when the provider
-        // genuinely answered (ok) or rate-limited us (429).
-        let shouldChargePollClock = persistSnapshot
-            || status == .ok
-            || status == .rateLimited
+        // Link verification must not burn the poll floor when no request ever
+        // reached the provider — a flaky network or a credential that cannot
+        // even build a request was trapping users in the "deferred / save
+        // anyway" loop for five minutes with Models / Limits left empty.
+        //
+        // But any completed round-trip counts against the provider's rate
+        // limits, whatever it returned: 401/403, 429, 5xx, and a 2xx whose body
+        // did not map are all real requests. Releasing the lease for those
+        // would leave `nextAllowedAt` at `.distantPast` on a fresh account and
+        // remove the 5-minute Claude floor entirely on the verify path — a
+        // documented hard invariant (CLAUDE.md, ADR-0003). So the clock is
+        // charged whenever the provider answered.
+        let shouldChargePollClock = persistSnapshot || providerAnswered
         if shouldChargePollClock {
             let recorded = await scheduler.recordResult(
                 accountKey: account.key,

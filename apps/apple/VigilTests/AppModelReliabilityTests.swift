@@ -479,7 +479,7 @@ final class AppModelReliabilityTests: XCTestCase {
         XCTAssertTrue(try vault.allKeys().isEmpty)
     }
 
-    func testFailedLinkVerifyDoesNotBurnPollFloor() async throws {
+    func testProviderRejectionOnVerifyStillChargesPollFloor() async throws {
         let directory = try makeTemporaryDirectory()
         StubURLProtocol.reset()
         let configuration = URLSessionConfiguration.ephemeral
@@ -512,18 +512,72 @@ final class AppModelReliabilityTests: XCTestCase {
         )
         XCTAssertEqual(first.snapshot?.status, .authExpired)
 
-        // A wrong key must not lock the user out for five minutes — otherwise
-        // the next attempt surfaces "deferred / save anyway" and Models stays empty.
+        // A 401 is a completed round-trip: it counted against the provider's
+        // rate limits, so it must charge the poll clock. Releasing here would
+        // leave a fresh account's `nextAllowedAt` at `.distantPast` and remove
+        // the 5-minute floor entirely on the verify path.
         let next = await scheduler.nextAllowedFetch(accountKey: account.key)
+        XCTAssertNotNil(next, "A provider 401 must charge the poll clock")
         XCTAssertTrue(
-            next == nil || next! <= Date(),
-            "Failed link verify must release without charging the poll floor"
+            next! > Date(),
+            "A provider 401 must hold the poll floor, not release it"
         )
         let secondAcquire = await scheduler.acquire(
             accountKey: account.key,
             policy: ProviderRegistry.openRouter.poll
         )
-        XCTAssertTrue(secondAcquire, "Immediate retry after a failed verify must be allowed")
+        XCTAssertFalse(
+            secondAcquire,
+            "Immediate re-verify after a provider 401 must stay gated by the poll floor"
+        )
+    }
+
+    /// The legitimate half of the verify-path fix: when no request ever reached
+    /// the provider, nothing was consumed and the user must be able to retry at
+    /// once instead of waiting out a five-minute cooldown they never earned.
+    func testTransportFailureOnVerifyDoesNotBurnPollFloor() async throws {
+        let directory = try makeTemporaryDirectory()
+        StubURLProtocol.reset()
+        StubURLProtocol.failsTransport = true
+        defer { StubURLProtocol.reset() }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let credentials = Credentials(providerId: "openrouter", accessToken: "some-key")
+        let account = AccountRef(
+            key: AppModel.accountKey(for: credentials),
+            providerId: "openrouter",
+            label: nil,
+            plan: nil
+        )
+        let scheduler = FetchScheduler(
+            store: FileLedgerStore(directory: directory),
+            jitter: { _ in 0 }
+        )
+
+        let first = await UsageService.refresh(
+            account: account,
+            credentials: credentials,
+            scheduler: scheduler,
+            snapshots: SnapshotStore(directory: directory),
+            vault: nil,
+            surface: "verify",
+            session: session,
+            persistSnapshot: false,
+            emitThresholdEvents: false,
+            persistRotatedCredentials: false,
+            allowCredentialRefresh: false
+        )
+        XCTAssertEqual(first.snapshot?.status, .network)
+
+        let secondAcquire = await scheduler.acquire(
+            accountKey: account.key,
+            policy: ProviderRegistry.openRouter.poll
+        )
+        XCTAssertTrue(
+            secondAcquire,
+            "A transport failure reached no provider and must not charge the poll floor"
+        )
         _ = await scheduler.release(accountKey: account.key)
     }
 
@@ -642,13 +696,24 @@ private final class ListingFailingCredentialsStore: CredentialsStore, @unchecked
 private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     private static let lock = NSLock()
     private static var requests = 0
+    private static var transportFails = false
+
+    /// When true the stub fails the connection instead of answering, modelling
+    /// "no request ever reached the provider" (airplane mode, DNS failure).
+    static var failsTransport: Bool {
+        get { lock.withLock { transportFails } }
+        set { lock.withLock { transportFails = newValue } }
+    }
 
     static var requestCount: Int {
         lock.withLock { requests }
     }
 
     static func reset() {
-        lock.withLock { requests = 0 }
+        lock.withLock {
+            requests = 0
+            transportFails = false
+        }
     }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
@@ -656,6 +721,10 @@ private final class StubURLProtocol: URLProtocol, @unchecked Sendable {
 
     override func startLoading() {
         Self.lock.withLock { Self.requests += 1 }
+        if Self.failsTransport {
+            client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
+            return
+        }
         let isRefresh = request.url?.path.contains("/oauth/token") == true
         let status = isRefresh ? 200 : 401
         let body = isRefresh

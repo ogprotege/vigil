@@ -113,12 +113,12 @@ struct ModelsView: View {
 
     private var emptyDetail: String {
         if !model.hasAccounts {
-            return "Sign in with Claude or Codex, or add a coding-plan key (Kimi K3, MiniMax). Balance-only providers like OpenRouter and DeepSeek show spend on the Limits tab instead."
+            return "Sign in with Claude or Codex, or add a coding-plan key (Kimi K3, MiniMax). Balance-only providers like OpenRouter and DeepSeek show spend on Home instead."
         }
         if metricOnlyAccountCount > 0 {
-            return "Your linked accounts report balances or spend, not model windows. Open the Limits tab for those values. Claude, Codex, Kimi K3, and MiniMax fill this list once their usage check succeeds."
+            return "Your linked accounts report balances or spend, not model windows. Open Home for those values. Claude, Codex, Kimi K3, and MiniMax fill this list once their usage check succeeds."
         }
-        return "Pull to refresh on Limits after adding an account. If verification failed, open Connections → add the account again — a wrong key no longer locks you out for five minutes."
+        return "Pull to refresh on Home after adding an account. If verification failed, open Connections → add the account again."
     }
 
     /// Disambiguate the model row's owner. When more than one account of the
