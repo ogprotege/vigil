@@ -8,6 +8,7 @@ struct DashboardView: View {
     @Environment(AppModel.self) private var model
     @State private var showAddAccount = false
     @State private var isRefreshing = false
+    @State private var refreshNotice: String?
 
     private var hero: PeriodHeroSummary {
         PeriodHero.summary(
@@ -26,6 +27,18 @@ struct DashboardView: View {
                 VStack(alignment: .leading, spacing: VigilSpacing.large) {
                     periodPicker
                     heroBlock
+                    if let refreshNotice {
+                        Text(refreshNotice)
+                            .font(.caption)
+                            .foregroundStyle(VigilPalette.inkMuted)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                VigilPalette.signal.opacity(0.10),
+                                in: RoundedRectangle(cornerRadius: VigilRadius.small)
+                            )
+                            .accessibilityLabel(refreshNotice)
+                    }
 
                     if model.hasAccounts {
                         providerList
@@ -192,8 +205,17 @@ struct DashboardView: View {
     private func refresh() async {
         guard !isRefreshing else { return }
         isRefreshing = true
-        await model.refreshAll(surface: "pull")
+        let report = await model.refreshAll(surface: "pull")
+        refreshNotice = report.userMessage
         isRefreshing = false
+        // Clear the notice after it has been readable — keep the rows' own
+        // "Updated / next check" lines as the durable truth.
+        Task {
+            try? await Task.sleep(for: .seconds(5))
+            if refreshNotice == report.userMessage {
+                refreshNotice = nil
+            }
+        }
     }
 }
 
