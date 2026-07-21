@@ -30,6 +30,8 @@ final class AppModel {
     /// mode the accounts are seeded in memory and never fetched, so the seeded
     /// snapshots aren't overwritten by auth failures (there are no credentials).
     private(set) var isDemo = false
+    /// Spend/balance observations for Day/Week/Month/Year/Lifetime heroes.
+    private(set) var observations: [UsageObservation] = []
 
     let vault: any CredentialsStore
     let scheduler: FetchScheduler
@@ -37,6 +39,7 @@ final class AppModel {
     let pendingEvents: PendingEventStore
     let notifications: NotificationManager
     private let accountIndexURL: URL
+    private let observationStore: UsageObservationStore
     private struct StorageNotice {
         let message: String
         let priority: Int
@@ -48,6 +51,11 @@ final class AppModel {
     /// to UserDefaults as a side effect.
     var lockEnabled: Bool {
         didSet { UserDefaults.standard.set(lockEnabled, forKey: "app.vigil.lockEnabled") }
+    }
+
+    /// Home period filter (Day / Week / Month / Year / Lifetime).
+    var selectedPeriod: UsagePeriod {
+        didSet { UserDefaults.standard.set(selectedPeriod.rawValue, forKey: "app.vigil.selectedPeriod") }
     }
 
     private var foregroundTimer: Task<Void, Never>?
@@ -62,7 +70,14 @@ final class AppModel {
         self.pendingEvents = PendingEventStore(directory: directory)
         self.notifications = NotificationManager()
         self.accountIndexURL = directory.appendingPathComponent("account-index.json")
+        self.observationStore = UsageObservationStore(directory: directory)
         self.lockEnabled = UserDefaults.standard.bool(forKey: "app.vigil.lockEnabled")
+        if let raw = UserDefaults.standard.string(forKey: "app.vigil.selectedPeriod"),
+           let period = UsagePeriod(rawValue: raw) {
+            self.selectedPeriod = period
+        } else {
+            self.selectedPeriod = .day
+        }
         loadFromDisk()
         surfaceSharedStorageFallbackIfNeeded()
         seedDemoDataIfRequested()
@@ -139,9 +154,36 @@ final class AppModel {
             }
         }
         snapshots = loaded
+        do {
+            observations = try observationStore.load()
+        } catch {
+            observations = []
+            reportStorageError(
+                "Vigil couldn't read its usage history. Period spend totals may be incomplete until the next successful refresh.",
+                error: error
+            )
+        }
     }
 
     var hasAccounts: Bool { !accounts.isEmpty }
+
+    /// How this account was linked — shown as "Updated · OAuth / API / Local"
+    /// under each provider row (token-monitor style).
+    func connectionLabel(for account: AccountRef) -> String {
+        if let credentials = try? vault.load(accountKey: account.key),
+           let source = credentials.source?.lowercased() {
+            switch source {
+            case "mint": return "OAuth"
+            case "file", "keychain": return "Local"
+            case "manual": return "API"
+            default: break
+            }
+        }
+        if let spec = ProviderRegistry.spec(for: account.providerId), spec.oauth != nil {
+            return "OAuth"
+        }
+        return "API"
+    }
 
     // MARK: - Linking
 
@@ -375,6 +417,9 @@ final class AppModel {
                     error: error
                 )
             }
+            if verifiedSnapshot.status == .ok {
+                recordObservation(snapshot: verifiedSnapshot, account: ref)
+            }
         } else {
             do {
                 snapshots[ref.key] = try snapshotStore.current(accountKey: ref.key)
@@ -388,6 +433,22 @@ final class AppModel {
         }
         await notifications.requestAuthorizationIfNeeded()
         reloadWidgets()
+    }
+
+    /// Records spend/balance samples for period heroes. Failures are soft —
+    /// missing history is better than blocking a successful refresh.
+    private func recordObservation(snapshot: ProviderSnapshot, account: AccountRef) {
+        guard let observation = UsageObservation.from(snapshot: snapshot, account: account) else {
+            return
+        }
+        do {
+            try observationStore.append(observation)
+            observations = try observationStore.load()
+        } catch {
+            Self.log.error(
+                "observation append failed: \(error.localizedDescription, privacy: .public)"
+            )
+        }
     }
 
     /// Live verify: a real gated fetch. Returns nil when the ledger refused
@@ -530,6 +591,9 @@ final class AppModel {
         if let snapshot = result.snapshot {
             snapshots[account.key] = snapshot
             nextAllowed[account.key] = await scheduler.nextAllowedFetch(accountKey: account.key)
+            if snapshot.status == .ok {
+                recordObservation(snapshot: snapshot, account: account)
+            }
         } else if let next = result.nextAllowed {
             nextAllowed[account.key] = next
         }

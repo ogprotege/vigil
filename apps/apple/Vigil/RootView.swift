@@ -1,7 +1,7 @@
 import SwiftUI
 
 private enum VigilDestination: String, CaseIterable, Identifiable {
-    case limits
+    case home
     case models
     case connections
     case settings
@@ -10,7 +10,7 @@ private enum VigilDestination: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .limits: return "Limits"
+        case .home: return "Home"
         case .models: return "Models"
         case .connections: return "Connections"
         case .settings: return "Settings"
@@ -19,7 +19,7 @@ private enum VigilDestination: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
-        case .limits: return "scope"
+        case .home: return "house.fill"
         case .models: return "cpu"
         case .connections: return "link"
         case .settings: return "gearshape"
@@ -29,13 +29,16 @@ private enum VigilDestination: String, CaseIterable, Identifiable {
 
 struct RootView: View {
     #if os(macOS)
-    @State private var selection: VigilDestination? = .limits
+    @State private var selection: VigilDestination? = .home
     #else
-    /// Default `.limits`; the `VIGIL_TAB` launch environment can preselect a
+    /// Default `.home`; the `VIGIL_TAB` launch environment can preselect a
     /// tab so screenshot tooling captures a specific screen deterministically.
-    @State private var selection: VigilDestination = VigilDestination(
-        rawValue: ProcessInfo.processInfo.environment["VIGIL_TAB"] ?? ""
-    ) ?? .limits
+    /// Accept legacy `limits` as an alias for `home`.
+    @State private var selection: VigilDestination = {
+        let raw = ProcessInfo.processInfo.environment["VIGIL_TAB"] ?? ""
+        if raw == "limits" { return .home }
+        return VigilDestination(rawValue: raw) ?? .home
+    }()
     #endif
 
     var body: some View {
@@ -78,7 +81,7 @@ struct RootView: View {
             .navigationSplitViewColumnWidth(min: 190, ideal: 216, max: 240)
         } detail: {
             NavigationStack {
-                destinationView(selection ?? .limits)
+                destinationView(selection ?? .home)
             }
         }
         .navigationSplitViewStyle(.balanced)
@@ -88,9 +91,9 @@ struct RootView: View {
                 DashboardView()
             }
             .tabItem {
-                Label(VigilDestination.limits.title, systemImage: VigilDestination.limits.symbol)
+                Label(VigilDestination.home.title, systemImage: VigilDestination.home.symbol)
             }
-            .tag(VigilDestination.limits)
+            .tag(VigilDestination.home)
 
             NavigationStack {
                 ModelsView()
@@ -130,7 +133,7 @@ struct RootView: View {
     @ViewBuilder
     private func destinationView(_ destination: VigilDestination) -> some View {
         switch destination {
-        case .limits:
+        case .home:
             DashboardView()
         case .models:
             ModelsView()
