@@ -194,7 +194,7 @@ export async function runWizard(opts: WizardOptions): Promise<number> {
   opts.err(`\nFound ${found.length} of ${scans.length} supported providers:`);
   if (found.length === 0) opts.err("  (none yet)");
   for (const scan of found) opts.err(`  ✓ ${scan.spec.displayName} — ${foundLabel(scan)}`);
-  opts.err("\nNot found (add now, or later on your iPhone → Add account → Add a provider directly):");
+  opts.err("\nNot found (add now, or later on your iPhone → Add account → Paste a provider key):");
   for (const scan of missing) {
     opts.err(`  ✗ ${scan.spec.displayName} — ${missingHint(scan).note}`);
   }
@@ -256,7 +256,7 @@ export async function runWizard(opts: WizardOptions): Promise<number> {
   if (code === 0) {
     opts.err(
       "Tip: API-key providers can also be added straight on your iPhone — " +
-        "Add account → Add a provider directly."
+        "Add account → Paste a provider key."
     );
   }
   return code;

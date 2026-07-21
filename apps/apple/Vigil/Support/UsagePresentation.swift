@@ -224,6 +224,25 @@ enum UsagePresentation {
         }
     }
 
+    /// One phrase for "this number is not current", used wherever a preserved
+    /// last-good value is shown. A non-ok status names the reason; an ok-but-old
+    /// snapshot reports its age. Never returns something that reads as live.
+    static func stalenessNote(
+        status: SnapshotStatus,
+        fetchedAt: Date,
+        at now: Date = Date()
+    ) -> String {
+        guard status == .ok else { return statusTitle(status) }
+        guard fetchedAt > .distantPast else { return "No update yet" }
+        let elapsed = max(0, now.timeIntervalSince(fetchedAt))
+        let formatter = DateComponentsFormatter()
+        formatter.unitsStyle = .short
+        formatter.maximumUnitCount = 1
+        formatter.allowedUnits = elapsed >= 86_400 ? [.day] : (elapsed >= 3_600 ? [.hour] : [.minute])
+        let age = formatter.string(from: elapsed) ?? "a while"
+        return "Updated \(age) ago"
+    }
+
     static func statusSymbol(_ status: SnapshotStatus) -> String? {
         switch status {
         case .ok: return nil

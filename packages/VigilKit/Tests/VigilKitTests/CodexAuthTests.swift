@@ -160,3 +160,25 @@ final class CodexAuthTests: XCTestCase {
         XCTAssertNotNil(TokenRefresher.refreshRequest(spec: ProviderRegistry.codex, credentials: creds))
     }
 }
+
+extension CodexAuthTests {
+    /// `interval` is provider-controlled and feeds `UInt64(seconds * 1e9)` in
+    /// the sign-in view. Converting a non-finite or huge Double to UInt64 is a
+    /// runtime trap, not a throw, so it could not be caught — a malformed field
+    /// would crash the app as soon as the Codex sign-in screen opened.
+    func testHostilePollIntervalsAreClampedIntoASafeRange() throws {
+        for raw in ["\"inf\"", "\"-inf\"", "\"nan\"", "\"1e20\"", "1e308", "-5", "99999"] {
+            let json = "{\"device_auth_id\":\"d\",\"user_code\":\"ABCD-1234\",\"interval\":\(raw)}"
+            let parsed = try XCTUnwrap(
+                CodexAuth.parseUserCode(Data(json.utf8)),
+                "should still parse with interval \(raw)"
+            )
+            XCTAssertTrue(parsed.intervalSeconds.isFinite, "interval \(raw) must be finite")
+            XCTAssertGreaterThanOrEqual(parsed.intervalSeconds, CodexAuth.minimumPollInterval)
+            XCTAssertLessThanOrEqual(parsed.intervalSeconds, CodexAuth.maximumPollInterval)
+            // The conversion the view performs must not trap.
+            let nanoseconds = UInt64(parsed.intervalSeconds * 1_000_000_000)
+            XCTAssertGreaterThan(nanoseconds, 0)
+        }
+    }
+}

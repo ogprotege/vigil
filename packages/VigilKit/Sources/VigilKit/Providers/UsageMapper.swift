@@ -9,11 +9,23 @@ public enum UsageMapper {
         public let metrics: [UsageMetric]
     }
 
-    private static let isoFormatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter
-    }()
+    /// ISO-8601 parsing, mirroring the TS side's `new Date(value)`, which
+    /// accepts both whole and fractional seconds.
+    ///
+    /// One `ISO8601DateFormatter` cannot parse both forms — `.withFractionalSeconds`
+    /// makes the fraction mandatory, not optional — so both are tried. They are
+    /// created per call rather than shared in a `static let`: a mutable
+    /// reference type in global state is a data race under concurrent mapping
+    /// (`refreshAll` maps every account in a task group) and a hard error in the
+    /// Swift 6 language mode.
+    private static func parseISO8601(_ string: String) -> Date? {
+        let withFraction = ISO8601DateFormatter()
+        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = withFraction.date(from: string) { return date }
+        let wholeSeconds = ISO8601DateFormatter()
+        wholeSeconds.formatOptions = [.withInternetDateTime]
+        return wholeSeconds.date(from: string)
+    }
 
     /// Dot-path lookup with one extension mirrored from the TS mapper: a
     /// segment may end in a selector, `items[kind=general]`, which resolves
@@ -52,13 +64,22 @@ public enum UsageMapper {
             let isFlatMap = segment.hasSuffix("[]")
             let key = isFlatMap ? String(segment.dropLast(2)) : String(segment)
             for node in frontier {
-                guard let dict = node as? [String: Any], let value = dict[key] else { continue }
+                guard let dict = node as? [String: Any] else { continue }
+                let value = dict[key]
                 if isFlatMap {
                     if let array = value as? [Any] {
                         next.append(contentsOf: array.prefix(128))
                     }
                 } else {
-                    next.append(value)
+                    // TS pushes the raw value even when the key is ABSENT
+                    // (`next.push(undefined)`), so an absent leaf still counts
+                    // as a leaf. Dropping it here instead collapsed the
+                    // frontier to empty, which made the caller's "leaves exist
+                    // but none parsed -> shape changed" branch unreachable and
+                    // turned a renamed billing field into a confident $0.00.
+                    // NSNull stands in for undefined: metricNumber rejects it
+                    // and the next iteration skips it, exactly as TS does.
+                    next.append(value ?? NSNull())
                 }
             }
             frontier = next
@@ -106,7 +127,7 @@ public enum UsageMapper {
         if raw == nil || raw is NSNull { return .some(nil) }
         switch format {
         case .iso8601:
-            guard let string = raw as? String, let date = isoFormatter.date(from: string) else { return nil }
+            guard let string = raw as? String, let date = parseISO8601(string) else { return nil }
             return .some(date)
         case .unixSeconds, .unixMillis:
             guard let numeric = windowNumber(raw, lenient: lenient) else { return nil }
@@ -258,7 +279,17 @@ public enum UsageMapper {
                 // fail to parse, means the shape changed. Mirrors map.ts.
                 let firstSegment = mapping.sourceKey.split(separator: ".").first.map(String.init) ?? ""
                 let firstKey = firstSegment.hasSuffix("[]") ? String(firstSegment.dropLast(2)) : firstSegment
+                // "Root present but empty" means an empty ARRAY. A non-array
+                // root — an error envelope, or a wrapper a provider added —
+                // collects no leaves either, and calling that a zero-spend
+                // month reports a confident $0.00 for a schema change.
+                let rootIsUsable: Bool
                 if let rootValue = root[firstKey], !(rootValue is NSNull) {
+                    rootIsUsable = firstSegment.hasSuffix("[]") ? rootValue is [Any] : true
+                } else {
+                    rootIsUsable = false
+                }
+                if rootIsUsable {
                     let leaves = collect(at: mapping.sourceKey, in: root)
                     let numbers = leaves.compactMap { metricNumber($0) }
                     amount = (!leaves.isEmpty && numbers.isEmpty)

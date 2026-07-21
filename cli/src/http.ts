@@ -169,10 +169,25 @@ export async function fetchUsage(
     if (!response.ok) {
       return { status: "network", httpStatus: response.status };
     }
+    // Read the body as text first, so a transport failure *while streaming*
+    // stays a transport failure. `response.json()` collapses both cases into
+    // one throw, and reporting a dropped socket or a fired timeout as
+    // schemaChanged tells the user their provider changed its format and sends
+    // them looking for a CLI update. It also skipped the retry loop that an
+    // identical header-time failure would have used.
+    let text: string;
     try {
-      const body: unknown = await response.json();
+      text = await response.text();
+    } catch (err) {
+      lastError = err;
+      if (attempt < retries) await sleep(retryDelayMs * 2 ** attempt);
+      continue;
+    }
+    try {
+      const body: unknown = JSON.parse(text);
       return { status: "ok", httpStatus: response.status, body };
     } catch {
+      // The body arrived complete and did not parse: a real shape change.
       return { status: "schemaChanged", httpStatus: response.status };
     }
   }

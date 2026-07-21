@@ -19,7 +19,7 @@ If you're new here, start with [getting-started.md](getting-started.md) and the 
 - **Codex device-code note:** OpenAI requires enabling "device code authorization" in ChatGPT → **Settings → Security** (one-time), or the approval page refuses the code.
 - Make sure you've signed in with that tool at least once on this computer (for Codex, run `codex login`).
 - Run `npx vigil-link doctor` to see exactly which locations were checked.
-- You don't have to fix this to proceed — pick the accounts it *did* find, or add an API-key provider directly on your phone (**Add account → Add a provider directly**).
+- You don't have to fix this to proceed — pick the accounts it *did* find, or add an API-key provider directly on your phone (**Add account → Paste a provider key**).
 
 ## The QR code won't scan
 
@@ -76,7 +76,7 @@ DeepSeek is opt-in and is not selected by a plain `npx vigil-link`.
 
 ### Every other opt-in API-key provider
 
-Every opt-in API-key provider is activated the same way: set its documented environment variable in the same process as `vigil-link`, or paste the key directly on the phone (**Add account → Add a provider directly**). None are selected by a plain `npx vigil-link`. See [provider-spec.md](provider-spec.md) for the full env-var table.
+Every opt-in API-key provider is activated the same way: set its documented environment variable in the same process as `vigil-link`, or paste the key directly on the phone (**Add account → Paste a provider key**). None are selected by a plain `npx vigil-link`. See [provider-spec.md](provider-spec.md) for the full env-var table.
 
 ## A live check is deferred
 

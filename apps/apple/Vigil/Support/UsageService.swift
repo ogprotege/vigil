@@ -71,7 +71,7 @@ enum UsageService {
         }
 
         guard await scheduler.acquire(accountKey: account.key, policy: spec.poll) else {
-            let acquireError = await scheduler.persistenceErrorDescription()
+            let acquireError = await scheduler.persistenceErrorDescription(accountKey: account.key)
             if let acquireError {
                 log.error(
                     "[\(surface)] \(account.key, privacy: .private(mask: .hash)): ledger acquire failed: \(acquireError, privacy: .private(mask: .hash))"
@@ -85,7 +85,7 @@ enum UsageService {
                 )
             }
             let next = await scheduler.nextAllowedFetch(accountKey: account.key)
-            let schedulerError = await scheduler.persistenceErrorDescription()
+            let schedulerError = await scheduler.persistenceErrorDescription(accountKey: account.key)
             log.info("[\(surface)] \(account.key, privacy: .private(mask: .hash)): ledger refused fetch, next allowed \(next?.description ?? "unknown", privacy: .public)")
             return Result(
                 snapshot: nil,
@@ -141,11 +141,17 @@ enum UsageService {
                 metrics = outcome.metrics
             } catch {
                 // Cancellation (scene ended, BG task expired) is not a provider
-                // failure: release the in-flight lock without charging the ledger
-                // clock or painting the account "offline".
+                // failure, so the account is not painted "offline" and no
+                // snapshot is written. But the request was already dispatched —
+                // the bytes are on the wire and counted against the provider's
+                // rate limit — so the poll floor must still be charged. A bare
+                // release would leave `nextAllowedAt` untouched (`.distantPast`
+                // on a fresh account), and because backgrounding the app
+                // cancels the refresh task group, a foreground/background cycle
+                // could then send one Claude request per cycle with no floor.
                 if error is CancellationError || (error as? URLError)?.code == .cancelled {
-                    let released = await scheduler.release(accountKey: account.key)
-                    let schedulerError = released ? nil : await scheduler.persistenceErrorDescription()
+                    let charged = await scheduler.chargeFloor(accountKey: account.key, policy: spec.poll)
+                    let schedulerError = charged ? nil : await scheduler.persistenceErrorDescription(accountKey: account.key)
                     log.info("[\(surface)] \(account.key, privacy: .private(mask: .hash)): cancelled, released")
                     return Result(
                         snapshot: nil,
@@ -206,6 +212,18 @@ enum UsageService {
             case .rotatedRetryUnavailable(let updated):
                 effectiveCredentials = updated
                 credentialState = .rotated
+                // The refresh SUCCEEDED and the new pair is committed — only
+                // the retry request failed to reach the provider. Leaving the
+                // pre-refresh 401's `.authExpired` in place persisted a
+                // "Sign-in expired" banner for a sign-in that is actually
+                // fine, pushing the user to re-link (which, because the
+                // account key fingerprints the now-rotated refresh token,
+                // strands a permanent duplicate row). This is the taxonomy's
+                // "anything else means network".
+                status = .network
+                planLabel = nil
+                windows = []
+                metrics = []
             case .unavailable:
                 break
             }
@@ -291,7 +309,7 @@ enum UsageService {
                 status: status
             )
             if !recorded {
-                let schedulerError = await scheduler.persistenceErrorDescription()
+                let schedulerError = await scheduler.persistenceErrorDescription(accountKey: account.key)
                     ?? "The polling lease changed before the result was recorded."
                 if case .rotatedCredentials? = persistenceIssue {
                     // Losing the rotated credential can require a re-link, so keep
@@ -306,7 +324,7 @@ enum UsageService {
         } else {
             let released = await scheduler.release(accountKey: account.key)
             if !released {
-                let schedulerError = await scheduler.persistenceErrorDescription()
+                let schedulerError = await scheduler.persistenceErrorDescription(accountKey: account.key)
                     ?? "The polling lease could not be released after a failed verify."
                 if persistenceIssue == nil {
                     persistenceIssue = .fetchLedger(schedulerError)

@@ -34,7 +34,7 @@ Vigil exchanges the code for its own token that **renews itself automatically** 
 
 Every API-key provider — OpenRouter, DeepSeek, Moonshot, MiniMax, OpenAI, GitHub Copilot, xAI, Z.ai, Cursor, Kimi K3 — is added entirely on the phone:
 
-1. Tap **Add account → Add a provider directly**.
+1. Tap **Add account**, then find the **Paste a provider key** section.
 2. Pick the provider. Vigil asks only for the field(s) it needs and shows a hint for where to find them (see the table below).
 3. Paste the key and save.
 
@@ -68,7 +68,7 @@ npx vigil-link doctor   # what credentials Vigil can find, and where it looked
 
 ## Where to get each provider's key
 
-Claude and ChatGPT/Codex sign in right on the phone (**Add account → Sign in with Claude** / **Sign in with Codex**); reusing a sign-in already on a computer is optional. Every other provider is an API key you paste on the phone (**Add account → Add a provider directly**) or set as an environment variable before running `vigil-link`.
+Claude and ChatGPT/Codex sign in right on the phone (**Add account → Sign in with Claude** / **Sign in with Codex**); reusing a sign-in already on a computer is optional. Every other provider is an API key you paste on the phone (**Add account → Paste a provider key**) or set as an environment variable before running `vigil-link`.
 
 | Provider | Where to get it |
 |---|---|

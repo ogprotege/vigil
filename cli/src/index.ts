@@ -152,13 +152,28 @@ async function main(): Promise<number> {
         : undefined,
       mint: rl
         ? {
-            promptPaste: async (url) => {
+            promptPaste: async (url, signal) => {
               process.stderr.write(
                   `\nIf the browser didn't open, visit:\n${sanitizeTerminalText(url, 4096)}\n\n` +
                   `Waiting for the browser... If it shows a connection error after you\n` +
                   `authorize, paste that page's full URL (or the code) below instead.\n`
               );
-              return rl.question("Paste URL/code here (or just wait): ");
+              // The signal is load-bearing, not decorative. This prompt is a
+              // racing recovery lane: when the loopback lane wins, mintClaude
+              // aborts it. Without honoring the signal the question stays
+              // pending on the shared readline interface, and Node drops the
+              // callback of the NEXT question issued while one is pending — so
+              // every later prompt (the consent gate, the QR dismissal) never
+              // resolves and the CLI hangs forever with credentials on screen.
+              try {
+                return await rl.question("Paste URL/code here (or just wait): ", { signal });
+              } catch (error) {
+                // Abort is the normal outcome when the browser lane wins.
+                if ((error as { name?: string })?.name === "AbortError") {
+                  return await new Promise<string>(() => {});
+                }
+                throw error;
+              }
             },
           }
         : undefined,

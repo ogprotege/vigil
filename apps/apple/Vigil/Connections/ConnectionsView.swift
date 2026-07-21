@@ -234,10 +234,14 @@ private struct ConnectionAccountRow: View {
                 }
                 Spacer()
                 if let snapshot {
-                    if SnapshotFreshness.isDegraded(
-                        status: snapshot.status,
-                        fetchedAt: snapshot.fetchedAt
-                    ) {
+                    // "Stale" only for an OK-but-old snapshot. Testing
+                    // `isDegraded` (status != ok OR old) meant every non-ok
+                    // status rendered as a benign yellow "Stale", so
+                    // "Re-link needed" and "Provider changed" were unreachable
+                    // on the very screen you go to in order to re-link.
+                    // AccountCardView already gets this right; match it.
+                    if snapshot.status == .ok,
+                       SnapshotFreshness.isStale(fetchedAt: snapshot.fetchedAt) {
                         VigilStatusPill(
                             text: "Stale",
                             color: VigilPalette.caution,

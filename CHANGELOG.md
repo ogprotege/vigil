@@ -4,6 +4,105 @@
 
 Anything that changes shipped behavior gets an entry here: `vigil-link` npm versions, TestFlight app builds, and protocol or registry changes that affect both. Provider-schema and local-state migration notes are recorded per release so an existing installation can be upgraded deliberately.
 
+## 0.13.0 (11) — TestFlight internal, 2026-07-21
+
+Full-codebase audit: 233 agents across 14 dimensions, every finding
+adversarially verified. 31 survived; all are fixed here.
+
+**Poll floor (hard invariant).** A cancelled in-flight fetch released the ledger
+lease without charging the clock. The request was already on the wire, and
+backgrounding the app cancels the refresh task group — so a
+foreground/background cycle could send one Claude request per cycle with no
+floor at all. New `FetchScheduler.chargeFloor` releases the lease *and* advances
+`nextAllowedAt` (never pulling an existing 429 backoff earlier); a bare release
+is now reserved for attempts where nothing was transmitted.
+
+**Mapper parity (the app reported money the CLI knew was wrong).**
+
+- Swift's aggregate `collect` dropped absent leaves, making the "leaves exist
+  but none parsed" drift check unreachable. A provider renaming a billing field
+  produced a confident **$0.00** in the app while the CLI correctly reported
+  schemaChanged. Swift now mirrors the TS frontier exactly.
+- A non-array aggregate root (an error envelope, a pagination wrapper) was read
+  as an empty period and summed to $0.00 in **both** implementations. Only a
+  genuinely empty array is a zero-spend month now.
+- Swift rejected ISO-8601 timestamps with fractional seconds, so a cosmetic
+  serializer change upstream would have dropped every Claude window while the
+  CLI kept working. Both forms parse now.
+- Swift rejected Unicode format characters (Cc+Cf) that TS accepted (Cc only),
+  so a zero-width character in a provider label made a window visible in the CLI
+  and silently absent from the app. TS now rejects both categories, which also
+  closes bidi-override spoofing in terminal output.
+- The shared `ISO8601DateFormatter` was mutable global state used from
+  concurrent mapping — a data race, and a hard error in Swift 6. The codebase is
+  now clean under `-strict-concurrency=complete`.
+
+**Honest freshness.**
+
+- The Models tab rendered preserved last-good windows with a live-ticking
+  countdown and no marker of any kind — a three-day-old number presented as
+  current. Rows now carry their snapshot's status and age.
+- Connections showed a benign yellow "Stale" for *every* non-ok status, so
+  "Re-link needed" and "Provider changed" were unreachable on the screen you go
+  to in order to re-link.
+- A transport failure on the post-refresh retry was reported as "Sign-in
+  expired" even though the refresh had succeeded and the new token was saved —
+  pushing users to re-link, which stranded a duplicate account row.
+- The widget rendered `Date.distantPast` as a relative age (~2,000 years) for an
+  account whose first fetch failed.
+
+**Data loss and deletion.**
+
+- `removeAccount` raced an in-flight refresh: the completed fetch rewrote the
+  snapshot file, re-added an observation carrying the removed account's spend,
+  and recreated its ledger entry — so a prompt re-link was then refused. The
+  resume path now re-checks membership and sweeps anything a late write left.
+- `UsageObservationStore` swallowed read errors and overwrote the file, so one
+  corrupt read destroyed up to 400 days of history on the next poll — inverting
+  the alert's promise that totals recover. Both `append` and `removeAll` now
+  fail closed, like `SnapshotStore` and `PendingEventStore`, with a test pinning
+  that the corrupt bytes survive.
+- `removeAll` reported success when the file was unreadable, leaving the removed
+  account's dollar amounts on disk while the UI said they were gone.
+
+**Other correctness.**
+
+- **CLI hang (blocker).** In the classic link flow the paste prompt ignored its
+  AbortSignal, so after a successful browser mint the stale readline question
+  swallowed every later prompt: the CLI hung forever at the consent gate, or —
+  with `--yes` — left the credential QR on screen and never cleared it.
+- Widget timelines were never reloaded after a refresh, so the home screen
+  disagreed with the app for up to 30 minutes and a successful background fetch
+  produced no visible change.
+- `FetchScheduler`'s storage error was one actor-wide slot that concurrent
+  accounts overwrote and cleared, so a ledger failure could be blamed on the
+  wrong account or silently reported as an ordinary deferral. It is keyed by
+  account now.
+- The Codex device-code poll interval was unbounded, so `"inf"` from the server
+  trapped converting to `UInt64` — an uncatchable crash on opening the sign-in
+  screen.
+- The paste screen filtered tokens by `hasPrefix("vigil")`, which matched the
+  word "vigil-link" in the CLI's own output, so pasting exactly what the app
+  told you to copy failed to decode.
+- A CLI transport failure while streaming the response body was reported as
+  schemaChanged ("provider changed their format") instead of network, and
+  skipped the retry loop.
+- The macOS app lock covered the main window but not the menu bar, which kept
+  showing account labels (including the Codex sign-in email), live percentages
+  and a working Refresh with no authentication.
+- `connectionLabel` reported "OAuth" for QR-handed-over credentials Vigil copied
+  and will never renew; only an explicit mint source claims that now.
+- VoiceOver: Home's per-limit reset countdown was unreachable, and the freshness
+  line was six separate stops per account including a bare "·".
+
+**Docs.** Ten locations (and two CLI strings) told users to tap "Add a provider
+directly", a control that does not exist — the shipped path is
+**Add account → Paste a provider key → provider**. `cli/README.md` claimed
+thirteen providers and that `status`/`doctor` scan every provider (only the
+wizard does). `provider-spec.md` listed Kimi K3 as both shipped and deliberately
+held back. README/FAQ described a "Model and special limits" grouping the app no
+longer has.
+
 ## 0.13.0 (10) — TestFlight internal, 2026-07-21
 
 Phone-native reliability pass — stop depending on `npx vigil-link` for core setup, and make Limits / Models actually fill after adding keys:

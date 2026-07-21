@@ -45,7 +45,7 @@ You don't need to be a developer to use Vigil.
 2. **Add an account — on the phone.** Open Vigil → **Add account**:
    - **Sign in with Claude.** Tap it, approve access in the browser that opens, and paste back the code Claude shows you. Vigil gets its own token that renews itself. No computer.
    - **Sign in with Codex.** Tap it, open the sign-in page, and enter the short code Vigil shows you. Vigil detects the approval and finishes — its own renewable token, no computer, no `codex login`.
-   - **Add an API-key provider.** Choose **Add a provider directly**, pick the provider (OpenRouter, DeepSeek, OpenAI, GitHub Copilot, …), and paste its key. Vigil tells you exactly which field it needs.
+   - **Add an API-key provider.** Under **Paste a provider key**, tap the provider (OpenRouter, DeepSeek, OpenAI, GitHub Copilot, …) and paste its key. Vigil tells you exactly which field it needs.
    - **Reuse a computer sign-in (optional).** If you already run Claude Code or Codex on a machine, `npx vigil-link` hands those sign-ins to your phone by QR.
 3. **Read your dashboard.** **Home** opens on a period picker — Day, Week, Month, Year, Life. The hero under it shows the tightest limit left across every account for that range, with any spend Vigil has actually observed noted alongside it. Below that, one stacked list gives each provider the windows matching that period — session bars on Day, weekly bars on Week — with percent left, a live reset countdown, and when it was last updated. Per-model caps — Fable weekly, Opus weekly, Codex's lanes — live on the **Models** tab. Tap refresh and Vigil tells you what it really did: fetched, deferred by the 5-minute poll floor (with the next safe time), or failed.
 
@@ -61,7 +61,7 @@ npx vigil-link doctor   # check what credentials Vigil can find
 ## Features
 
 - **Live limit tracking** for Claude and ChatGPT/Codex, with the exact **percent left** and a **client-side reset countdown** that keeps ticking between fetches.
-- **Per-model limits** surfaced distinctly — Claude Opus/Sonnet weekly caps and newer model-scoped weekly limits, Codex per-model lanes, MiniMax video quota — grouped under "Model and special limits."
+- **Per-model limits** surfaced distinctly — Claude Opus/Sonnet weekly caps and newer model-scoped weekly limits, Codex per-model lanes, MiniMax video quota — in each provider's stacked bars on Home, and gathered tightest-first on the **Models** tab.
 - **Balances, spend, and overage credits** for gateway providers (OpenRouter, DeepSeek, Moonshot, OpenAI, GitHub Copilot, and more) and Claude extra-usage credits.
 - **Home-screen and lock-screen widgets** that read the shared snapshot and tick countdowns locally.
 - **Threshold notifications** at 80% and 95% of a window.
@@ -103,7 +103,7 @@ The CLI never persists credentials or usage values. It does persist poll timesta
 
 **Are my tokens safe?** They only ever travel between your own devices and the providers you turn on, and they live in your device Keychain. There's no Vigil server. The QR code does contain your credentials, so show it only somewhere private. See [docs/threat-model.md](docs/threat-model.md).
 
-**Do I have to use the terminal?** No. Claude and ChatGPT/Codex both sign in right in the app (a browser approval and a short code), and every API-key provider is added by pasting a key (**Add account → Add a provider directly**). The terminal (`npx vigil-link`) is only an optional shortcut for reusing a Claude Code or Codex sign-in already on a computer.
+**Do I have to use the terminal?** No. Claude and ChatGPT/Codex both sign in right in the app (a browser approval and a short code), and every API-key provider is added by pasting a key (**Add account → Paste a provider key → <provider>**). The terminal (`npx vigil-link`) is only an optional shortcut for reusing a Claude Code or Codex sign-in already on a computer.
 
 More answers — per-provider quirks, freshness details, and setup edge cases — are in **[docs/faq.md](docs/faq.md)**. Hitting a specific problem? See **[docs/troubleshooting.md](docs/troubleshooting.md)**.
 

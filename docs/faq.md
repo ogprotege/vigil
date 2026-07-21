@@ -8,7 +8,7 @@ Short answers to the questions people actually ask. For step-by-step setup see [
 
 - A **session window** resets frequently — Claude's 5-hour window, Codex's session window. It's the one that stops you mid-flow.
 - A **weekly window** is the longer cap that resets over the week.
-- A **model limit** is a *separate* quota a platform enforces for one model. Claude tracks Opus and Sonnet weekly caps of their own, plus newer model-scoped weekly limits; Codex exposes per-model lanes; MiniMax has a video-model quota. Vigil shows each of these as its own window with its own reset time, grouped under **Model and special limits** on the account card.
+- A **model limit** is a *separate* quota a platform enforces for one model. Claude tracks Opus and Sonnet weekly caps of their own, plus newer model-scoped weekly limits; Codex exposes per-model lanes; MiniMax has a video-model quota. Vigil shows each of these as its own window with its own reset time: in the provider's stacked bars on Home, and gathered tightest-first on the **Models** tab.
 
 Vigil never blends these into one number — the overall limit and the model-specific one can be very different, and you need to see both.
 
@@ -64,7 +64,7 @@ Refresh tokens rotate. If Vigil and Claude Code both refreshed the same token pa
 
 ## Do I need the terminal?
 
-No. Claude and ChatGPT/Codex both sign in right in the app (a browser approval and a short code), and every API-key provider is added by pasting a key (**Add account → Add a provider directly**). The terminal (`npx vigil-link`) is only an optional shortcut if you'd rather reuse a Claude Code or Codex sign-in already on a computer.
+No. Claude and ChatGPT/Codex both sign in right in the app (a browser approval and a short code), and every API-key provider is added by pasting a key (**Add account → Paste a provider key → <provider>**). The terminal (`npx vigil-link`) is only an optional shortcut if you'd rather reuse a Claude Code or Codex sign-in already on a computer.
 
 ## Per-provider notes
 

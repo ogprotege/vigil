@@ -192,8 +192,14 @@ final class AppModel {
             default: break
             }
         }
+        // Only an explicit "mint" source proves Vigil owns a renewable pair,
+        // and the CLI writes `src` ONLY for minted credentials. A Claude or
+        // Codex sign-in handed over by QR therefore arrives with no source —
+        // guessing "OAuth" from `spec.oauth != nil` labelled exactly those
+        // copied, never-refreshed credentials as a renewing sign-in, which is
+        // the one direction the label must not be wrong in.
         if let spec = ProviderRegistry.spec(for: account.providerId), spec.oauth != nil {
-            return "OAuth"
+            return "Linked"
         }
         return "API"
     }
@@ -411,7 +417,7 @@ final class AppModel {
                 error: error
             )
             let cleared = await scheduler.clear(accountKey: ref.key)
-            if !cleared, let detail = await scheduler.persistenceErrorDescription() {
+            if !cleared, let detail = await scheduler.persistenceErrorDescription(accountKey: ref.key) {
                 reportStorageError(
                     "Vigil restored the previous account state but couldn't clear the verification lease. \(detail)"
                 )
@@ -561,11 +567,34 @@ final class AppModel {
         Task { [weak self] in
             guard let self else { return }
             let cleared = await scheduler.clear(accountKey: account.key)
-            if !cleared, let detail = await scheduler.persistenceErrorDescription() {
+            if !cleared, let detail = await scheduler.persistenceErrorDescription(accountKey: account.key) {
                 reportStorageError(
                     "The account was removed, but Vigil couldn't clear its polling ledger. \(detail)"
                 )
             }
+        }
+    }
+
+    /// Best-effort removal of on-disk state a late in-flight fetch recreated
+    /// for an account the user already removed. Failures are logged rather than
+    /// surfaced: the removal itself already succeeded and reported its own
+    /// result, and this runs on a path the user is not waiting on.
+    private func sweepLocalState(for accountKey: String) {
+        do {
+            try snapshotStore.delete(accountKey: accountKey)
+        } catch {
+            Self.log.error("late snapshot sweep failed: \(error.localizedDescription, privacy: .public)")
+        }
+        do {
+            observations = try observationStore.removeAll(accountKey: accountKey)
+        } catch {
+            Self.log.error("late observation sweep failed: \(error.localizedDescription, privacy: .public)")
+        }
+        snapshots[accountKey] = nil
+        nextAllowed[accountKey] = nil
+        Task { [weak self] in
+            guard let self else { return }
+            _ = await scheduler.clear(accountKey: accountKey)
         }
     }
 
@@ -626,6 +655,15 @@ final class AppModel {
                 }
             }
         }
+        // New snapshots are in the App Group, but WidgetKit does not watch the
+        // container — without this the widget keeps rendering the previous
+        // numbers until its own 30-minute timeline policy fires, so the home
+        // screen disagrees with the app and a successful background refresh
+        // produces no visible change. Gated on a real fetch so the 60-second
+        // foreground timer does not burn WidgetKit's reload budget on no-ops.
+        if fetched > 0 {
+            reloadWidgets()
+        }
         let soonest = nextAllowed.values.filter { $0 > Date() }.min()
         return RefreshReport(
             fetched: fetched,
@@ -669,6 +707,21 @@ final class AppModel {
             surface: surface,
             pendingEvents: pendingEvents
         )
+        // `removeAccount` is synchronous @MainActor and the user can tap Remove
+        // while this fetch is suspended above. Without this guard the completed
+        // fetch resurrects everything the removal just deleted: it rewrites the
+        // snapshot file into the App Group, re-adds an observation carrying the
+        // removed account's spend (which keeps driving the Home hero), and
+        // recreates the ledger entry — so a prompt re-link is then refused by
+        // the poll floor. The deletion promises "saved usage" is gone; honor it.
+        guard accounts.contains(where: { $0.key == account.key }) else {
+            Self.log.info("refresh completed for an account removed mid-flight; discarding result")
+            // The fetch already wrote a snapshot and a ledger entry before it
+            // returned, so discarding the in-memory result is not enough —
+            // sweep what it left behind.
+            sweepLocalState(for: account.key)
+            return .failed
+        }
         handle(result.persistenceIssue, account: account)
 
         // Always sync the poll clock into UI — even when the ledger refused.

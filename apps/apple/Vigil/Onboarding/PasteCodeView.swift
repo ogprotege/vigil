@@ -83,10 +83,21 @@ struct PasteCodeView: View {
     }
 
     private func decode() {
+        // Keep only chunk-shaped tokens. A bare `hasPrefix("vigil")` also
+        // matched the word "vigil-link" — which appears in the CLI's own stderr
+        // caution line and in the `npx vigil-link …` command the app tells the
+        // user to run — and since every kept token is parsed, one stray word
+        // failed the whole decode. Users pasting exactly what they were told to
+        // copy got "could not decode this code".
         let lines = text
             .components(separatedBy: .whitespacesAndNewlines)
             .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { $0.hasPrefix("vigil") }
+            .filter { token in
+                guard let colon = token.firstIndex(of: ":") else { return false }
+                let scheme = token[token.startIndex..<colon]
+                return scheme.hasPrefix("vigil")
+                    && scheme.dropFirst(5).allSatisfy { $0.isNumber }
+            }
         guard !lines.isEmpty else {
             errorMessage = "No vigil1 code found. Paste the full line beginning with “vigil1:”."
             return

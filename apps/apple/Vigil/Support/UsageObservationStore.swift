@@ -138,7 +138,13 @@ struct UsageObservationStore {
     /// their in-memory copy.
     @discardableResult
     func append(_ observation: UsageObservation, now: Date = Date()) throws -> [UsageObservation] {
-        var all = (try? load()) ?? []
+        // Fail closed on an unreadable file, like SnapshotStore and
+        // PendingEventStore do. Swallowing the error degraded the history to
+        // `[]` and then overwrote the file with a single row, permanently
+        // destroying up to 400 days of spend history — and inverting the
+        // alert's promise that totals recover "until the next successful
+        // refresh", since the next refresh was what deleted them.
+        var all = try load()
         // Polling runs on a timer, so an idle account would otherwise append an
         // identical row every poll interval and evict its own baseline. A row
         // that repeats the previous values contributes 0 to every delta, so
@@ -158,7 +164,11 @@ struct UsageObservationStore {
     /// leave the shared container.
     @discardableResult
     func removeAll(accountKey: String, now: Date = Date()) throws -> [UsageObservation] {
-        let all = (try? load()) ?? []
+        // Also fail closed: swallowing the read error made the guard below see
+        // "nothing changed" and report success, leaving the removed account's
+        // dated dollar amounts on disk while the UI — and PrivacyView's
+        // "Vigil reports any failed deletion" — said they were gone.
+        let all = try load()
         let remaining = all.filter { $0.accountKey != accountKey }
         guard remaining.count != all.count else { return all }
         try persist(remaining)

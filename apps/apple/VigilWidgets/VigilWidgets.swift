@@ -145,12 +145,22 @@ struct SmallUsageView: View {
                     }
                     .gaugeStyle(.accessoryLinearCapacity)
                 }
-                Text(snapshot.fetchedAt, style: .relative)
-                    .font(.caption2)
-                    .foregroundStyle(
-                        SnapshotFreshness.isStale(fetchedAt: snapshot.fetchedAt, at: entry.date)
-                            ? .orange : .secondary
-                    )
+                // A snapshot for an account whose first fetch failed carries
+                // `fetchedAt == .distantPast`, which formats as an absurd
+                // multi-millennium age. Every in-app surface guards this; the
+                // widget did not.
+                Group {
+                    if snapshot.fetchedAt > .distantPast {
+                        Text(snapshot.fetchedAt, style: .relative)
+                    } else {
+                        Text("No update yet")
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(
+                    SnapshotFreshness.isStale(fetchedAt: snapshot.fetchedAt, at: entry.date)
+                        ? .orange : .secondary
+                )
             }
         } else {
             VStack(spacing: 6) {
