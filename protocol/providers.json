@@ -43,7 +43,7 @@
           "service": "Claude Code-credentials"
         }
       },
-      "manualEntryHint": "Prefer Sign in with Claude on the previous screen. Pasting a raw access token is a last resort and will not auto-renew.",
+      "manualEntryHint": "Paste a Claude access token, or on Mac use Import from this Mac (~/.claude/.credentials.json). Manual tokens do not auto-renew.",
       "responseFields": {
         "utilization": "utilization",
         "resetsAt": "resets_at"
@@ -164,7 +164,7 @@
           "jsonPath": "tokens"
         }
       },
-      "manualEntryHint": "From ~/.codex/auth.json: tokens.access_token and tokens.account_id.",
+      "manualEntryHint": "Paste tokens.access_token and tokens.account_id from ~/.codex/auth.json, or on Mac use Import from this Mac. Manual tokens do not auto-renew.",
       "responseFields": {
         "utilization": "used_percent",
         "resetsAt": "reset_at",

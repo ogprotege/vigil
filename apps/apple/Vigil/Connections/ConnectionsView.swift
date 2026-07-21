@@ -79,7 +79,7 @@ struct ConnectionsView: View {
             Text("Choose what Vigil watches.")
                 .font(.system(.largeTitle, design: .rounded).weight(.bold))
                 .foregroundStyle(VigilPalette.ink)
-            Text("Sign in with Claude or Codex on this phone, or connect any provider with an API key.")
+            Text("Paste a provider key, import Claude/Codex from this Mac when available, or mint an optional renewing sign-in.")
                 .font(.subheadline)
                 .foregroundStyle(VigilPalette.inkMuted)
         }
@@ -99,7 +99,7 @@ struct ConnectionsView: View {
                 Text("Add an account")
                     .font(.headline)
                     .foregroundStyle(VigilPalette.ink)
-                Text("Sign in with Claude or Codex, or paste a provider key. No computer required.")
+                Text("Local keys and Mac file import first. Browser OAuth only if you want a renewing Vigil-owned token.")
                     .font(.caption)
                     .foregroundStyle(VigilPalette.inkMuted)
                     .fixedSize(horizontal: false, vertical: true)

@@ -14,6 +14,7 @@ Phone-native reliability pass — stop depending on `npx vigil-link` for core se
 - **Limits screen shows every provider window** (session, weekly, and model caps) in one stacked list, plus a Models-at-a-glance strip under the Watchline. Color scheme unchanged.
 - **Cancel on verify / Claude exchange overlays** so a hung 15s timeout is not a dead end.
 - Manual-entry hints for Claude / OpenRouter / DeepSeek no longer point at the CLI.
+- **Local-first setup (token-monitor style).** Mac can **Import from this Mac** — reads `~/.claude/.credentials.json` and `~/.codex/auth.json` with no browser OAuth and no npm. Add Account now leads with paste/import; Sign in with Claude/Codex is demoted to optional "mint a renewing token." New `LocalCredentialDiscovery` in VigilKit mirrors the CLI discovery parsers.
 
 ## 0.13.0 (8) — TestFlight internal, 2026-07-20
 

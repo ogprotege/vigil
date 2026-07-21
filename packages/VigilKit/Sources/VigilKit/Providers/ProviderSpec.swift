@@ -373,7 +373,7 @@ public enum ProviderRegistry {
             MetricMapping(id: "extra_used", label: "Extra usage (month)", sourceKey: "extra_usage.used_credits", kind: .spend, unit: "USD", secondary: false, unitKey: "extra_usage.currency"),
             MetricMapping(id: "extra_limit", label: "Extra usage limit", sourceKey: "extra_usage.monthly_limit", kind: .limit, unit: "USD", secondary: true, unitKey: "extra_usage.currency"),
         ],
-        manualEntryHint: "Prefer Sign in with Claude on the previous screen. Pasting a raw access token is a last resort and will not auto-renew.",
+        manualEntryHint: "Paste a Claude access token, or on Mac use Import from this Mac (~/.claude/.credentials.json). Manual tokens do not auto-renew.",
         oauth: OAuthEndpoint(
             authorizeUrl: URL(string: "https://claude.ai/oauth/authorize")!,
             tokenUrl: URL(string: "https://platform.claude.com/v1/oauth/token")!,
@@ -402,7 +402,7 @@ public enum ProviderRegistry {
             WindowMapping(id: "session", sourceKey: "rate_limit.primary_window", resetFormat: .unixSeconds, windowSeconds: nil, secondary: false),
             WindowMapping(id: "weekly", sourceKey: "rate_limit.secondary_window", resetFormat: .unixSeconds, windowSeconds: nil, secondary: false),
         ],
-        manualEntryHint: "From ~/.codex/auth.json: tokens.access_token and tokens.account_id.",
+        manualEntryHint: "Paste tokens.access_token and tokens.account_id from ~/.codex/auth.json, or on Mac use Import from this Mac. Manual tokens do not auto-renew.",
         oauth: OAuthEndpoint(
             authorizeUrl: URL(string: "https://auth.openai.com/oauth/authorize")!,
             tokenUrl: URL(string: "https://auth.openai.com/oauth/token")!,

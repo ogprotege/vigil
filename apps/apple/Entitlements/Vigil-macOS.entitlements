@@ -6,6 +6,16 @@
 	<true/>
 	<key>com.apple.security.network.client</key>
 	<true/>
+	<key>com.apple.security.files.user-selected.read-only</key>
+	<true/>
+	<!-- Local Claude Code / Codex discovery (token-monitor style). Direct
+	     distribution / menu-bar builds; App Store may require the file picker
+	     fallback alone. -->
+	<key>com.apple.security.temporary-exception.files.home-relative-path.read-only</key>
+	<array>
+		<string>.claude/</string>
+		<string>.codex/</string>
+	</array>
 	<key>com.apple.security.application-groups</key>
 	<array>
 		<string>group.app.vigil.shared</string>
