@@ -373,7 +373,7 @@ public enum ProviderRegistry {
             MetricMapping(id: "extra_used", label: "Extra usage (month)", sourceKey: "extra_usage.used_credits", kind: .spend, unit: "USD", secondary: false, unitKey: "extra_usage.currency"),
             MetricMapping(id: "extra_limit", label: "Extra usage limit", sourceKey: "extra_usage.monthly_limit", kind: .limit, unit: "USD", secondary: true, unitKey: "extra_usage.currency"),
         ],
-        manualEntryHint: "From npx vigil-link --json, or ~/.claude/.credentials.json (claudeAiOauth.accessToken).",
+        manualEntryHint: "Prefer Sign in with Claude on the previous screen. Pasting a raw access token is a last resort and will not auto-renew.",
         oauth: OAuthEndpoint(
             authorizeUrl: URL(string: "https://claude.ai/oauth/authorize")!,
             tokenUrl: URL(string: "https://platform.claude.com/v1/oauth/token")!,
@@ -434,7 +434,7 @@ public enum ProviderRegistry {
             MetricMapping(id: "limit", label: "Credit limit", sourceKey: "data.limit", kind: .limit, unit: "USD", secondary: true),
             MetricMapping(id: "remaining", label: "Credits remaining", sourceKey: "data.limit_remaining", kind: .remaining, unit: "USD", secondary: false),
         ],
-        manualEntryHint: "Create or copy an OpenRouter API key, or set OPENROUTER_API_KEY before running vigil-link."
+        manualEntryHint: "Create or copy an OpenRouter API key from openrouter.ai → Keys and paste it here."
     )
 
     public static let deepSeek = ProviderSpec(
@@ -463,7 +463,7 @@ public enum ProviderRegistry {
                 secondary: false
             ),
         ],
-        manualEntryHint: "Create or copy a DeepSeek API key, or set DEEPSEEK_API_KEY before running vigil-link."
+        manualEntryHint: "Create or copy a DeepSeek API key from platform.deepseek.com → API Keys and paste it here."
     )
 
     private static let standardPoll = PollPolicy(

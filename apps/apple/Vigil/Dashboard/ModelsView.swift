@@ -4,12 +4,24 @@ import VigilKit
 /// Every per-model / special limit each provider surfaces, gathered across all
 /// accounts into one scannable list — the model-specific caps (Claude Opus and
 /// Sonnet weekly, model-scoped limits, Codex per-model lanes, MiniMax video)
-/// pulled out of the account cards and shown on their own, tightest first.
+/// plus coding-plan session/weekly windows when a provider has no separate
+/// model lanes — pulled out of the account cards and shown on their own,
+/// tightest first.
 struct ModelsView: View {
     @Environment(AppModel.self) private var model
 
     private var candidates: [LimitCandidate] {
         UsagePresentation.modelLimits(accounts: model.accounts, snapshots: model.snapshots)
+    }
+
+    private var metricOnlyAccountCount: Int {
+        model.accounts.reduce(0) { count, account in
+            guard let snapshot = model.snapshots[account.key] else { return count }
+            if snapshot.windows.isEmpty && !snapshot.metrics.isEmpty {
+                return count + 1
+            }
+            return count
+        }
     }
 
     var body: some View {
@@ -60,7 +72,7 @@ struct ModelsView: View {
                 .foregroundStyle(VigilPalette.ink)
             Text(
                 candidates.isEmpty
-                    ? "Model-specific limits appear here once a connected provider reports them."
+                    ? "Model-specific and coding-plan limits appear here once a connected provider reports them."
                     : "\(candidates.count) model limit\(candidates.count == 1 ? "" : "s") across your accounts, tightest first."
             )
             .font(.subheadline)
@@ -76,10 +88,10 @@ struct ModelsView: View {
                 .frame(width: 52, height: 52)
                 .background(VigilPalette.signal.opacity(0.11), in: RoundedRectangle(cornerRadius: 16))
             VStack(alignment: .leading, spacing: 4) {
-                Text("No model-specific limits yet")
+                Text(emptyTitle)
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(VigilPalette.ink)
-                Text("Vigil shows each provider's own model caps by name — Claude's per-model weekly limits (Fable, Opus, Sonnet …), Codex's per-model lanes (e.g. GPT-5.6 Sol), Kimi K3's coding-plan session and weekly caps, and MiniMax's video quota — as your account reports them.")
+                Text(emptyDetail)
                     .font(.caption)
                     .foregroundStyle(VigilPalette.inkMuted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -87,6 +99,26 @@ struct ModelsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .vigilCard(padding: VigilSpacing.large)
+    }
+
+    private var emptyTitle: String {
+        if !model.hasAccounts {
+            return "No model-specific limits yet"
+        }
+        if metricOnlyAccountCount > 0 {
+            return "No per-model caps from these providers"
+        }
+        return "Waiting for limit data"
+    }
+
+    private var emptyDetail: String {
+        if !model.hasAccounts {
+            return "Sign in with Claude or Codex, or add a coding-plan key (Kimi K3, MiniMax). Balance-only providers like OpenRouter and DeepSeek show spend on the Limits tab instead."
+        }
+        if metricOnlyAccountCount > 0 {
+            return "Your linked accounts report balances or spend, not model windows. Open the Limits tab for those values. Claude, Codex, Kimi K3, and MiniMax fill this list once their usage check succeeds."
+        }
+        return "Pull to refresh on Limits after adding an account. If verification failed, open Connections → add the account again — a wrong key no longer locks you out for five minutes."
     }
 
     /// Disambiguate the model row's owner. When more than one account of the

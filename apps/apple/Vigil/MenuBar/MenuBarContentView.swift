@@ -144,7 +144,7 @@ private struct MenuBarAccountRow: View {
                     } else {
                         Text("No successful update yet")
                     }
-                    if let nextAllowed, nextAllowed > .now, snapshot.status == .rateLimited {
+                    if let nextAllowed, nextAllowed > .now {
                         Text("· next \(nextAllowed.formatted(date: .omitted, time: .shortened))")
                     }
                 }

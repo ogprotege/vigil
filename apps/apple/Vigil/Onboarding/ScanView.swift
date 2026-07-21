@@ -79,7 +79,7 @@ struct ScanView: View {
         }
 
         if let sid, chunk.sid != sid {
-            message = "That code is from a different link session — re-run vigil-link and scan one session only."
+            message = "That code is from a different link session — create a fresh link on your computer and scan one session only."
             return
         }
         sid = chunk.sid
@@ -98,10 +98,10 @@ struct ScanView: View {
             onDecoded(payload)
             dismiss()
         } catch QRDecodeError.expired {
-            message = "This link code expired (older than 10 minutes). Re-run vigil-link for a fresh one."
+            message = "This link code expired (older than 10 minutes). Create a fresh code on your computer and try again."
             reset()
         } catch {
-            message = "Couldn't decode — re-run vigil-link and try again."
+            message = "Couldn't decode that link code. Create a fresh code on your computer and try again."
             reset()
         }
     }

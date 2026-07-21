@@ -1,9 +1,9 @@
 import SwiftUI
 import VigilKit
 
-/// Provider-first account setup. The safest and easiest path stays first:
-/// discover credentials on the computer, then hand them to Vigil with a
-/// short-lived QR or paste code. Direct provider entry remains available.
+/// Provider-first account setup. Phone-native paths stay first: Sign in with
+/// Claude / Codex, or paste a provider key. The computer QR handoff via
+/// `npx vigil-link` remains available as an optional secondary path.
 struct AddAccountView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -11,6 +11,7 @@ struct AddAccountView: View {
     @State private var showScanner = false
     @State private var pending: PendingAction?
     @State private var isLinking = false
+    @State private var linkingTask: Task<Void, Never>?
 
     enum PendingAction {
         case failed(String)
@@ -311,6 +312,14 @@ struct AddAccountView: View {
                 Text("Nothing is saved until this check finishes.")
                     .font(.caption)
                     .foregroundStyle(VigilPalette.inkMuted)
+                Button("Cancel") {
+                    linkingTask?.cancel()
+                    linkingTask = nil
+                    isLinking = false
+                }
+                .buttonStyle(.bordered)
+                .tint(VigilPalette.inkMuted)
+                .padding(.top, 4)
             }
             .padding(24)
             .vigilCard(padding: VigilSpacing.large)
@@ -364,10 +373,15 @@ struct AddAccountView: View {
     }
 
     private func run(_ source: LinkSource, allowUnverified: Bool, allowReplace: Bool) {
-        Task {
+        linkingTask?.cancel()
+        linkingTask = Task {
             isLinking = true
-            defer { isLinking = false }
+            defer {
+                isLinking = false
+                linkingTask = nil
+            }
             do {
+                try Task.checkCancellation()
                 switch source {
                 case .payload(let payload):
                     try await model.addAccounts(
@@ -382,20 +396,27 @@ struct AddAccountView: View {
                         allowReplace: allowReplace
                     )
                 }
+                guard !Task.isCancelled else { return }
                 dismiss()
+            } catch is CancellationError {
+                // User cancelled the verify overlay.
             } catch AppModel.LinkError.verifyFailed(.network) {
+                guard !Task.isCancelled else { return }
                 pending = .confirmUnverified(
                     source,
                     "Network problem while verifying. Save and verify later?"
                 )
             } catch AppModel.LinkError.verificationDeferred(_) {
+                guard !Task.isCancelled else { return }
                 pending = .confirmUnverified(
                     source,
                     "Vigil's polling safety cooldown deferred this check. Save now and verify on the next allowed refresh?"
                 )
             } catch AppModel.LinkError.wouldReplace(let labels) {
+                guard !Task.isCancelled else { return }
                 pending = .confirmReplace(source, labels)
             } catch {
+                guard !Task.isCancelled else { return }
                 pending = .failed(error.localizedDescription)
             }
         }

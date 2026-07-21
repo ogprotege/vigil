@@ -10,18 +10,6 @@ struct AccountCardView: View {
     let nextAllowed: Date?
     let relink: () -> Void
 
-    private var primaryWindows: [UsageWindow] {
-        UsagePresentation.sortedWindows(
-            snapshot?.windows.filter { !UsagePresentation.isSpecialWindow($0) } ?? []
-        )
-    }
-
-    private var specialWindows: [UsageWindow] {
-        UsagePresentation.sortedWindows(
-            snapshot?.windows.filter(UsagePresentation.isSpecialWindow) ?? []
-        )
-    }
-
     private var primaryMetrics: [UsageMetric] {
         snapshot?.metrics.filter { !$0.secondary } ?? []
     }
@@ -36,19 +24,12 @@ struct AccountCardView: View {
             statusBanner
 
             if let snapshot, (!snapshot.windows.isEmpty || !snapshot.metrics.isEmpty) {
-                if !primaryWindows.isEmpty {
-                    LimitMeterStack(windows: primaryWindows)
-                }
-
-                if !specialWindows.isEmpty {
-                    VStack(alignment: .leading, spacing: VigilSpacing.small) {
-                        VigilSectionHeading(
-                            "Model and special limits",
-                            eyebrow: "Provider quotas",
-                            detail: "\(specialWindows.count)"
-                        )
-                        LimitMeterStack(windows: specialWindows)
-                    }
+                // One scannable stack — primary session/weekly first, then
+                // model-specific caps — so every provider and model limit is
+                // visible on the Limits screen without digging.
+                let allWindows = UsagePresentation.sortedWindows(snapshot.windows)
+                if !allWindows.isEmpty {
+                    LimitMeterStack(windows: allWindows)
                 }
 
                 if !primaryMetrics.isEmpty {
@@ -63,9 +44,11 @@ struct AccountCardView: View {
                 }
 
                 footer(snapshot)
-            } else {
+            } else if snapshot == nil {
                 waitingState
             }
+            // else: snapshot exists but empty — statusBanner already explains
+            // authExpired / network / schemaChanged; do not claim we're still waiting.
         }
         .vigilCard(padding: VigilSpacing.medium)
     }

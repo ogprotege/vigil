@@ -16,6 +16,7 @@ struct ClaudeSignInView: View {
     @State private var pastedCode = ""
     @State private var didOpen = false
     @State private var isExchanging = false
+    @State private var exchangeTask: Task<Void, Never>?
     @State private var errorMessage: String?
 
     private var oauth: OAuthEndpoint { ProviderRegistry.claude.oauth! }
@@ -130,6 +131,14 @@ struct ClaudeSignInView: View {
                 Text("Finishing sign-in…")
                     .font(.headline)
                     .foregroundStyle(VigilPalette.ink)
+                Button("Cancel") {
+                    exchangeTask?.cancel()
+                    exchangeTask = nil
+                    isExchanging = false
+                }
+                .buttonStyle(.bordered)
+                .tint(VigilPalette.inkMuted)
+                .padding(.top, 4)
             }
             .padding(24)
             .vigilCard(padding: VigilSpacing.large)
@@ -142,9 +151,13 @@ struct ClaudeSignInView: View {
             errorMessage = "That code didn't look right. Copy the whole code Claude showed you and try again."
             return
         }
-        Task {
+        exchangeTask?.cancel()
+        exchangeTask = Task {
             isExchanging = true
-            defer { isExchanging = false }
+            defer {
+                isExchanging = false
+                exchangeTask = nil
+            }
             let request = ClaudeAuth.exchangeRequest(
                 oauth: oauth,
                 code: code,
@@ -154,6 +167,7 @@ struct ClaudeSignInView: View {
             )
             do {
                 let (data, response) = try await URLSession.shared.data(for: request)
+                guard !Task.isCancelled else { return }
                 guard let http = response as? HTTPURLResponse,
                       (200..<300).contains(http.statusCode),
                       let credentials = ClaudeAuth.credentials(fromExchange: data)
@@ -166,7 +180,10 @@ struct ClaudeSignInView: View {
                 }
                 onComplete(credentials)
                 dismiss()
+            } catch is CancellationError {
+                // User cancelled.
             } catch {
+                guard !Task.isCancelled else { return }
                 errorMessage = "Couldn't reach Claude to finish signing in. Check your connection and try again."
             }
         }

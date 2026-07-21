@@ -43,7 +43,7 @@
           "service": "Claude Code-credentials"
         }
       },
-      "manualEntryHint": "From npx vigil-link --json, or ~/.claude/.credentials.json (claudeAiOauth.accessToken).",
+      "manualEntryHint": "Prefer Sign in with Claude on the previous screen. Pasting a raw access token is a last resort and will not auto-renew.",
       "responseFields": {
         "utilization": "utilization",
         "resetsAt": "resets_at"
@@ -219,7 +219,7 @@
           "accessToken": "OPENROUTER_API_KEY"
         }
       },
-      "manualEntryHint": "Create or copy an OpenRouter API key, or set OPENROUTER_API_KEY before running vigil-link.",
+      "manualEntryHint": "Create or copy an OpenRouter API key from openrouter.ai → Keys and paste it here.",
       "metricMappings": [
         {
           "id": "usage",
@@ -277,7 +277,7 @@
           "accessToken": "DEEPSEEK_API_KEY"
         }
       },
-      "manualEntryHint": "Create or copy a DeepSeek API key, or set DEEPSEEK_API_KEY before running vigil-link.",
+      "manualEntryHint": "Create or copy a DeepSeek API key from platform.deepseek.com → API Keys and paste it here.",
       "metricCollectionMappings": [
         {
           "sourceKey": "balance_infos",

@@ -126,7 +126,10 @@ enum UsagePresentation {
     }
 
     /// Every per-model / special limit across all accounts, tightest first —
-    /// the data behind the dedicated Models view.
+    /// the data behind the dedicated Models view. When an account reports no
+    /// special windows but does report primary session/weekly plan windows
+    /// (Kimi K3, Z.ai coding plans, …), those primary windows are included so
+    /// the Models tab is not empty for a successfully linked coding plan.
     static func modelLimits(
         accounts: [AccountRef],
         snapshots: [String: ProviderSnapshot]
@@ -134,9 +137,21 @@ enum UsagePresentation {
         accounts
             .compactMap { account -> [LimitCandidate]? in
                 guard let snapshot = snapshots[account.key] else { return nil }
-                return snapshot.windows
-                    .filter(isSpecialWindow)
-                    .map { LimitCandidate(account: account, snapshot: snapshot, window: $0) }
+                let special = snapshot.windows.filter(isSpecialWindow)
+                let windows: [UsageWindow]
+                if !special.isEmpty {
+                    windows = special
+                } else if !snapshot.windows.isEmpty {
+                    // Coding-plan providers often expose only session + weekly
+                    // as primary windows — still a plan quota the Models tab
+                    // should surface, labeled with the account name.
+                    windows = snapshot.windows
+                } else {
+                    return nil
+                }
+                return windows.map {
+                    LimitCandidate(account: account, snapshot: snapshot, window: $0)
+                }
             }
             .flatMap { $0 }
             .sorted {
@@ -167,9 +182,9 @@ enum UsagePresentation {
                 fetchedAt: snapshot.fetchedAt,
                 at: now
             ) else {
-                if !snapshot.windows.isEmpty {
-                    windowAccounts += 1
-                }
+                // Degraded accounts only count as unreliable — do not also
+                // inflate windowAccountCount or the coverage copy contradicts
+                // itself ("2 of 2 reporting" + "2 of 2 stale").
                 unreliableAccounts += 1
                 continue
             }
