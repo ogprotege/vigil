@@ -4,6 +4,18 @@
 
 Anything that changes shipped behavior gets an entry here: `vigil-link` npm versions, TestFlight app builds, and protocol or registry changes that affect both. Provider-schema and local-state migration notes are recorded per release so an existing installation can be upgraded deliberately.
 
+## 0.13.0 (9) — TestFlight internal, 2026-07-21
+
+Phone-native reliability pass — stop depending on `npx vigil-link` for core setup, and make Limits / Models actually fill after adding keys:
+
+- **Failed link verify no longer burns the 5-minute poll floor.** A wrong API key or flaky network used to charge the scheduler, so the next attempt hit "polling safety cooldown deferred" / "Network problem" and left Limits + Models empty. Verify now releases the lease on auth/network/schema failures and only charges the clock on a real provider answer (ok) or 429.
+- **Auth errors no longer say "Re-run npx vigil-link".** Phone paste / Sign in paths tell you to check the key or sign in again. `vigil-link` stays optional for computer QR handoff only.
+- **Models tab fills for coding plans.** Accounts with only primary session/weekly windows (Kimi K3, Z.ai, …) now appear in Models; empty state explains balance-only providers (OpenRouter, DeepSeek) belong on Limits.
+- **Limits screen shows every provider window** (session, weekly, and model caps) in one stacked list, plus a Models-at-a-glance strip under the Watchline. Color scheme unchanged.
+- **Cancel on verify / Claude exchange overlays** so a hung 15s timeout is not a dead end.
+- Manual-entry hints for Claude / OpenRouter / DeepSeek no longer point at the CLI.
+- **Local-first setup (token-monitor style).** Mac can **Import from this Mac** — reads `~/.claude/.credentials.json` and `~/.codex/auth.json` with no browser OAuth and no npm. Add Account now leads with paste/import; Sign in with Claude/Codex is demoted to optional "mint a renewing token." New `LocalCredentialDiscovery` in VigilKit mirrors the CLI discovery parsers.
+
 ## 0.13.0 (8) — TestFlight internal, 2026-07-20
 
 Polish pass on the Models release:

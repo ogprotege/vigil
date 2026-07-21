@@ -159,19 +159,24 @@ final class AppModel {
             switch self {
             case .verifyFailed(let status):
                 switch status {
-                case .authExpired: return "The provider rejected these credentials. Re-run `npx vigil-link` and try again."
-                case .network: return "Couldn't reach the provider to verify. Check your connection — or save anyway and verify later."
-                default: return "Verification failed (\(status.rawValue))."
+                case .authExpired:
+                    return "The provider rejected these credentials. Check the key or sign in again, then retry."
+                case .network:
+                    return "Couldn't reach the provider to verify. Check your connection — or save anyway and verify later."
+                case .schemaChanged:
+                    return "The provider responded, but Vigil couldn't read its usage fields. Update Vigil, or save anyway and retry after an update."
+                default:
+                    return "Verification failed (\(status.rawValue))."
                 }
             case .noAccounts: return "That link code contained no accounts."
             case .unsupportedProvider(let id):
-                return "\"\(id)\" isn't supported by this version of Vigil. Update Vigil and re-run `npx vigil-link`."
+                return "\"\(id)\" isn't supported by this version of Vigil. Update the app for the latest provider support."
             case .invalidCredentials(let reason):
-                return "The link contains invalid credentials: \(reason). Create a fresh link code and try again."
+                return "These credentials look invalid: \(reason). Check what you pasted and try again."
             case .wouldReplace(let labels):
                 return "This replaces the already-linked \(labels.joined(separator: ", "))."
             case .verificationDeferred:
-                return "Vigil's polling safety gate deferred verification. Try again later, or save now and verify on the next allowed refresh."
+                return "Vigil's polling safety gate deferred verification. Try again in a few minutes, or save now and verify on the next allowed refresh."
             case .futureDated:
                 return "This link code is dated in the future. Check both devices' clocks, then create a fresh code."
             case .persistence(let message):

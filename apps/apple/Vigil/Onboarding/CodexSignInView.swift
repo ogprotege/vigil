@@ -208,10 +208,15 @@ struct CodexSignInView: View {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse,
-                  (200..<300).contains(http.statusCode),
-                  let credentials = CodexAuth.credentials(fromTokenResponse: data)
+                  (200..<300).contains(http.statusCode)
             else {
-                phase = .failed("Couldn't finish Codex sign-in. Tap Try again.")
+                phase = .failed("Couldn't finish Codex sign-in (HTTP error). Tap Try again.")
+                return
+            }
+            guard let credentials = CodexAuth.credentials(fromTokenResponse: data) else {
+                phase = .failed(
+                    "OpenAI's response didn't include your account ID. Enable Device code authorization in ChatGPT → Settings → Security, then tap Try again."
+                )
                 return
             }
             onComplete(credentials)

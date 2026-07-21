@@ -79,7 +79,7 @@ struct ConnectionsView: View {
             Text("Choose what Vigil watches.")
                 .font(.system(.largeTitle, design: .rounded).weight(.bold))
                 .foregroundStyle(VigilPalette.ink)
-            Text("Pair a computer for the fastest setup, or connect a provider directly.")
+            Text("Paste a provider key, import Claude/Codex from this Mac when available, or mint an optional renewing sign-in.")
                 .font(.subheadline)
                 .foregroundStyle(VigilPalette.inkMuted)
         }
@@ -87,7 +87,7 @@ struct ConnectionsView: View {
 
     private var pairingCard: some View {
         HStack(alignment: .center, spacing: 14) {
-            Image(systemName: "laptopcomputer.and.iphone")
+            Image(systemName: "person.badge.key")
                 .font(.system(size: 26, weight: .medium))
                 .foregroundStyle(VigilPalette.signal)
                 .frame(width: 52, height: 52)
@@ -96,10 +96,10 @@ struct ConnectionsView: View {
                     in: RoundedRectangle(cornerRadius: 16)
                 )
             VStack(alignment: .leading, spacing: 4) {
-                Text("Pair or add an account")
+                Text("Add an account")
                     .font(.headline)
                     .foregroundStyle(VigilPalette.ink)
-                Text("Vigil Link can discover Claude and Codex sign-ins without making you dig through credential files.")
+                Text("Local keys and Mac file import first. Browser OAuth only if you want a renewing Vigil-owned token.")
                     .font(.caption)
                     .foregroundStyle(VigilPalette.inkMuted)
                     .fixedSize(horizontal: false, vertical: true)

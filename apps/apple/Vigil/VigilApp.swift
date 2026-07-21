@@ -113,7 +113,7 @@ struct VigilApp: App {
         switch deepLink {
         case .failed(let message): return message
         case .confirmAdd(_, let labels):
-            return "This link adds \(labels.joined(separator: ", ")). Only continue if you just created it with vigil-link on your own computer."
+            return "This link adds \(labels.joined(separator: ", ")). Continue only if you just created it on your own computer."
         case .confirmUnverified(_, let message):
             return message
         case .confirmReplace(_, let labels):
@@ -136,7 +136,7 @@ struct VigilApp: App {
         } catch QRDecodeError.incomplete {
             deepLink = .failed("That's one code of a multi-part link — open Vigil and use Add Account → Scan to capture all of them.")
         } catch QRDecodeError.expired {
-            deepLink = .failed("This link code expired (older than 10 minutes). Re-run vigil-link for a fresh one.")
+            deepLink = .failed("This link code expired (older than 10 minutes). Create a fresh code on your computer and try again.")
         } catch {
             deepLink = .failed("Couldn't read that link code.")
         }

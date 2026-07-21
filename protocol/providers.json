@@ -43,7 +43,7 @@
           "service": "Claude Code-credentials"
         }
       },
-      "manualEntryHint": "From npx vigil-link --json, or ~/.claude/.credentials.json (claudeAiOauth.accessToken).",
+      "manualEntryHint": "Paste a Claude access token, or on Mac use Import from this Mac (~/.claude/.credentials.json). Manual tokens do not auto-renew.",
       "responseFields": {
         "utilization": "utilization",
         "resetsAt": "resets_at"
@@ -164,7 +164,7 @@
           "jsonPath": "tokens"
         }
       },
-      "manualEntryHint": "From ~/.codex/auth.json: tokens.access_token and tokens.account_id.",
+      "manualEntryHint": "Paste tokens.access_token and tokens.account_id from ~/.codex/auth.json, or on Mac use Import from this Mac. Manual tokens do not auto-renew.",
       "responseFields": {
         "utilization": "used_percent",
         "resetsAt": "reset_at",
@@ -219,7 +219,7 @@
           "accessToken": "OPENROUTER_API_KEY"
         }
       },
-      "manualEntryHint": "Create or copy an OpenRouter API key, or set OPENROUTER_API_KEY before running vigil-link.",
+      "manualEntryHint": "Create or copy an OpenRouter API key from openrouter.ai → Keys and paste it here.",
       "metricMappings": [
         {
           "id": "usage",
@@ -277,7 +277,7 @@
           "accessToken": "DEEPSEEK_API_KEY"
         }
       },
-      "manualEntryHint": "Create or copy a DeepSeek API key, or set DEEPSEEK_API_KEY before running vigil-link.",
+      "manualEntryHint": "Create or copy a DeepSeek API key from platform.deepseek.com → API Keys and paste it here.",
       "metricCollectionMappings": [
         {
           "sourceKey": "balance_infos",

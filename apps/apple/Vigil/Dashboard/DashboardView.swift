@@ -45,6 +45,13 @@ struct DashboardView: View {
                             accountTitle: watchlineAccountTitle
                         )
 
+                        ModelsGlanceView(
+                            candidates: UsagePresentation.modelLimits(
+                                accounts: model.accounts,
+                                snapshots: model.snapshots
+                            )
+                        )
+
                         LazyVGrid(
                             columns: [GridItem(.adaptive(minimum: 350, maximum: 560), spacing: 16)],
                             alignment: .leading,
@@ -335,7 +342,7 @@ struct EmptyDashboardView: View {
                     Text("The watch is quiet.")
                         .font(.title2.weight(.semibold))
                         .foregroundStyle(VigilPalette.ink)
-                    Text("Pair a computer or add a provider key. Vigil keeps credentials on this device.")
+                    Text("Sign in with Claude or Codex, or paste a provider key. Vigil keeps credentials on this device.")
                         .font(.subheadline)
                         .foregroundStyle(VigilPalette.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
@@ -343,7 +350,7 @@ struct EmptyDashboardView: View {
             }
 
             Button(action: addAccount) {
-                Label("Pair or add an account", systemImage: "plus")
+                Label("Add an account", systemImage: "plus")
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 48)
@@ -361,6 +368,45 @@ struct EmptyDashboardView: View {
         }
         .frame(maxWidth: 620, alignment: .leading)
         .vigilCard(padding: VigilSpacing.large)
+    }
+}
+
+/// Compact preview of the tightest model / coding-plan limits on the Limits
+/// screen so providers and models are visible without switching tabs.
+struct ModelsGlanceView: View {
+    let candidates: [LimitCandidate]
+
+    private var preview: [LimitCandidate] {
+        Array(candidates.prefix(4))
+    }
+
+    var body: some View {
+        if !preview.isEmpty {
+            VStack(alignment: .leading, spacing: VigilSpacing.small) {
+                VigilSectionHeading(
+                    "Models and plan caps",
+                    eyebrow: "Across accounts",
+                    detail: "\(candidates.count)"
+                )
+                VStack(spacing: 0) {
+                    ForEach(Array(preview.enumerated()), id: \.offset) { index, candidate in
+                        if index > 0 {
+                            Divider().overlay(VigilPalette.ink.opacity(0.08))
+                        }
+                        LimitMeterRow(
+                            window: candidate.window,
+                            accountName: candidate.account.displayName
+                        )
+                    }
+                }
+                if candidates.count > preview.count {
+                    Text("Open the Models tab for all \(candidates.count) caps, tightest first.")
+                        .font(.caption)
+                        .foregroundStyle(VigilPalette.inkMuted)
+                }
+            }
+            .vigilCard(padding: VigilSpacing.medium)
+        }
     }
 }
 

@@ -479,6 +479,54 @@ final class AppModelReliabilityTests: XCTestCase {
         XCTAssertTrue(try vault.allKeys().isEmpty)
     }
 
+    func testFailedLinkVerifyDoesNotBurnPollFloor() async throws {
+        let directory = try makeTemporaryDirectory()
+        StubURLProtocol.reset()
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let credentials = Credentials(providerId: "openrouter", accessToken: "bad-key")
+        let account = AccountRef(
+            key: AppModel.accountKey(for: credentials),
+            providerId: "openrouter",
+            label: nil,
+            plan: nil
+        )
+        let scheduler = FetchScheduler(
+            store: FileLedgerStore(directory: directory),
+            jitter: { _ in 0 }
+        )
+
+        let first = await UsageService.refresh(
+            account: account,
+            credentials: credentials,
+            scheduler: scheduler,
+            snapshots: SnapshotStore(directory: directory),
+            vault: nil,
+            surface: "verify",
+            session: session,
+            persistSnapshot: false,
+            emitThresholdEvents: false,
+            persistRotatedCredentials: false,
+            allowCredentialRefresh: false
+        )
+        XCTAssertEqual(first.snapshot?.status, .authExpired)
+
+        // A wrong key must not lock the user out for five minutes — otherwise
+        // the next attempt surfaces "deferred / save anyway" and Models stays empty.
+        let next = await scheduler.nextAllowedFetch(accountKey: account.key)
+        XCTAssertTrue(
+            next == nil || next! <= Date(),
+            "Failed link verify must release without charging the poll floor"
+        )
+        let secondAcquire = await scheduler.acquire(
+            accountKey: account.key,
+            policy: ProviderRegistry.openRouter.poll
+        )
+        XCTAssertTrue(secondAcquire, "Immediate retry after a failed verify must be allowed")
+        _ = await scheduler.release(accountKey: account.key)
+    }
+
     func testFallbackCredentialsStoreCopiesLegacyWithoutDeletingIt() throws {
         let primary = InMemoryCredentialsStore()
         let legacy = InMemoryCredentialsStore()

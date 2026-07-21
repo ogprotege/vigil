@@ -133,8 +133,8 @@ final class UsagePresentationTests: XCTestCase {
         let claudeSnapshot = snapshot(
             account: claude,
             windows: [
-                window(id: "session", used: 30),                       // primary — excluded
-                window(id: "weekly", used: 40),                        // primary — excluded
+                window(id: "session", used: 30),                       // primary — excluded when special exist
+                window(id: "weekly", used: 40),                        // primary — excluded when special exist
                 window(id: "weekly_opus", used: 80, secondary: true),  // model — 20% left
                 window(id: "weekly_sonnet", used: 30, secondary: true), // model — 70% left
             ]
@@ -154,6 +154,42 @@ final class UsagePresentationTests: XCTestCase {
         // Only the three model/special windows, none of the primary ones, tightest first.
         XCTAssertEqual(result.map { $0.window.id }, ["gpt-5-codex-spark", "weekly_opus", "weekly_sonnet"])
         XCTAssertEqual(result.first?.account, codex)
+    }
+
+    func testModelLimitsIncludesCodingPlanPrimaryWindowsWhenNoSpecialCaps() {
+        let kimi = AccountRef(key: "kimi_code:one", providerId: "kimi_code", label: nil, plan: nil)
+        let openrouter = AccountRef(key: "openrouter:one", providerId: "openrouter", label: nil, plan: nil)
+        let kimiSnapshot = snapshot(
+            account: kimi,
+            windows: [
+                window(id: "session", used: 48),
+                window(id: "weekly", used: 29),
+            ]
+        )
+        let openrouterSnapshot = snapshot(
+            account: openrouter,
+            windows: [],
+            metrics: [
+                UsageMetric(
+                    id: "remaining",
+                    label: "Remaining",
+                    kind: .remaining,
+                    value: 10,
+                    unit: "USD",
+                    secondary: false
+                ),
+            ]
+        )
+
+        let result = UsagePresentation.modelLimits(
+            accounts: [kimi, openrouter],
+            snapshots: [kimi.key: kimiSnapshot, openrouter.key: openrouterSnapshot]
+        )
+
+        // Kimi's primary session/weekly fill Models when there are no special
+        // lanes; metric-only OpenRouter contributes nothing.
+        XCTAssertEqual(result.map { $0.window.id }, ["session", "weekly"])
+        XCTAssertEqual(result.map(\.account.key), [kimi.key, kimi.key])
     }
 
     func testWatchlineChoosesTightestWindowAcrossAccounts() throws {

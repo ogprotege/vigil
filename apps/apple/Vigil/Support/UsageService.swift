@@ -262,19 +262,45 @@ enum UsageService {
                 )
             }
         }
-        let recorded = await scheduler.recordResult(accountKey: account.key, policy: spec.poll, status: status)
-        if !recorded {
-            let schedulerError = await scheduler.persistenceErrorDescription()
-                ?? "The polling lease changed before the result was recorded."
-            if case .rotatedCredentials? = persistenceIssue {
-                // Losing the rotated credential can require a re-link, so keep
-                // that higher-priority user action while logging both faults.
-            } else {
-                persistenceIssue = .fetchLedger(schedulerError)
-            }
-            log.error(
-                "[\(surface)] \(account.key, privacy: .private(mask: .hash)): ledger result failed: \(schedulerError, privacy: .private(mask: .hash))"
+        // Link verification must not burn the poll floor on a failed first
+        // attempt. A wrong API key or flaky network was trapping users in the
+        // "deferred / save anyway" loop for five minutes — and the Models /
+        // Limits screens stayed empty. Charge the clock only when the provider
+        // genuinely answered (ok) or rate-limited us (429).
+        let shouldChargePollClock = persistSnapshot
+            || status == .ok
+            || status == .rateLimited
+        if shouldChargePollClock {
+            let recorded = await scheduler.recordResult(
+                accountKey: account.key,
+                policy: spec.poll,
+                status: status
             )
+            if !recorded {
+                let schedulerError = await scheduler.persistenceErrorDescription()
+                    ?? "The polling lease changed before the result was recorded."
+                if case .rotatedCredentials? = persistenceIssue {
+                    // Losing the rotated credential can require a re-link, so keep
+                    // that higher-priority user action while logging both faults.
+                } else {
+                    persistenceIssue = .fetchLedger(schedulerError)
+                }
+                log.error(
+                    "[\(surface)] \(account.key, privacy: .private(mask: .hash)): ledger result failed: \(schedulerError, privacy: .private(mask: .hash))"
+                )
+            }
+        } else {
+            let released = await scheduler.release(accountKey: account.key)
+            if !released {
+                let schedulerError = await scheduler.persistenceErrorDescription()
+                    ?? "The polling lease could not be released after a failed verify."
+                if persistenceIssue == nil {
+                    persistenceIssue = .fetchLedger(schedulerError)
+                }
+                log.error(
+                    "[\(surface)] \(account.key, privacy: .private(mask: .hash)): verify release failed: \(schedulerError, privacy: .private(mask: .hash))"
+                )
+            }
         }
         log.info("[\(surface)] \(account.key, privacy: .private(mask: .hash)): \(status.rawValue, privacy: .public)")
         return Result(

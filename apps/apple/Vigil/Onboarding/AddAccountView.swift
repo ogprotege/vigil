@@ -1,9 +1,10 @@
 import SwiftUI
 import VigilKit
 
-/// Provider-first account setup. The safest and easiest path stays first:
-/// discover credentials on the computer, then hand them to Vigil with a
-/// short-lived QR or paste code. Direct provider entry remains available.
+/// Local-first account setup. Prefer importing credentials already on this Mac
+/// or pasting a provider key. Browser OAuth (Sign in with Claude / Codex) is an
+/// optional way to mint a Vigil-owned renewing token. The `npx vigil-link` QR
+/// handoff remains a last-resort computer bridge.
 struct AddAccountView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -11,6 +12,7 @@ struct AddAccountView: View {
     @State private var showScanner = false
     @State private var pending: PendingAction?
     @State private var isLinking = false
+    @State private var linkingTask: Task<Void, Never>?
 
     enum PendingAction {
         case failed(String)
@@ -31,9 +33,11 @@ struct AddAccountView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: VigilSpacing.large) {
                         intro
-                        claudeSignInCard
-                        codexSignInCard
+                        #if os(macOS)
+                        localImportCard
+                        #endif
                         directProviderSection
+                        renewingSignInSection
                         computerPairingCard
                         privacyNote
                     }
@@ -101,9 +105,74 @@ struct AddAccountView: View {
             Text("Bring an account under watch.")
                 .font(.system(.largeTitle, design: .rounded).weight(.bold))
                 .foregroundStyle(VigilPalette.ink)
-            Text("Set up right here on your phone — sign in to Claude or paste a provider key. No computer needed.")
+            Text(introDetail)
                 .font(.subheadline)
                 .foregroundStyle(VigilPalette.inkMuted)
+        }
+    }
+
+    private var introDetail: String {
+        #if os(macOS)
+        "Import Claude Code or Codex from this Mac, or paste any provider key. Browser sign-in is optional if you want a Vigil-owned renewing token."
+        #else
+        "Paste a provider key, or sign in with Claude / Codex on this phone. No computer required — and no npm package."
+        #endif
+    }
+
+    #if os(macOS)
+    private var localImportCard: some View {
+        VStack(alignment: .leading, spacing: VigilSpacing.medium) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "internaldrive")
+                    .font(.system(size: 24, weight: .medium))
+                    .foregroundStyle(VigilPalette.signal)
+                    .frame(width: 48, height: 48)
+                    .background(
+                        VigilPalette.signal.opacity(0.11),
+                        in: RoundedRectangle(cornerRadius: 15)
+                    )
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Import from this Mac")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(VigilPalette.ink)
+                        Spacer()
+                        VigilStatusPill(text: "Local", color: VigilPalette.safe)
+                    }
+                    Text("Read Claude Code (~/.claude) and Codex (~/.codex) the same way desktop monitors do — no browser OAuth, no terminal.")
+                        .font(.caption)
+                        .foregroundStyle(VigilPalette.inkMuted)
+                }
+            }
+            NavigationLink {
+                LocalImportView { credentials in
+                    attempt(.credentials(credentials))
+                }
+            } label: {
+                Label("Import Claude or Codex", systemImage: "tray.and.arrow.down")
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 46)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(VigilPalette.signal)
+            .foregroundStyle(VigilPalette.canvas)
+        }
+        .vigilCard(padding: VigilSpacing.large)
+    }
+    #endif
+
+    private var renewingSignInSection: some View {
+        VStack(alignment: .leading, spacing: VigilSpacing.medium) {
+            VigilSectionHeading(
+                "Mint a renewing token",
+                eyebrow: "Optional",
+                detail: "OAuth"
+            )
+            Text("Only needed if you want Vigil to own a refreshable sign-in. Pasting a key or importing local files is enough to watch limits.")
+                .font(.caption)
+                .foregroundStyle(VigilPalette.inkMuted)
+            claudeSignInCard
+            codexSignInCard
         }
     }
 
@@ -117,7 +186,7 @@ struct AddAccountView: View {
                             .font(.title3.weight(.semibold))
                             .foregroundStyle(VigilPalette.ink)
                         Spacer()
-                        VigilStatusPill(text: "On phone", color: VigilPalette.signal)
+                        VigilStatusPill(text: "Renewing", color: VigilPalette.inkMuted)
                     }
                     Text("Approve access in your browser and paste the code back — Vigil gets its own token that renews itself.")
                         .font(.caption)
@@ -133,9 +202,9 @@ struct AddAccountView: View {
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 46)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(VigilPalette.signal)
-            .foregroundStyle(VigilPalette.canvas)
+            .buttonStyle(.bordered)
+            .tint(VigilPalette.ink)
+            .foregroundStyle(VigilPalette.ink)
         }
         .vigilCard(padding: VigilSpacing.large)
     }
@@ -150,7 +219,7 @@ struct AddAccountView: View {
                             .font(.title3.weight(.semibold))
                             .foregroundStyle(VigilPalette.ink)
                         Spacer()
-                        VigilStatusPill(text: "On phone", color: VigilPalette.signal)
+                        VigilStatusPill(text: "Renewing", color: VigilPalette.inkMuted)
                     }
                     Text("Open ChatGPT's sign-in, enter the code Vigil shows you, and you're done — Vigil keeps its own token that renews itself.")
                         .font(.caption)
@@ -166,9 +235,9 @@ struct AddAccountView: View {
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 46)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(VigilPalette.signal)
-            .foregroundStyle(VigilPalette.canvas)
+            .buttonStyle(.bordered)
+            .tint(VigilPalette.ink)
+            .foregroundStyle(VigilPalette.ink)
         }
         .vigilCard(padding: VigilSpacing.large)
     }
@@ -190,9 +259,9 @@ struct AddAccountView: View {
                             .font(.title3.weight(.semibold))
                             .foregroundStyle(VigilPalette.ink)
                         Spacer()
-                        VigilStatusPill(text: "Optional", color: VigilPalette.inkMuted)
+                        VigilStatusPill(text: "Last resort", color: VigilPalette.inkMuted)
                     }
-                    Text("Prefer to reuse the sign-ins already on your computer? Hand your Claude Code or Codex session to your phone with a QR.")
+                    Text("Only if you can't import on Mac or paste a key — hand a Claude Code / Codex session to your phone with a QR from the optional CLI.")
                         .font(.caption)
                         .foregroundStyle(VigilPalette.inkMuted)
                 }
@@ -257,11 +326,11 @@ struct AddAccountView: View {
     private var directProviderSection: some View {
         VStack(alignment: .leading, spacing: VigilSpacing.medium) {
             VigilSectionHeading(
-                "Add a provider directly",
-                eyebrow: "On phone",
+                "Paste a provider key",
+                eyebrow: "Local",
                 detail: "\(ProviderRegistry.all.count) available"
             )
-            Text("Enter any provider's key or token directly. Vigil asks only for the fields that provider needs. (Claude is easiest via Sign in with Claude above.)")
+            Text("The simplest path — paste an API key or token. No browser OAuth. (Claude/Codex tokens pasted here won't auto-renew; on Mac prefer Import from this Mac.)")
                 .font(.caption)
                 .foregroundStyle(VigilPalette.inkMuted)
 
@@ -311,6 +380,14 @@ struct AddAccountView: View {
                 Text("Nothing is saved until this check finishes.")
                     .font(.caption)
                     .foregroundStyle(VigilPalette.inkMuted)
+                Button("Cancel") {
+                    linkingTask?.cancel()
+                    linkingTask = nil
+                    isLinking = false
+                }
+                .buttonStyle(.bordered)
+                .tint(VigilPalette.inkMuted)
+                .padding(.top, 4)
             }
             .padding(24)
             .vigilCard(padding: VigilSpacing.large)
@@ -364,10 +441,15 @@ struct AddAccountView: View {
     }
 
     private func run(_ source: LinkSource, allowUnverified: Bool, allowReplace: Bool) {
-        Task {
+        linkingTask?.cancel()
+        linkingTask = Task {
             isLinking = true
-            defer { isLinking = false }
+            defer {
+                isLinking = false
+                linkingTask = nil
+            }
             do {
+                try Task.checkCancellation()
                 switch source {
                 case .payload(let payload):
                     try await model.addAccounts(
@@ -382,20 +464,27 @@ struct AddAccountView: View {
                         allowReplace: allowReplace
                     )
                 }
+                guard !Task.isCancelled else { return }
                 dismiss()
+            } catch is CancellationError {
+                // User cancelled the verify overlay.
             } catch AppModel.LinkError.verifyFailed(.network) {
+                guard !Task.isCancelled else { return }
                 pending = .confirmUnverified(
                     source,
                     "Network problem while verifying. Save and verify later?"
                 )
             } catch AppModel.LinkError.verificationDeferred(_) {
+                guard !Task.isCancelled else { return }
                 pending = .confirmUnverified(
                     source,
                     "Vigil's polling safety cooldown deferred this check. Save now and verify on the next allowed refresh?"
                 )
             } catch AppModel.LinkError.wouldReplace(let labels) {
+                guard !Task.isCancelled else { return }
                 pending = .confirmReplace(source, labels)
             } catch {
+                guard !Task.isCancelled else { return }
                 pending = .failed(error.localizedDescription)
             }
         }
