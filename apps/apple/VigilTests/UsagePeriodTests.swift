@@ -222,8 +222,13 @@ final class UsagePeriodTests: XCTestCase {
     }
 
     /// A balance that rises was topped up; that tells us nothing about spend.
-    func testBalanceTopUpDoesNotCountAsNegativeSpend() {
-        let now = Date()
+    func testBalanceTopUpDoesNotCountAsNegativeSpend() throws {
+        // Pinned to noon for the same reason as testSpendDeltaAcrossDay: a
+        // wall-clock `now` puts the -7200s sample before startOfDay when the
+        // suite runs shortly after local midnight.
+        let now = try XCTUnwrap(
+            Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date())
+        )
         let observations = [
             observation(at: now.addingTimeInterval(-7_200), remaining: 20),
             observation(at: now.addingTimeInterval(-3_600), remaining: 12),
@@ -235,6 +240,49 @@ final class UsagePeriodTests: XCTestCase {
             now: now
         )
         XCTAssertEqual(delta!.amount, 8, accuracy: 0.001)
+    }
+
+    /// A small drop is a refund or a restated usage item, not a counter reset.
+    /// Booking the full new reading there would report ~$12.48 of spend for a
+    /// two-cent refund, and re-add it on every downward tick.
+    func testSmallDropIsTreatedAsACorrectionNotAReset() throws {
+        let now = try XCTUnwrap(
+            Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date())
+        )
+        let observations = [
+            observation(at: now.addingTimeInterval(-7_200), spend: 12.50),
+            observation(at: now.addingTimeInterval(-3_600), spend: 12.48),
+            observation(at: now, spend: 12.60),
+        ]
+        let delta = UsageObservationStore.spendDelta(
+            observations: observations,
+            period: .day,
+            now: now
+        )
+        // The refund contributes 0; only the 12.48 -> 12.60 rise counts.
+        XCTAssertEqual(delta!.amount, 0.12, accuracy: 0.001)
+    }
+
+    /// Spend for a range is (value at the end) − (value at the start), so the
+    /// last reading before the range opens is the baseline. Without it, a day
+    /// whose first in-range reading is its only one reports nothing — which is
+    /// most days, because an idle counter's repeat readings are deduplicated.
+    func testDeltaSeedsFromTheLastReadingBeforeThePeriod() throws {
+        let now = try XCTUnwrap(
+            Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date())
+        )
+        let startOfDay = Calendar.current.startOfDay(for: now)
+        let observations = [
+            observation(at: startOfDay.addingTimeInterval(-3_600), spend: 20),
+            observation(at: now, spend: 26),
+        ]
+        let delta = UsageObservationStore.spendDelta(
+            observations: observations,
+            period: .day,
+            now: now
+        )
+        XCTAssertTrue(delta!.hasValue, "The pre-period reading is the baseline")
+        XCTAssertEqual(delta!.amount, 6, accuracy: 0.001)
     }
 
     /// Home exists to surface the quota about to run out; a linked balance-only

@@ -210,9 +210,10 @@ struct UsageObservationStore {
         now: Date = Date()
     ) -> SpendDeltaSummary? {
         let start = periodStart(period, now: now)
-        let inPeriod = observations
-            .filter { $0.recordedAt >= start && $0.recordedAt <= now }
+        let upToNow = observations
+            .filter { $0.recordedAt <= now }
             .sorted { $0.recordedAt < $1.recordedAt }
+        let inPeriod = upToNow.filter { $0.recordedAt >= start }
         guard !inPeriod.isEmpty else {
             return SpendDeltaSummary(amount: 0, unitLabel: "USD", hasValue: false)
         }
@@ -221,7 +222,16 @@ struct UsageObservationStore {
         var saw = false
         let keys = Set(inPeriod.map(\.accountKey))
         for key in keys {
-            let series = inPeriod.filter { $0.accountKey == key }
+            // Seed with the account's last reading *before* the window. Spend
+            // for a range is (value at the end) − (value at the start), and the
+            // best estimate of the value at the start is the last reading taken
+            // before it. Without the seed a range that opens with a single
+            // reading has nothing to measure against and reports no value at
+            // all — which is most days, since an idle counter's repeated
+            // readings are deduplicated on write.
+            let history = upToNow.filter { $0.accountKey == key }
+            let seed = history.last { $0.recordedAt < start }
+            let series = (seed.map { [$0] } ?? []) + history.filter { $0.recordedAt >= start }
             // A cumulative spend counter is not monotonic across the window:
             // openai/spend_month, github/spend_month and claude/extra_used all
             // reset monthly, and .week/.month/.year are rolling ranges that
@@ -255,12 +265,34 @@ struct UsageObservationStore {
         return SpendDeltaSummary(amount: total, unitLabel: "USD observed", hasValue: saw)
     }
 
-    /// Sum of increases in a cumulative counter, treating any decrease as a
-    /// reset whose new reading is itself the spend since the reset.
+    /// Fraction of the previous reading below which a drop is read as a counter
+    /// reset rather than a downward correction. A real reset restarts near zero
+    /// and polls run every few minutes, so the reading right after one is a
+    /// small fraction of the reading before it.
+    private static let resetRatio = 0.5
+
+    /// Sum of increases in a cumulative counter.
+    ///
+    /// A decrease is ambiguous: the provider's counter may have reset (spend
+    /// since the reset is the new reading), or the same counter may have been
+    /// corrected downward — a refund for a failed generation, a restated usage
+    /// item, a rounding change. Booking the full new reading for *any* decrease
+    /// makes the penalty for guessing wrong the entire counter magnitude, so a
+    /// two-cent refund on a $12.50 counter would report $12.48 of spend, and an
+    /// oscillating value would re-add it on every downward tick.
+    ///
+    /// So only a drop far enough below the previous reading counts as a reset.
+    /// A shallow drop is treated as a correction and contributes nothing —
+    /// under-reporting slightly rather than inventing a large number, which is
+    /// the honest direction for a monitor to err in.
     private static func risingTotal(_ values: [Double]) -> Double {
         var total = 0.0
         for (previous, current) in zip(values, values.dropFirst()) {
-            total += current >= previous ? current - previous : max(0, current)
+            if current >= previous {
+                total += current - previous
+            } else if current < previous * resetRatio {
+                total += max(0, current)
+            }
         }
         return total
     }

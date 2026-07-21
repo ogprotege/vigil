@@ -15,7 +15,7 @@ Phone-native reliability pass — stop depending on `npx vigil-link` for core se
 - **Cancel on verify / Claude exchange overlays** so a hung 15s timeout is not a dead end.
 - Manual-entry hints for Claude / OpenRouter / DeepSeek no longer point at the CLI.
 - **Local-first setup (token-monitor style).** Mac can **Import from this Mac** — reads `~/.claude/.credentials.json` and `~/.codex/auth.json` with no browser OAuth and no npm. Add Account now leads with paste/import; Sign in with Claude/Codex is demoted to optional "mint a renewing token." New `LocalCredentialDiscovery` in VigilKit mirrors the CLI discovery parsers, including the macOS login-Keychain fallback.
-- **Home redesigned like token-monitor Limits.** Day / Week / Month / Year / Lifetime period picker, hero summary, a limits section with a one-tap refresh button (same feel as token-monitor's circular refresh), and compact per-provider cards with dual Session/Weekly bars + "Updated Xm ago". Absolute token totals from local transcripts aren't available on iPhone — spend/balance history is recorded on-device for period heroes when providers report those metrics.
+- **Home redesigned like token-monitor Limits.** Day / Week / Month / Year / Lifetime period picker, hero summary, a limits section with a one-tap refresh button (same feel as token-monitor's circular refresh), and compact per-provider cards showing the windows that match the selected period + "Updated Xm ago". Absolute token totals from local transcripts aren't available on iPhone — spend/balance history is recorded on-device for period heroes when providers report those metrics.
 - **Honest refresh feedback.** Tapping refresh reports whether providers were actually fetched, deferred by the poll floor (with next safe time), or failed — so Home never pretends a gated tap was a live update. Poll clocks hydrate on launch.
 
 Build fixes found cutting this build (the merged branches left `main` red — the
@@ -108,8 +108,31 @@ usually uses — and the file picker now shows hidden files and opens in the
 directory the on-screen path names, since both targets are dot-paths it
 previously could not display.
 
+A second adversarial review of those fixes caught three more, now also closed:
+
+- **A small drop in a spend counter is a correction, not a reset.** The first
+  version of the reset handling booked the entire new reading for *any*
+  decrease, so a two-cent refund on a $12.50 counter would have reported $12.48
+  of spend — and re-added it on every downward tick. Only a drop below half the
+  previous reading counts as a reset now; a shallow drop contributes nothing,
+  which under-reports slightly instead of inventing a large number.
+- **Period deltas seed from the last reading before the range.** Spend for a
+  range is the value at the end minus the value at the start, and dropping every
+  sample before the range meant a day whose first in-range reading was its only
+  one reported nothing at all — which, with repeat readings now deduplicated on
+  write, would have been most days. This also fixes a pre-existing under-report
+  of every rolling period.
+- **The Keychain lookup runs off the main actor.** `SecItemCopyMatching` reads
+  an item owned by Claude Code and can block on a securityd prompt, which on the
+  main actor froze the window on exactly the configuration the fallback exists
+  to serve.
+
 README screenshots and copy were regenerated against the shipped build: the old
-ones still showed the removed Watchline and per-account card layout.
+ones still showed the removed Watchline and per-account card layout. Docs also
+corrected: `getting-started.md` still walked users through the removed
+Watchline; README and this entry claimed every provider row shows session *and*
+weekly bars when a row shows the windows matching the selected period; and the
+provider count was still thirteen (the registry has fourteen since Kimi K3).
 
 ## 0.13.0 (8) — TestFlight internal, 2026-07-20
 

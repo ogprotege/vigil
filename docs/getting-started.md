@@ -49,9 +49,11 @@ If you'd rather reuse the **Claude Code** or **Codex** sign-ins already on a com
 
 ## 3. Read your dashboard
 
-- The **Watchline** at the top shows the single tightest limit across all your accounts, with a live countdown to its reset.
-- Each **account card** shows its windows: the overall **session** and **weekly** limits, then **Model and special limits** (Claude Opus/Sonnet and other model-scoped weekly caps, Codex per-model lanes, MiniMax video quota), plus any **balances or spend**.
-- Countdowns tick locally between fetches. If data is old or a provider changed something, the card says so instead of showing a stale number.
+- **Home** opens on a period picker — **Day / Week / Month / Year / Life**. The hero beneath it names the tightest limit left across every account *for that range*, so switching periods changes which limit is in front of you.
+- Under the hero, one stacked list gives each provider the windows that match the chosen period, with percent left, a live reset countdown, and how long ago it was updated. Pick **Week** to see weekly limits, **Day** for session limits.
+- **Per-model caps** — Claude's Fable/Opus weekly lanes, Codex's per-model lanes, MiniMax's video quota — live on the **Models** tab, tightest first.
+- If any account reports a balance or spend, Vigil shows how much it changed across the readings it took in the selected range. It only ever reports what a poll actually returned, never an estimate.
+- Countdowns tick locally between fetches. If data is old or a provider changed something, the row says so instead of showing a stale number. Tapping refresh tells you what happened: fetched, deferred by the 5-minute poll floor (with the next safe time), or failed.
 
 ## Prefer the terminal?
 

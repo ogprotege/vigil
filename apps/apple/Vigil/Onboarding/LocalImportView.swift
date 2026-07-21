@@ -78,7 +78,7 @@ struct LocalImportView: View {
                 }
             }
             Button {
-                importClaude()
+                Task { await importClaude() }
             } label: {
                 Label("Import Claude from this Mac", systemImage: "tray.and.arrow.down")
                     .frame(maxWidth: .infinity)
@@ -136,10 +136,18 @@ struct LocalImportView: View {
             .foregroundStyle(VigilPalette.inkFaint)
     }
 
-    private func importClaude() {
+    /// Runs the lookup off the main actor. The Keychain half reads an item
+    /// owned by Claude Code, so `SecItemCopyMatching` can block on a securityd
+    /// access prompt — on the main actor that freezes the window with no
+    /// spinner and no way out, on exactly the configuration this path exists to
+    /// serve.
+    private func importClaude() async {
         isImporting = true
         defer { isImporting = false }
-        if let result = LocalCredentialDiscovery.loadClaudeFromDefaultFile() {
+        let discovered = await Task.detached(priority: .userInitiated) {
+            LocalCredentialDiscovery.loadClaudeFromDefaultFile()
+        }.value
+        if let result = discovered {
             let origin = result.location == .keychain
                 ? "the login Keychain"
                 : "~/.claude/.credentials.json"
