@@ -1,33 +1,21 @@
 import SwiftUI
 import VigilKit
 
+/// Home / Limits — token-monitor style: period picker, hero summary, LIMITS
+/// section with a one-tap refresh, then compact per-provider cards with dual
+/// session/weekly bars. Vigil's night-watch palette stays.
 struct DashboardView: View {
     @Environment(AppModel.self) private var model
     @State private var showAddAccount = false
     @State private var isRefreshing = false
 
-    private var watchline: LimitCandidate? {
-        UsagePresentation.closestLimit(
+    private var hero: PeriodHeroSummary {
+        PeriodHero.summary(
+            period: model.selectedPeriod,
             accounts: model.accounts,
-            snapshots: model.snapshots
+            snapshots: model.snapshots,
+            observations: model.observations
         )
-    }
-
-    private var watchlineCoverage: WatchlineCoverage {
-        UsagePresentation.watchlineCoverage(
-            accounts: model.accounts,
-            snapshots: model.snapshots
-        )
-    }
-
-    private var watchlineAccountTitle: String? {
-        guard let watchline else { return nil }
-        let sameProviderCount = model.accounts.filter {
-            $0.providerId == watchline.account.providerId
-        }.count
-        return sameProviderCount > 1
-            ? UsagePresentation.accountTitle(watchline.account)
-            : watchline.account.displayName
     }
 
     var body: some View {
@@ -36,41 +24,16 @@ struct DashboardView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: VigilSpacing.large) {
-                    dashboardHeader
+                    periodPicker
+                    heroBlock
 
                     if model.hasAccounts {
-                        WatchlineView(
-                            candidate: watchline,
-                            coverage: watchlineCoverage,
-                            accountTitle: watchlineAccountTitle
-                        )
-
-                        ModelsGlanceView(
-                            candidates: UsagePresentation.modelLimits(
-                                accounts: model.accounts,
-                                snapshots: model.snapshots
-                            )
-                        )
-
-                        LazyVGrid(
-                            columns: [GridItem(.adaptive(minimum: 350, maximum: 560), spacing: 16)],
-                            alignment: .leading,
-                            spacing: 16
-                        ) {
-                            ForEach(model.accounts) { account in
-                                AccountCardView(
-                                    account: account,
-                                    snapshot: model.snapshots[account.key],
-                                    nextAllowed: model.nextAllowed[account.key],
-                                    relink: { showAddAccount = true }
-                                )
-                            }
-                        }
+                        limitsSection
                     } else {
                         EmptyDashboardView(addAccount: { showAddAccount = true })
                     }
                 }
-                .frame(maxWidth: 1120, alignment: .leading)
+                .frame(maxWidth: 720, alignment: .leading)
                 .padding(.horizontal, VigilSpacing.medium)
                 .padding(.top, VigilSpacing.medium)
                 .padding(.bottom, 44)
@@ -80,27 +43,14 @@ struct DashboardView: View {
                 await refresh()
             }
         }
-        .navigationTitle("Limits")
+        .navigationTitle("Home")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(VigilPalette.canvas.opacity(0.96), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         #endif
         .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    Task { await refresh() }
-                } label: {
-                    if isRefreshing {
-                        ProgressView()
-                            .controlSize(.small)
-                            .accessibilityLabel("Refreshing accounts")
-                    } else {
-                        Label("Refresh accounts", systemImage: "arrow.clockwise")
-                    }
-                }
-                .disabled(isRefreshing || !model.hasAccounts)
-
+            ToolbarItem(placement: .primaryAction) {
                 Button {
                     showAddAccount = true
                 } label: {
@@ -127,22 +77,91 @@ struct DashboardView: View {
         }
     }
 
-    private var dashboardHeader: some View {
-        HStack(alignment: .bottom) {
-            VStack(alignment: .leading, spacing: 5) {
-                VigilEyebrow(text: "The night watch")
-                Text("Know what runs out next.")
-                    .font(.system(.largeTitle, design: .rounded).weight(.bold))
-                    .foregroundStyle(VigilPalette.ink)
-                Text(
-                    model.hasAccounts
-                        ? "\(model.accounts.count) connected account\(model.accounts.count == 1 ? "" : "s") · provider-safe refresh"
-                        : "Link an account to start watching its limits."
-                )
-                .font(.subheadline)
-                .foregroundStyle(VigilPalette.inkMuted)
+    private var periodPicker: some View {
+        HStack {
+            Spacer(minLength: 0)
+            Picker("Period", selection: Binding(
+                get: { model.selectedPeriod },
+                set: { model.selectedPeriod = $0 }
+            )) {
+                ForEach(UsagePeriod.allCases) { period in
+                    Text(period.title).tag(period)
+                }
             }
-            Spacer()
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 420)
+            .accessibilityLabel("Usage period")
+        }
+    }
+
+    private var heroBlock: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(hero.title.uppercased())
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(VigilPalette.inkMuted)
+                .tracking(0.6)
+            Text(hero.primaryValue)
+                .font(.system(size: 44, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(VigilPalette.ink)
+                .minimumScaleFactor(0.6)
+                .lineLimit(1)
+            if let secondary = hero.secondaryValue {
+                Text(secondary)
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(VigilPalette.inkMuted)
+            }
+            Text(hero.detail)
+                .font(.caption)
+                .foregroundStyle(VigilPalette.inkFaint)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var limitsSection: some View {
+        VStack(alignment: .leading, spacing: VigilSpacing.medium) {
+            HStack(alignment: .center) {
+                Text("LIMITS")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(VigilPalette.inkMuted)
+                    .tracking(1.0)
+                Spacer()
+                Button {
+                    Task { await refresh() }
+                } label: {
+                    if isRefreshing {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(width: 32, height: 32)
+                    } else {
+                        Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(VigilPalette.signal)
+                            .frame(width: 32, height: 32)
+                            .background(
+                                VigilPalette.signal.opacity(0.12),
+                                in: Circle()
+                            )
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(isRefreshing)
+                .accessibilityLabel("Refresh limits")
+                .accessibilityHint("Fetches each provider when the shared poll floor allows")
+            }
+
+            VStack(spacing: VigilSpacing.medium) {
+                ForEach(model.accounts) { account in
+                    ProviderHomeCard(
+                        account: account,
+                        snapshot: model.snapshots[account.key],
+                        nextAllowed: model.nextAllowed[account.key],
+                        period: model.selectedPeriod,
+                        relink: { showAddAccount = true }
+                    )
+                }
+            }
         }
     }
 
@@ -154,259 +173,241 @@ struct DashboardView: View {
     }
 }
 
-/// The signature "Watchline": one stable, high-signal answer to the dashboard's
-/// central question. Account cards stay in linked order; urgency does not make
-/// the whole screen jump after a refresh.
-struct WatchlineView: View {
-    let candidate: LimitCandidate?
-    let coverage: WatchlineCoverage
-    let accountTitle: String?
+/// Compact token-monitor-style provider card: icon + name + updated, then
+/// Session / Weekly (and Month when present) as dual progress columns.
+struct ProviderHomeCard: View {
+    let account: AccountRef
+    let snapshot: ProviderSnapshot?
+    let nextAllowed: Date?
+    let period: UsagePeriod
+    let relink: () -> Void
 
-    @ScaledMetric(relativeTo: .largeTitle)
-    private var percentageSize: CGFloat = 48
+    private var displayWindows: [UsageWindow] {
+        guard let snapshot else { return [] }
+        let filtered = period.filteredWindows(snapshot.windows)
+        // Prefer at most three primary-ish bars for the dual-column layout.
+        let primary = filtered.filter { !UsagePresentation.isSpecialWindow($0) }
+        let special = filtered.filter(UsagePresentation.isSpecialWindow)
+        if primary.isEmpty { return Array(special.prefix(3)) }
+        return Array((primary + special).prefix(4))
+    }
 
     var body: some View {
-        Group {
-            if let candidate {
-                limitWatchline(candidate)
-            } else {
-                noWindowWatchline
-            }
-        }
-        .vigilCard(padding: VigilSpacing.large)
-    }
-
-    private func limitWatchline(_ candidate: LimitCandidate) -> some View {
-        let remaining = UsagePresentation.remainingPercent(for: candidate.window)
-        let degraded = SnapshotFreshness.isDegraded(
-            status: candidate.snapshot.status,
-            fetchedAt: candidate.snapshot.fetchedAt
-        )
-        let partial = !coverage.isComplete
-        let needsCaution = degraded || partial
-
-        return VStack(alignment: .leading, spacing: VigilSpacing.medium) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    VigilEyebrow(
-                        text: degraded
-                            ? "Last known watchline"
-                            : partial ? "Partial watchline" : "Watchline"
-                    )
-                    Text(
-                        "\(accountTitle ?? candidate.account.displayName) · "
-                            + UsagePresentation.title(for: candidate.window)
-                    )
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(VigilPalette.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer()
-                VigilStatusPill(
-                    text: degraded
-                        ? "May be out of date"
-                        : partial ? "Partial coverage" : "Live",
-                    color: needsCaution ? VigilPalette.caution : VigilPalette.safe,
-                    symbol: degraded
-                        ? "clock.badge.exclamationmark"
-                        : partial ? "exclamationmark.circle" : nil
-                )
+        VStack(alignment: .leading, spacing: VigilSpacing.small) {
+            header
+            if let snapshot {
+                statusBanner(snapshot)
             }
 
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .lastTextBaseline, spacing: 7) {
-                    percentage(remaining, utilization: candidate.window.utilization)
-                    Spacer()
-                    ResetCountdownView(resetsAt: candidate.window.resetsAt)
-                }
-                VStack(alignment: .leading, spacing: 8) {
-                    percentage(remaining, utilization: candidate.window.utilization)
-                    ResetCountdownView(resetsAt: candidate.window.resetsAt)
-                }
-            }
-
-            LimitReservoirBar(
-                remaining: remaining,
-                tint: UsageTint.color(for: candidate.window.utilization)
-            )
-
-            Text(watchlineDetail(candidateDegraded: degraded))
-            .font(.caption)
-            .foregroundStyle(VigilPalette.inkMuted)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private func percentage(_ remaining: Double, utilization: Double) -> some View {
-        HStack(alignment: .lastTextBaseline, spacing: 7) {
-            Text("\(Int(remaining.rounded()))%")
-                .font(.system(size: percentageSize, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(UsageTint.color(for: utilization))
-                .minimumScaleFactor(0.72)
-                .lineLimit(1)
-            Text("left")
-                .font(.headline)
-                .foregroundStyle(VigilPalette.inkMuted)
-        }
-    }
-
-    private func watchlineDetail(candidateDegraded: Bool) -> String {
-        let windowCount = coverage.windowAccountCount
-        let metricCount = coverage.metricOnlyAccountCount
-        let unreliableCount = coverage.unreliableAccountCount
-
-        if candidateDegraded {
-            return "Tightest last-known quota. \(coverageSummary)"
-        }
-        if unreliableCount > 0 {
-            return "Tightest known quota. \(coverageSummary)"
-        }
-        if metricCount > 0 {
-            return "Tightest quota from \(accountPhrase(windowCount, noun: "account")) with reset-based limits. \(accountPhrase(metricCount, noun: "account")) reports scalar values only."
-        }
-        return "Tightest quota across \(accountPhrase(windowCount, noun: "connected account")) reporting reset-based limits."
-    }
-
-    private var coverageSummary: String {
-        let linkedCount = coverage.linkedAccountCount
-        let linkedNoun = linkedCount == 1 ? "linked account" : "linked accounts"
-        let unavailableCount = coverage.unreliableAccountCount
-        let unavailableNoun = unavailableCount == 1 ? "linked account" : "linked accounts"
-        let windowText = "Based on \(coverage.windowAccountCount) of \(linkedCount) \(linkedNoun) reporting reset-based limits."
-        let unavailableText = "Data is stale or unavailable for \(unavailableCount) \(unavailableNoun)."
-        if coverage.metricOnlyAccountCount > 0 {
-            return "\(windowText) \(accountPhrase(coverage.metricOnlyAccountCount, noun: "account")) reports scalar values only. \(unavailableText)"
-        }
-        return "\(windowText) \(unavailableText)"
-    }
-
-    private func accountPhrase(_ count: Int, noun: String) -> String {
-        "\(count) \(noun)\(count == 1 ? "" : "s")"
-    }
-
-    private var noWindowWatchline: some View {
-        HStack(spacing: 14) {
-            Image(
-                systemName: coverage.metricOnlyAccountCount > 0
-                    ? "chart.bar.doc.horizontal"
-                    : "scope"
-            )
-                .font(.system(size: 30, weight: .medium))
-                .foregroundStyle(VigilPalette.signal)
-                .frame(width: 52, height: 52)
-                .background(VigilPalette.signal.opacity(0.11), in: RoundedRectangle(cornerRadius: 16))
-            VStack(alignment: .leading, spacing: 4) {
-                VigilEyebrow(text: "Watchline")
-                Text(
-                    coverage.metricOnlyAccountCount > 0
-                        ? "No reset-based limits reported"
-                        : "Waiting for quota data"
-                )
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(VigilPalette.ink)
-                Text(noWindowDetail)
+            if !displayWindows.isEmpty {
+                windowGrid
+            } else if let snapshot, !snapshot.metrics.isEmpty {
+                metricsStrip(snapshot.metrics.filter { !$0.secondary })
+            } else if snapshot == nil {
+                Text("Waiting for first check")
                     .font(.caption)
                     .foregroundStyle(VigilPalette.inkMuted)
             }
         }
+        .padding(VigilSpacing.medium)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            VigilPalette.surface.opacity(0.96),
+            in: RoundedRectangle(cornerRadius: VigilRadius.large, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: VigilRadius.large, style: .continuous)
+                .stroke(VigilPalette.border.opacity(0.6), lineWidth: 1)
+        }
     }
 
-    private var noWindowDetail: String {
-        if coverage.metricOnlyAccountCount > 0 {
-            let metrics = accountPhrase(
-                coverage.metricOnlyAccountCount,
-                noun: "connected account"
+    private var header: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VigilProviderMark(
+                providerId: account.providerId,
+                displayName: account.displayName,
+                size: 36
             )
-            if coverage.unreliableAccountCount > 0 {
-                return "\(metrics) reports balance or spend values below. \(accountPhrase(coverage.unreliableAccountCount, noun: "account")) is still stale or unavailable."
-            }
-            return "\(metrics) reports balance or spend values below without a provider-supplied reset window."
-        }
-        return "Your connected accounts will appear below while Vigil waits for the first safe check."
-    }
-}
-
-struct EmptyDashboardView: View {
-    let addAccount: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: VigilSpacing.large) {
-            HStack(spacing: 14) {
-                Image(systemName: "scope")
-                    .font(.system(size: 32, weight: .medium))
-                    .foregroundStyle(VigilPalette.signal)
-                    .frame(width: 58, height: 58)
-                    .background(VigilPalette.signal.opacity(0.11), in: RoundedRectangle(cornerRadius: 18))
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("The watch is quiet.")
-                        .font(.title2.weight(.semibold))
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(account.displayName)
+                        .font(.headline.weight(.semibold))
                         .foregroundStyle(VigilPalette.ink)
-                    Text("Sign in with Claude or Codex, or paste a provider key. Vigil keeps credentials on this device.")
-                        .font(.subheadline)
-                        .foregroundStyle(VigilPalette.inkMuted)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            Button(action: addAccount) {
-                Label("Add an account", systemImage: "plus")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 48)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(VigilPalette.signal)
-            .foregroundStyle(VigilPalette.canvas)
-
-            HStack(spacing: 8) {
-                Image(systemName: "lock.shield")
-                Text("No Vigil account, cloud sync, or analytics.")
-            }
-            .font(.caption)
-            .foregroundStyle(VigilPalette.inkMuted)
-        }
-        .frame(maxWidth: 620, alignment: .leading)
-        .vigilCard(padding: VigilSpacing.large)
-    }
-}
-
-/// Compact preview of the tightest model / coding-plan limits on the Limits
-/// screen so providers and models are visible without switching tabs.
-struct ModelsGlanceView: View {
-    let candidates: [LimitCandidate]
-
-    private var preview: [LimitCandidate] {
-        Array(candidates.prefix(4))
-    }
-
-    var body: some View {
-        if !preview.isEmpty {
-            VStack(alignment: .leading, spacing: VigilSpacing.small) {
-                VigilSectionHeading(
-                    "Models and plan caps",
-                    eyebrow: "Across accounts",
-                    detail: "\(candidates.count)"
-                )
-                VStack(spacing: 0) {
-                    ForEach(Array(preview.enumerated()), id: \.offset) { index, candidate in
-                        if index > 0 {
-                            Divider().overlay(VigilPalette.ink.opacity(0.08))
-                        }
-                        LimitMeterRow(
-                            window: candidate.window,
-                            accountName: candidate.account.displayName
-                        )
+                        .lineLimit(1)
+                    if ProviderPresentation.isExperimental(providerId: account.providerId) {
+                        ExperimentalBadge()
+                    }
+                    if let plan = snapshot?.planLabel ?? account.plan, !plan.isEmpty {
+                        Text(plan.capitalized)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(VigilPalette.signal)
                     }
                 }
-                if candidates.count > preview.count {
-                    Text("Open the Models tab for all \(candidates.count) caps, tightest first.")
-                        .font(.caption)
-                        .foregroundStyle(VigilPalette.inkMuted)
+                if let label = account.label, !label.isEmpty {
+                    Text(label)
+                        .font(.caption2)
+                        .foregroundStyle(VigilPalette.inkFaint)
+                        .lineLimit(1)
+                }
+                updatedLine
+            }
+            Spacer(minLength: 4)
+        }
+    }
+
+    @ViewBuilder
+    private var updatedLine: some View {
+        if let snapshot, snapshot.fetchedAt > .distantPast {
+            HStack(spacing: 4) {
+                Text("Updated")
+                Text(snapshot.fetchedAt, style: .relative)
+                Text("ago")
+                if let nextAllowed, nextAllowed > .now {
+                    Text("· next \(nextAllowed.formatted(date: .omitted, time: .shortened))")
                 }
             }
-            .vigilCard(padding: VigilSpacing.medium)
+            .font(.caption2)
+            .foregroundStyle(Staleness.tint(for: snapshot.fetchedAt))
+        } else {
+            Text("No successful update yet")
+                .font(.caption2)
+                .foregroundStyle(VigilPalette.inkFaint)
         }
+    }
+
+    @ViewBuilder
+    private func statusBanner(_ snapshot: ProviderSnapshot) -> some View {
+        switch snapshot.status {
+        case .ok:
+            EmptyView()
+        case .rateLimited:
+            StatusBannerView(
+                icon: "hourglass",
+                tint: VigilPalette.caution,
+                text: nextAllowed.map {
+                    "Cooldown · next check \($0.formatted(date: .omitted, time: .shortened))"
+                } ?? "Provider cooldown"
+            )
+        case .authExpired:
+            HStack {
+                StatusBannerView(
+                    icon: "key.slash",
+                    tint: VigilPalette.critical,
+                    text: "Sign-in expired."
+                )
+                Button("Re-link", action: relink)
+                    .buttonStyle(.borderedProminent)
+                    .tint(VigilPalette.signal)
+                    .controlSize(.small)
+            }
+        case .schemaChanged:
+            StatusBannerView(
+                icon: "exclamationmark.triangle",
+                tint: VigilPalette.critical,
+                text: "Provider response changed — update Vigil."
+            )
+        case .network:
+            StatusBannerView(
+                icon: "wifi.slash",
+                tint: VigilPalette.inkMuted,
+                text: snapshot.windows.isEmpty
+                    ? "Not reached yet."
+                    : "Offline · last known values."
+            )
+        }
+    }
+
+    private var windowGrid: some View {
+        let columns = [
+            GridItem(.flexible(), spacing: 12),
+            GridItem(.flexible(), spacing: 12),
+        ]
+        return LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+            ForEach(displayWindows, id: \.id) { window in
+                CompactLimitCell(window: window)
+            }
+        }
+    }
+
+    private func metricsStrip(_ metrics: [UsageMetric]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(metrics.prefix(3), id: \.id) { metric in
+                HStack {
+                    Text(metric.label)
+                        .font(.caption)
+                        .foregroundStyle(VigilPalette.inkMuted)
+                    Spacer()
+                    Text(MetricFormat.value(metric))
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(VigilPalette.ink)
+                }
+            }
+        }
+    }
+}
+
+/// One Session / Weekly cell: label, % left, bar, reset — token-monitor style.
+struct CompactLimitCell: View {
+    let window: UsageWindow
+
+    private var remaining: Double {
+        UsagePresentation.remainingPercent(for: window)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(shortTitle)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(VigilPalette.inkMuted)
+                Spacer(minLength: 4)
+                Text("\(Int(remaining.rounded()))% left")
+                    .font(.caption.weight(.bold).monospacedDigit())
+                    .foregroundStyle(UsageTint.color(for: window.utilization))
+            }
+            LimitReservoirBar(
+                remaining: remaining,
+                tint: UsageTint.color(for: window.utilization)
+            )
+            CompactResetLabel(resetsAt: window.resetsAt)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text(UsagePresentation.title(for: window)))
+        .accessibilityValue(Text("\(Int(remaining.rounded())) percent left"))
+    }
+
+    private var shortTitle: String {
+        let title = UsagePresentation.compactTitle(for: window)
+        // Token-monitor uses "Session" / "Weekly" / "Monthly".
+        if title.lowercased().contains("hour") || title.lowercased().hasPrefix("session") {
+            return "Session"
+        }
+        if title.lowercased().hasPrefix("weekly") { return "Weekly" }
+        if title.lowercased().hasPrefix("monthly") { return "Monthly" }
+        return title
+    }
+}
+
+struct CompactResetLabel: View {
+    let resetsAt: Date?
+
+    var body: some View {
+        Group {
+            if let resetsAt {
+                if resetsAt > Date() {
+                    HStack(spacing: 3) {
+                        Text("Reset")
+                        Text(resetsAt, style: .relative)
+                    }
+                } else {
+                    Text("Reset due")
+                }
+            } else {
+                Text("No reset")
+            }
+        }
+        .font(.caption2)
+        .foregroundStyle(VigilPalette.inkFaint)
     }
 }
 
