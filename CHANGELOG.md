@@ -11,12 +11,52 @@ Phone-native reliability pass — stop depending on `npx vigil-link` for core se
 - **Failed link verify no longer burns the 5-minute poll floor.** A wrong API key or flaky network used to charge the scheduler, so the next attempt hit "polling safety cooldown deferred" / "Network problem" and left Limits + Models empty. Verify now releases the lease on auth/network/schema failures and only charges the clock on a real provider answer (ok) or 429.
 - **Auth errors no longer say "Re-run npx vigil-link".** Phone paste / Sign in paths tell you to check the key or sign in again. `vigil-link` stays optional for computer QR handoff only.
 - **Models tab fills for coding plans.** Accounts with only primary session/weekly windows (Kimi K3, Z.ai, …) now appear in Models; empty state explains balance-only providers (OpenRouter, DeepSeek) belong on Limits.
-- **Limits screen shows every provider window** (session, weekly, and model caps) in one stacked list, plus a Models-at-a-glance strip under the Watchline. Color scheme unchanged.
+- **Home shows every provider window** (session, weekly, and model caps) in one stacked list. The Watchline hero is replaced by the period summary described below; per-model caps live on the Models tab. Color scheme unchanged.
 - **Cancel on verify / Claude exchange overlays** so a hung 15s timeout is not a dead end.
 - Manual-entry hints for Claude / OpenRouter / DeepSeek no longer point at the CLI.
 - **Local-first setup (token-monitor style).** Mac can **Import from this Mac** — reads `~/.claude/.credentials.json` and `~/.codex/auth.json` with no browser OAuth and no npm. Add Account now leads with paste/import; Sign in with Claude/Codex is demoted to optional "mint a renewing token." New `LocalCredentialDiscovery` in VigilKit mirrors the CLI discovery parsers.
 - **Home redesigned like token-monitor Limits.** Day / Week / Month / Year / Lifetime period picker, hero summary, LIMITS section with a one-tap refresh button (same feel as token-monitor's circular refresh), and compact per-provider cards with dual Session/Weekly bars + "Updated Xm ago". Absolute token totals from local transcripts aren't available on iPhone — spend/balance history is recorded on-device for period heroes when providers report those metrics.
 - **Honest refresh feedback.** Tapping refresh reports whether providers were actually fetched, deferred by the poll floor (with next safe time), or failed — so Home never pretends a gated tap was a live update. Poll clocks hydrate on launch.
+
+Build fixes found cutting this build (the merged branches left `main` red — the
+`apple` CI job had been failing since PR #12, so the iOS build break was never
+reached):
+
+- **iOS build restored.** `LocalCredentialDiscovery`'s default-path helpers used
+  `FileManager.homeDirectoryForCurrentUser`, which is unavailable on iOS, so the
+  whole app target failed to compile. The four filesystem helpers are now
+  `#if os(macOS)`-gated — matching the feature, which is Mac-only — while the
+  pure `parse*` functions stay cross-platform.
+- **VigilKit tests compile again.** `LocalCredentialDiscoveryTests` passed an
+  optional `Date?` to `XCTAssertEqual(_:_:accuracy:)`; it now unwraps first.
+- **First-run empty state restored.** The Home redesign deleted
+  `EmptyDashboardView` but kept its call site, so a fresh install with no
+  accounts referenced a missing view. Restored unchanged.
+- **`AppModel.refresh(account:surface:)`** is now `private`, matching the
+  visibility of the `AccountRefreshOutcome` it returns.
+
+Two invariant defects found by pre-release review of the same range:
+
+- **The verify path no longer removes the 5-minute Claude poll floor.** The
+  "failed verify releases the lease" change released it for *any* status other
+  than `ok`/`429` — including 401/403 and a 2xx whose body did not map, which
+  are completed provider round-trips. Because `release` never advances
+  `nextAllowedAt` (still `.distantPast` on a fresh account), every retry was
+  allowed instantly, so repeated Save taps on a wrong Claude token polled
+  `api.anthropic.com` with no floor at all — violating a documented hard
+  invariant. The clock is now charged whenever the provider answered; the lease
+  is released only when no request reached it (transport failure, or a
+  credential that cannot build a request). The genuine flaky-network case the
+  original change targeted still retries immediately.
+- **"Import from this Mac" could never find the files in a signed build.** The
+  macOS app is sandboxed, where `homeDirectoryForCurrentUser` resolves to
+  `~/Library/Containers/app.vigil.app/Data`, so the import read the container
+  rather than the real `~/.claude` and `~/.codex` the entitlement grants. It now
+  resolves the account's actual home via `getpwuid`.
+
+Copy corrected to match the shipped UI: the Models empty state pointed at a
+"Limits tab" this release renamed to Home, and claimed a wrong key "no longer
+locks you out for five minutes" — which the poll-floor fix above makes untrue.
 
 ## 0.13.0 (8) — TestFlight internal, 2026-07-20
 

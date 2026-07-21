@@ -21,8 +21,9 @@ final class LocalCredentialDiscoveryTests: XCTestCase {
         XCTAssertEqual(credentials.plan, "max")
         XCTAssertEqual(credentials.label, "Claude (max)")
         XCTAssertEqual(credentials.source, LocalCredentialDiscovery.fileSource)
+        let expiresAt = try XCTUnwrap(credentials.expiresAt)
         XCTAssertEqual(
-            credentials.expiresAt?.timeIntervalSince1970,
+            expiresAt.timeIntervalSince1970,
             2_000_000_000,
             accuracy: 0.001,
             "Claude Code stores expiresAt in epoch milliseconds"
@@ -83,6 +84,22 @@ final class LocalCredentialDiscoveryTests: XCTestCase {
         XCTAssertNil(LocalCredentialDiscovery.parseCodexCredentials(json: json))
     }
 
+    // The default-path helpers are macOS-only (see LocalCredentialDiscovery).
+#if os(macOS)
+    /// The macOS app is sandboxed, where `homeDirectoryForCurrentUser` and
+    /// `NSHomeDirectory()` both resolve to the container. Reading the real
+    /// `~/.claude` requires the account's actual home, so "Import from this Mac"
+    /// must not resolve anything under `Library/Containers`.
+    func testRealHomeDirectoryIsNotTheSandboxContainer() {
+        let home = LocalCredentialDiscovery.realHomeDirectory
+        XCTAssertFalse(
+            home.path.contains("/Library/Containers/"),
+            "realHomeDirectory must be the account home, not the sandbox container"
+        )
+        XCTAssertTrue(home.path.hasPrefix("/"), "realHomeDirectory must be absolute")
+        XCTAssertFalse(home.path.isEmpty)
+    }
+
     func testDefaultPaths() {
         let home = URL(fileURLWithPath: "/Users/demo", isDirectory: true)
         XCTAssertEqual(
@@ -133,4 +150,5 @@ final class LocalCredentialDiscoveryTests: XCTestCase {
         XCTAssertEqual(codex.credentials.accessToken, "codex-at")
         XCTAssertEqual(codex.credentials.accountId, "acct-1")
     }
+#endif
 }

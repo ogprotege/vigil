@@ -25,16 +25,41 @@ public enum LocalCredentialDiscovery {
         public let filePath: String
     }
 
+    // The default-path helpers below are macOS-only: there is no real user home
+    // to read inside an iOS sandbox, and `homeDirectoryForCurrentUser` is
+    // unavailable there. The `parse*` functions stay cross-platform — they are pure.
+#if os(macOS)
+    /// The *real* user home, not the sandbox container.
+    ///
+    /// Vigil's macOS build is sandboxed (`com.apple.security.app-sandbox`), and
+    /// under the sandbox both `FileManager.homeDirectoryForCurrentUser` and
+    /// `NSHomeDirectory()` resolve to `~/Library/Containers/app.vigil.app/Data`.
+    /// Reading `~/.claude/.credentials.json` from there would look inside the
+    /// container and always come back empty, so "Import from this Mac" could
+    /// never find anything in a signed build. `getpwuid` reports the account's
+    /// actual home, which is what the
+    /// `temporary-exception.files.home-relative-path.read-only` entitlement for
+    /// `.claude/` and `.codex/` actually grants access to.
+    public static var realHomeDirectory: URL {
+        if let pw = getpwuid(getuid()), let dir = pw.pointee.pw_dir {
+            let path = String(cString: dir)
+            if !path.isEmpty {
+                return URL(fileURLWithPath: path, isDirectory: true)
+            }
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+    }
+
     /// Default Claude Code credentials file (`~/.claude/.credentials.json`).
     public static func defaultClaudeCredentialsURL(
-        home: URL = FileManager.default.homeDirectoryForCurrentUser
+        home: URL = realHomeDirectory
     ) -> URL {
         home.appendingPathComponent(".claude/.credentials.json")
     }
 
     /// Default Codex auth file (`~/.codex/auth.json`), honoring `CODEX_HOME`.
     public static func defaultCodexAuthURL(
-        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        home: URL = realHomeDirectory,
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> URL {
         if let codexHome = environment["CODEX_HOME"], !codexHome.isEmpty {
@@ -43,6 +68,7 @@ public enum LocalCredentialDiscovery {
         }
         return home.appendingPathComponent(".codex/auth.json")
     }
+#endif
 
     /// Parses Claude Code's credentials JSON (file or Keychain blob).
     public static func parseClaudeCredentials(json: String) -> Credentials? {
@@ -117,9 +143,10 @@ public enum LocalCredentialDiscovery {
         return credentials
     }
 
+#if os(macOS)
     /// Reads Claude credentials from the default file path when present.
     public static func loadClaudeFromDefaultFile(
-        home: URL = FileManager.default.homeDirectoryForCurrentUser
+        home: URL = realHomeDirectory
     ) -> ClaudeResult? {
         let url = defaultClaudeCredentialsURL(home: home)
         guard let json = try? String(contentsOf: url, encoding: .utf8),
@@ -130,7 +157,7 @@ public enum LocalCredentialDiscovery {
 
     /// Reads Codex credentials from the default auth path when present.
     public static func loadCodexFromDefaultFile(
-        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        home: URL = realHomeDirectory,
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> CodexResult? {
         let url = defaultCodexAuthURL(home: home, environment: environment)
@@ -139,6 +166,7 @@ public enum LocalCredentialDiscovery {
         else { return nil }
         return CodexResult(credentials: credentials, filePath: url.path)
     }
+#endif
 
     private static func string(_ value: Any?) -> String? {
         guard let value = value as? String else { return nil }

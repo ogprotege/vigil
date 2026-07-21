@@ -633,7 +633,7 @@ final class AppModel {
     }
 
     @discardableResult
-    func refresh(account: AccountRef, surface: String) async -> AccountRefreshOutcome {
+    private func refresh(account: AccountRef, surface: String) async -> AccountRefreshOutcome {
         guard !isDemo else { return .deferred }
         let credentials: Credentials
         do {
