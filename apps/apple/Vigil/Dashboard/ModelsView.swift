@@ -79,7 +79,7 @@ struct ModelsView: View {
                 Text("No model-specific limits yet")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(VigilPalette.ink)
-                Text("Vigil shows each provider's own model caps by name — Claude's per-model weekly limits (Fable, Claire, …), Codex's per-model lanes (e.g. GPT-5.6 Sol), Kimi K3's coding-plan session and weekly caps, and MiniMax's video quota — as your account reports them.")
+                Text("Vigil shows each provider's own model caps by name — Claude's per-model weekly limits (Fable, Opus, Sonnet …), Codex's per-model lanes (e.g. GPT-5.6 Sol), Kimi K3's coding-plan session and weekly caps, and MiniMax's video quota — as your account reports them.")
                     .font(.caption)
                     .foregroundStyle(VigilPalette.inkMuted)
                     .fixedSize(horizontal: false, vertical: true)

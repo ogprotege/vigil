@@ -78,7 +78,7 @@ final class ProviderPresentationTests: XCTestCase {
     func testExperimentalFlagCoversExactlyTheUnverifiedIntegrations() {
         XCTAssertEqual(
             Set(ProviderRegistry.all.filter(\.experimental).map(\.id)),
-            ["xai", "zai", "cursor"],
+            ["xai", "zai", "cursor", "kimi_code"],
             "Experimental marks community-documented endpoints — vendor-supported providers must never carry it"
         )
     }
