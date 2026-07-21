@@ -364,7 +364,11 @@ struct ProviderHomeRow: View {
             StatusBannerView(
                 icon: "wifi.slash",
                 tint: VigilPalette.inkMuted,
-                text: snapshot.windows.isEmpty
+                // Metric-only providers (OpenRouter, DeepSeek, Moonshot,
+                // OpenAI, GitHub, xAI, Cursor) never report windows, so testing
+                // windows alone claimed "Not reached yet" while the preserved
+                // balance was rendered directly below this banner.
+                text: snapshot.windows.isEmpty && snapshot.metrics.isEmpty
                     ? "Not reached yet."
                     : "Offline · last known values."
             )

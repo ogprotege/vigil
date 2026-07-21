@@ -95,16 +95,6 @@ enum PeriodHero {
             )
         }
 
-        if let spend = spendSummary(
-            period: period,
-            accounts: accounts,
-            snapshots: snapshots,
-            observations: observations,
-            now: now
-        ) {
-            return spend
-        }
-
         let candidates = accounts.compactMap { account -> LimitCandidate? in
             guard let snapshot = snapshots[account.key] else { return nil }
             let windows = period.filteredWindows(snapshot.windows)
@@ -115,10 +105,24 @@ enum PeriodHero {
             return LimitCandidate(account: account, snapshot: snapshot, window: window)
         }
 
+        // A quota about to run out outranks a balance. Home exists to surface
+        // the tightest limit, so a linked balance-only account (OpenRouter,
+        // DeepSeek, xAI) must not displace it — spend rides along in the detail
+        // line instead. The spend hero is the fallback for users whose accounts
+        // report no windows at all.
         guard let tightest = candidates.min(by: {
             UsagePresentation.remainingPercent(for: $0.window)
                 < UsagePresentation.remainingPercent(for: $1.window)
         }) else {
+            if let spend = spendSummary(
+                period: period,
+                accounts: accounts,
+                snapshots: snapshots,
+                observations: observations,
+                now: now
+            ) {
+                return spend
+            }
             return PeriodHeroSummary(
                 title: period.accessibilityTitle.uppercased(),
                 primaryValue: "—",
@@ -128,11 +132,19 @@ enum PeriodHero {
         }
 
         let remaining = UsagePresentation.remainingPercent(for: tightest.window)
+        var detail = "\(UsagePresentation.accountTitle(tightest.account)) · \(accounts.count) account\(accounts.count == 1 ? "" : "s")"
+        if let delta = UsageObservationStore.spendDelta(
+            observations: observations,
+            period: period,
+            now: now
+        ), delta.hasValue {
+            detail += " · \(period.accessibilityTitle.lowercased()) spend \(delta.formatted) observed"
+        }
         return PeriodHeroSummary(
             title: "Tightest \(period.accessibilityTitle.lowercased()) left",
             primaryValue: "\(Int(remaining.rounded()))%",
             secondaryValue: UsagePresentation.title(for: tightest.window),
-            detail: "\(UsagePresentation.accountTitle(tightest.account)) · \(accounts.count) account\(accounts.count == 1 ? "" : "s")"
+            detail: detail
         )
     }
 
@@ -164,7 +176,11 @@ enum PeriodHero {
                 title: "\(period.accessibilityTitle) spend",
                 primaryValue: delta.formatted,
                 secondaryValue: delta.unitLabel,
-                detail: "From provider balances Vigil has observed on this device."
+                // Vigil only sees the values a poll returns, so this is spend
+                // between the first and last observation inside the range —
+                // not the range's true total. Say so rather than implying the
+                // 42pt number covers the whole period.
+                detail: "Change across the readings Vigil observed on this device in this range."
             )
         }
 

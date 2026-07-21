@@ -144,15 +144,50 @@ public enum LocalCredentialDiscovery {
     }
 
 #if os(macOS)
-    /// Reads Claude credentials from the default file path when present.
+    /// Keychain service Claude Code stores its credentials under on macOS —
+    /// mirrors `discovery.macosKeychain.service` in `protocol/providers.json`
+    /// and the CLI's `security find-generic-password -s` fallback.
+    public static let claudeKeychainService = "Claude Code-credentials"
+
+    /// Reads Claude credentials from the default file path, falling back to the
+    /// login Keychain — the order `cli/src/discovery/claude.ts` uses, and the
+    /// order that matters on macOS, where Claude Code commonly stores its
+    /// session in the Keychain and writes no `.credentials.json` at all.
+    ///
+    /// The Keychain read is best effort: the item belongs to another
+    /// application, so under App Sandbox the lookup may be denied outright or
+    /// require the user to approve access. A denial returns nil rather than
+    /// throwing, and the caller falls back to the file picker or manual paste.
     public static func loadClaudeFromDefaultFile(
         home: URL = realHomeDirectory
     ) -> ClaudeResult? {
         let url = defaultClaudeCredentialsURL(home: home)
-        guard let json = try? String(contentsOf: url, encoding: .utf8),
-              let credentials = parseClaudeCredentials(json: json)
+        if let json = try? String(contentsOf: url, encoding: .utf8),
+           let credentials = parseClaudeCredentials(json: json) {
+            return ClaudeResult(credentials: credentials, location: .file)
+        }
+        guard let json = claudeKeychainBlob(),
+              var credentials = parseClaudeCredentials(json: json)
         else { return nil }
-        return ClaudeResult(credentials: credentials, location: .file)
+        credentials.source = "keychain"
+        return ClaudeResult(credentials: credentials, location: .keychain)
+    }
+
+    /// Raw generic-password payload for `claudeKeychainService`, or nil when it
+    /// is absent or access is refused.
+    static func claudeKeychainBlob() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: claudeKeychainService,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+              let data = item as? Data,
+              let blob = String(data: data, encoding: .utf8)
+        else { return nil }
+        return blob
     }
 
     /// Reads Codex credentials from the default auth path when present.

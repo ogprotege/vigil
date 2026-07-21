@@ -5,7 +5,7 @@
 <h1 align="center">Vigil</h1>
 
 <p align="center"><b>Know exactly where you stand against your AI limits, spend, and balances — on your phone.</b><br/>
-Claude and ChatGPT/Codex subscription windows (including per-model caps), plus opt-in gateway balances and spend from 11 more providers. On your iPhone, your Mac, and your terminal. No Vigil server.</p>
+Claude and ChatGPT/Codex subscription windows (including per-model caps), plus opt-in gateway balances and spend from 12 more providers. On your iPhone, your Mac, and your terminal. No Vigil server.</p>
 
 <p align="center">
   <a href="https://github.com/ogprotege/vigil/actions/workflows/cli.yml"><img src="https://github.com/ogprotege/vigil/actions/workflows/cli.yml/badge.svg" alt="cli CI" /></a>
@@ -32,7 +32,7 @@ Vigil is built around the three things that make a monitor trustworthy:
 3. **On-device only.** Credentials live in your device's Keychain and nowhere else. No servers, no analytics. See [docs/privacy.md](docs/privacy.md).
 
 <p align="center">
-  <img src="docs/assets/screenshot-dashboard.png" width="280" alt="Vigil Limits dashboard: a Watchline highlighting the tightest quota across accounts, then per-account cards with stacked session and weekly meter bars, percent left, and live reset countdowns" />
+  <img src="docs/assets/screenshot-dashboard.png" width="280" alt="Vigil Home: a Day/Week/Month/Year/Life period picker above a hero showing the tightest limit left for that range, then one stacked list of per-provider cards with the meter bars matching that period, percent left, live reset countdowns, and how long ago each was updated" />
   &nbsp;&nbsp;
   <img src="docs/assets/screenshot-models.png" width="280" alt="Vigil Models view: every provider's per-model cap gathered into one tightest-first list — Fable weekly, Opus weekly, GPT-5.6 Sol, and MiniMax video lanes — each with percent left and a reset countdown" />
 </p>
@@ -47,7 +47,7 @@ You don't need to be a developer to use Vigil.
    - **Sign in with Codex.** Tap it, open the sign-in page, and enter the short code Vigil shows you. Vigil detects the approval and finishes — its own renewable token, no computer, no `codex login`.
    - **Add an API-key provider.** Choose **Add a provider directly**, pick the provider (OpenRouter, DeepSeek, OpenAI, GitHub Copilot, …), and paste its key. Vigil tells you exactly which field it needs.
    - **Reuse a computer sign-in (optional).** If you already run Claude Code or Codex on a machine, `npx vigil-link` hands those sign-ins to your phone by QR.
-3. **Read your dashboard.** The **Watchline** shows the single tightest limit across all your accounts with a live countdown; each account card breaks out its windows — the overall session/weekly limits and the **model-specific limits** under "Model and special limits" — plus any balances or spend.
+3. **Read your dashboard.** **Home** opens on a period picker — Day, Week, Month, Year, Life. The hero under it shows the tightest limit left across every account for that range, with any spend Vigil has actually observed noted alongside it. Below that, one stacked list gives each provider the windows matching that period — session bars on Day, weekly bars on Week — with percent left, a live reset countdown, and when it was last updated. Per-model caps — Fable weekly, Opus weekly, Codex's lanes — live on the **Models** tab. Tap refresh and Vigil tells you what it really did: fetched, deferred by the 5-minute poll floor (with the next safe time), or failed.
 
 Want the full walkthrough, including where to get each provider's API key? See **[docs/getting-started.md](docs/getting-started.md)**.
 
@@ -72,7 +72,7 @@ npx vigil-link doctor   # check what credentials Vigil can find
 
 ## Provider support
 
-Thirteen providers ship in the registry. Claude and ChatGPT/Codex are enabled by default; the rest are opt-in and add themselves when you provide a key.
+Fourteen providers ship in the registry. Claude and ChatGPT/Codex are enabled by default; the rest are opt-in and add themselves when you provide a key.
 
 | Provider | Type | What you see | How to connect |
 |---|---|---|---|
