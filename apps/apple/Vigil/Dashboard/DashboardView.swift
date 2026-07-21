@@ -135,7 +135,7 @@ struct DashboardView: View {
                             .controlSize(.small)
                             .frame(width: 32, height: 32)
                     } else {
-                        Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90")
+                        Image(systemName: "arrow.clockwise")
                             .font(.body.weight(.semibold))
                             .foregroundStyle(VigilPalette.signal)
                             .frame(width: 32, height: 32)
