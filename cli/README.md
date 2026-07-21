@@ -40,6 +40,7 @@ Thirteen providers ship in the registry. Claude and ChatGPT/Codex are enabled by
 | DeepSeek | Balance by currency | `DEEPSEEK_API_KEY` | No |
 | Moonshot (Kimi) | Balance | `MOONSHOT_API_KEY` | No |
 | Moonshot (Kimi) China | Balance | `MOONSHOT_CN_API_KEY` | No |
+| Kimi K3 (coding plan) *(experimental)* | Session and weekly coding-plan windows | `KIMI_CODE_API_KEY` | No |
 | MiniMax Coding Plan | Session and weekly windows | `MINIMAX_CODING_API_KEY` | No |
 | MiniMax Coding Plan China | Session and weekly windows | `MINIMAX_CN_CODING_API_KEY` | No |
 | OpenAI API | Month-to-date spend | `OPENAI_ADMIN_KEY` (Admin key) | No |
@@ -48,7 +49,7 @@ Thirteen providers ship in the registry. Claude and ChatGPT/Codex are enabled by
 | Z.ai / GLM Coding Plan *(experimental)* | Session and monthly windows | `ZAI_API_KEY` | No |
 | Cursor *(experimental)* | Plan usage and on-demand spend | `CURSOR_SESSION_TOKEN` | No |
 
-**xAI, Z.ai, and Cursor are experimental** — their endpoints are undocumented and can drift.
+**xAI, Z.ai, Cursor, and Kimi K3 are experimental** — their endpoints are undocumented and can drift.
 
 For example, OpenRouter and DeepSeek activate like this:
 

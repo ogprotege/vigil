@@ -4,6 +4,44 @@
 
 Anything that changes shipped behavior gets an entry here: `vigil-link` npm versions, TestFlight app builds, and protocol or registry changes that affect both. Provider-schema and local-state migration notes are recorded per release so an existing installation can be upgraded deliberately.
 
+## 0.13.0 (8) — TestFlight internal, 2026-07-20
+
+Polish pass on the Models release:
+
+- **Correct flagship model naming.** The Models view empty-state copy named a
+  non-existent "Claire" Claude model; it now reads the real family (Fable, Opus,
+  Sonnet). Fable is Claude's flagship — the labeled `weekly_scoped_*` windows
+  and fixtures already used it correctly; this was the one stray copy string.
+- **Fresh, accurate README screenshots.** The old shots predated the redesigned
+  stacked limit meters and the Models view. Replaced them with current captures:
+  the Limits dashboard (Watchline + per-account stacked session/weekly meters
+  with live countdowns) and the new Models view (per-model caps — Fable weekly,
+  Opus weekly, GPT-5.6 Sol, MiniMax video lanes — tightest first). Dropped the
+  stale empty-state image.
+- **Screenshot tooling (`VIGIL_DEMO` / `VIGIL_TAB`).** A tightly-gated,
+  production-inert demo seed (`DemoData`) populates representative accounts and a
+  preselected tab so screenshots can be captured from a fresh simulator with no
+  credentials. It never writes to disk, never fetches, and is off unless
+  `VIGIL_DEMO=1` — locked down by tests.
+
+## 0.13.0 (7) — TestFlight internal, 2026-07-20
+
+Adds the flagship coding-plan monitor requested alongside the Models view:
+
+- **Kimi K3 coding plan** (`kimi_code`, opt-in · experimental). A new provider
+  that reads Kimi's coding-plan usage endpoint (`api.kimi.com/coding/v1/usages`)
+  and surfaces **session and weekly** limit windows — distinct from the existing
+  balance-only Moonshot (Kimi) provider. Added on the phone (or via QR/paste)
+  with a coding-plan key (`KIMI_CODE_API_KEY`), it feeds the new Models view so
+  Kimi's per-plan caps sit next to Claude's model-scoped weeklies and Codex's
+  per-model lanes. Registry, TS + Swift mappers, fixtures, and the Swift mirror
+  land in lockstep (14 providers; CLI 163 tests, VigilKit 89 tests green).
+- **Honest labeling.** The endpoint shape is modeled, not yet live-verified, so
+  the provider carries the visible **Experimental** marker everywhere and needs a
+  real coding-plan key to confirm the exact field/selector names before it's
+  promoted. Docs (README, getting-started, FAQ, provider-spec, threat model)
+  updated to match.
+
 ## 0.13.0 (6) — TestFlight internal, 2026-07-20
 
 Follow-up to the mobile-first release:

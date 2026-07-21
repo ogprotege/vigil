@@ -11,9 +11,9 @@ import VigilKit
 final class ProviderPresentationTests: XCTestCase {
     // MARK: - Manual entry provider coverage
 
-    func testRegistryExposesAllThirteenProvidersWithDistinctIds() {
+    func testRegistryExposesAllFourteenProvidersWithDistinctIds() {
         XCTAssertEqual(
-            ProviderRegistry.all.count, 13,
+            ProviderRegistry.all.count, 14,
             "The manual-entry picker renders ProviderRegistry.all — a missing provider cannot be added by hand"
         )
         XCTAssertEqual(
@@ -78,7 +78,7 @@ final class ProviderPresentationTests: XCTestCase {
     func testExperimentalFlagCoversExactlyTheUnverifiedIntegrations() {
         XCTAssertEqual(
             Set(ProviderRegistry.all.filter(\.experimental).map(\.id)),
-            ["xai", "zai", "cursor"],
+            ["xai", "zai", "cursor", "kimi_code"],
             "Experimental marks community-documented endpoints — vendor-supported providers must never carry it"
         )
     }

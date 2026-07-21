@@ -113,7 +113,7 @@ control. The in-app scanner does not route through the URL scheme.
 
 ### Provider endpoint stability
 
-Claude and Codex consumer usage endpoints are undocumented. They can change, reject third-party traffic, or disappear. The opt-in API-key gateways — OpenRouter, DeepSeek, Moonshot (and Moonshot CN), MiniMax (and MiniMax CN), OpenAI, and GitHub, plus the experimental xAI, Z.ai, and Cursor — expose documented or semi-documented endpoints (the experimental tier's are undocumented), but their authentication and response policies can still change.
+Claude and Codex consumer usage endpoints are undocumented. They can change, reject third-party traffic, or disappear. The opt-in API-key gateways — OpenRouter, DeepSeek, Moonshot (and Moonshot CN), MiniMax (and MiniMax CN), OpenAI, and GitHub, plus the experimental xAI, Z.ai, Cursor, and Kimi K3 — expose documented or semi-documented endpoints (the experimental tier's are undocumented), but their authentication and response policies can still change.
 
 Fixtures detect regressions against known shapes. They do not provide production monitoring or advance warning of vendor drift.
 

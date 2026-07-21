@@ -50,6 +50,7 @@ enum ProviderPresentation {
         case "xai": return "xmark"
         case "zai": return "cpu"
         case "cursor": return "cursorarrow.rays"
+        case "kimi_code": return "moon.stars.circle"
         default: return "gauge.with.dots.needle.33percent"
         }
     }
@@ -66,6 +67,7 @@ enum ProviderPresentation {
         case "xai": return Color(red: 0.82, green: 0.84, blue: 0.86)
         case "zai": return Color(red: 0.49, green: 0.69, blue: 0.88)
         case "cursor": return Color(red: 0.73, green: 0.62, blue: 0.90)
+        case "kimi_code": return Color(red: 0.55, green: 0.60, blue: 0.95)
         default: return VigilPalette.signal
         }
     }

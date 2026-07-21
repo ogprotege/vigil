@@ -32,9 +32,9 @@ Vigil is built around the three things that make a monitor trustworthy:
 3. **On-device only.** Credentials live in your device's Keychain and nowhere else. No servers, no analytics. See [docs/privacy.md](docs/privacy.md).
 
 <p align="center">
-  <img src="docs/assets/screenshot-dashboard.png" width="280" alt="Limits dashboard with Watchline, explicit percent left, reset timing, and inline model quotas" />
+  <img src="docs/assets/screenshot-dashboard.png" width="280" alt="Vigil Limits dashboard: a Watchline highlighting the tightest quota across accounts, then per-account cards with stacked session and weekly meter bars, percent left, and live reset countdowns" />
   &nbsp;&nbsp;
-  <img src="docs/assets/screenshot-empty.png" width="280" alt="Vigil empty state with pair or add account action" />
+  <img src="docs/assets/screenshot-models.png" width="280" alt="Vigil Models view: every provider's per-model cap gathered into one tightest-first list — Fable weekly, Opus weekly, GPT-5.6 Sol, and MiniMax video lanes — each with percent left and a reset countdown" />
 </p>
 
 ## Getting started
@@ -82,6 +82,7 @@ Thirteen providers ship in the registry. Claude and ChatGPT/Codex are enabled by
 | DeepSeek | opt-in | Balance by currency | `DEEPSEEK_API_KEY` |
 | Moonshot (Kimi) | opt-in | Balance | `MOONSHOT_API_KEY` |
 | Moonshot (Kimi) China | opt-in | Balance | `MOONSHOT_CN_API_KEY` |
+| Kimi K3 (coding plan) | opt-in · experimental | Session + weekly coding-plan windows | `KIMI_CODE_API_KEY` |
 | MiniMax Coding Plan | opt-in | Session + weekly windows (general and video models) | `MINIMAX_CODING_API_KEY` |
 | MiniMax Coding Plan China | opt-in | Session + weekly windows (general and video models) | `MINIMAX_CN_CODING_API_KEY` |
 | OpenAI API | opt-in | Month-to-date spend | `OPENAI_ADMIN_KEY` (Admin key) |

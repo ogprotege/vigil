@@ -26,6 +26,10 @@ final class AppModel {
     /// durable when it is not.
     private(set) var storageErrorMessage: String?
     private(set) var accountIndexUsable = true
+    /// True when launched with `VIGIL_DEMO=1` (screenshot tooling only). In demo
+    /// mode the accounts are seeded in memory and never fetched, so the seeded
+    /// snapshots aren't overwritten by auth failures (there are no credentials).
+    private(set) var isDemo = false
 
     let vault: any CredentialsStore
     let scheduler: FetchScheduler
@@ -61,6 +65,18 @@ final class AppModel {
         self.lockEnabled = UserDefaults.standard.bool(forKey: "app.vigil.lockEnabled")
         loadFromDisk()
         surfaceSharedStorageFallbackIfNeeded()
+        seedDemoDataIfRequested()
+    }
+
+    /// Screenshot tooling: with `VIGIL_DEMO=1`, replace the (empty on a fresh
+    /// install) in-memory state with representative sample data. Nothing is
+    /// written to disk and no fetch runs, so this cannot leak into real usage.
+    private func seedDemoDataIfRequested() {
+        guard DemoData.requested(in: ProcessInfo.processInfo.environment) else { return }
+        isDemo = true
+        let demo = DemoData.seed()
+        accounts = demo.accounts
+        snapshots = demo.snapshots
     }
 
     /// The App Group container being unavailable silently disables the
@@ -72,6 +88,7 @@ final class AppModel {
     private func surfaceSharedStorageFallbackIfNeeded() {
         guard NSClassFromString("XCTestCase") == nil,
               ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] != "1",
+              !DemoData.requested(in: ProcessInfo.processInfo.environment),
               SharedContainer.isUsingFallbackStorage
         else { return }
         reportStorageError(
@@ -469,6 +486,7 @@ final class AppModel {
     /// Ledger-gated refresh of every account. Safe to call aggressively —
     /// the scheduler enforces the real polling budget.
     func refreshAll(surface: String) async {
+        guard !isDemo else { return }
         await withTaskGroup(of: Void.self) { group in
             for account in accounts {
                 group.addTask { await self.refresh(account: account, surface: surface) }
@@ -477,6 +495,7 @@ final class AppModel {
     }
 
     func refresh(account: AccountRef, surface: String) async {
+        guard !isDemo else { return }
         let credentials: Credentials
         do {
             guard let loaded = try vault.load(accountKey: account.key) else {

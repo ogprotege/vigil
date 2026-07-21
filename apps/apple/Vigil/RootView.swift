@@ -30,6 +30,12 @@ private enum VigilDestination: String, CaseIterable, Identifiable {
 struct RootView: View {
     #if os(macOS)
     @State private var selection: VigilDestination? = .limits
+    #else
+    /// Default `.limits`; the `VIGIL_TAB` launch environment can preselect a
+    /// tab so screenshot tooling captures a specific screen deterministically.
+    @State private var selection: VigilDestination = VigilDestination(
+        rawValue: ProcessInfo.processInfo.environment["VIGIL_TAB"] ?? ""
+    ) ?? .limits
     #endif
 
     var body: some View {
@@ -77,13 +83,14 @@ struct RootView: View {
         }
         .navigationSplitViewStyle(.balanced)
         #else
-        TabView {
+        TabView(selection: $selection) {
             NavigationStack {
                 DashboardView()
             }
             .tabItem {
                 Label(VigilDestination.limits.title, systemImage: VigilDestination.limits.symbol)
             }
+            .tag(VigilDestination.limits)
 
             NavigationStack {
                 ModelsView()
@@ -91,6 +98,7 @@ struct RootView: View {
             .tabItem {
                 Label(VigilDestination.models.title, systemImage: VigilDestination.models.symbol)
             }
+            .tag(VigilDestination.models)
 
             NavigationStack {
                 ConnectionsView()
@@ -101,6 +109,7 @@ struct RootView: View {
                     systemImage: VigilDestination.connections.symbol
                 )
             }
+            .tag(VigilDestination.connections)
 
             NavigationStack {
                 SettingsView()
@@ -111,6 +120,7 @@ struct RootView: View {
                     systemImage: VigilDestination.settings.symbol
                 )
             }
+            .tag(VigilDestination.settings)
         }
         .tint(VigilPalette.signal)
         #endif

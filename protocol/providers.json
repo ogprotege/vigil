@@ -811,6 +811,58 @@
         "rate_windows",
         "spend"
       ]
+    },
+    "kimi_code": {
+      "displayName": "Kimi K3",
+      "defaultEnabled": false,
+      "experimental": true,
+      "auth": "api_key_bearer",
+      "usage": {
+        "method": "GET",
+        "url": "https://api.kimi.com/coding/v1/usages",
+        "headers": {
+          "Authorization": "Bearer {access_token}",
+          "Accept": "application/json",
+          "User-Agent": "Vigil/0.10"
+        }
+      },
+      "poll": {
+        "minSeconds": 300,
+        "jitterSeconds": 60,
+        "backoff429BaseSeconds": 900,
+        "backoffMaxSeconds": 3600
+      },
+      "discovery": {
+        "adapter": "environment",
+        "environment": {
+          "accessToken": "KIMI_CODE_API_KEY"
+        }
+      },
+      "manualEntryHint": "Paste your Kimi Code API key (KIMI_CODE_API_KEY) — the coding-plan key from platform.kimi.ai, separate from the Moonshot balance key.",
+      "responseFields": {
+        "utilization": "used_percent",
+        "resetsAt": "reset_at",
+        "allowStringNumbers": true
+      },
+      "windows": [
+        {
+          "id": "session",
+          "sourceKey": "limits[type=session]",
+          "resetFormat": "unixSeconds",
+          "windowSeconds": 18000,
+          "secondary": false
+        },
+        {
+          "id": "weekly",
+          "sourceKey": "usage",
+          "resetFormat": "unixSeconds",
+          "windowSeconds": 604800,
+          "secondary": false
+        }
+      ],
+      "capabilities": [
+        "rate_windows"
+      ]
     }
   }
 }

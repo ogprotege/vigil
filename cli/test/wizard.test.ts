@@ -92,7 +92,7 @@ describe("runWizard", () => {
     });
 
     expect(code).toBe(0);
-    expect(err.join("\n")).toContain("Found 2 of 13");
+    expect(err.join("\n")).toContain("Found 2 of 14");
     expect(err.join("\n")).toContain("✓ Claude: verified");
     expect(err.join("\n")).toContain("✓ ChatGPT / Codex: verified");
     // The interactive path renders scannable QR art (not the raw vigil1 lines).

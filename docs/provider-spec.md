@@ -17,6 +17,7 @@
 | xAI API | No | `XAI_MANAGEMENT_KEY` + `XAI_TEAM_ID` (console Management Key), QR/paste, or app manual entry | Prepaid balance | 300 s | Not applicable; API key | Documented management endpoint; balance denomination unverified live | **Experimental**, fixture-covered |
 | Z.ai Coding Plan | No | `ZAI_API_KEY`, QR/paste, or app manual entry | Session and monthly quota windows, plan label | 300 s | Not applicable; API key | Undocumented; verified across independent community clients | **Experimental**, fixture-covered; schema drift is the known hazard |
 | Cursor | No | `CURSOR_SESSION_TOKEN` (browser `WorkosCursorSessionToken` cookie), QR/paste, or app manual entry | Plan usage window, billing-cycle reset, on-demand spend | 300 s | None; session cookie expires and must be re-pasted | Undocumented web API; individual accounts have no official endpoint | **Experimental**, fixture-covered; expect authExpired on cookie expiry |
+| Kimi K3 (coding plan) | No | `KIMI_CODE_API_KEY` (coding-plan key, separate from the Moonshot balance key), QR/paste, or app manual entry | Session and weekly coding-plan windows (utilization percent, unix resets) | 300 s | Not applicable; API key | Undocumented coding-plan usage endpoint (`api.kimi.com/coding/v1/usages`); response shape modeled, not yet live-verified | **Experimental**, fixture-covered; needs a live coding-plan key to confirm the exact field/selector names |
 
 Definitions:
 

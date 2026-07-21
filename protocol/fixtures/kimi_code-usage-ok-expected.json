@@ -1,0 +1,6 @@
+{
+  "windows": [
+    { "id": "session", "utilization": 45, "resetsAt": "2026-07-18T21:00:00Z", "windowSeconds": 18000, "secondary": false },
+    { "id": "weekly", "utilization": 30, "resetsAt": "2026-07-20T07:00:00Z", "windowSeconds": 604800, "secondary": false }
+  ]
+}
