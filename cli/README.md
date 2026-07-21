@@ -26,11 +26,11 @@ Running `npx vigil-link` with no arguments starts a guided wizard (when your ter
 
 No flags to memorize. The flags below are for scripting and advanced use — passing any of `--provider`, `--json`, `--yes`, `--copy`, or `--mint` opts out of the wizard.
 
-This wizard is an optional path, not the main way in. On the iPhone, **Add account → Sign in with Claude** and **Sign in with Codex** sign in to Claude and ChatGPT/Codex directly (a browser approval and a short code), and **Add a provider directly** lets you paste any API key straight into the app — no terminal required. Reach for `vigil-link` when you'd rather reuse a Claude Code or Codex sign-in already on a computer and hand it to the phone by QR.
+This wizard is an optional path, not the main way in. On the iPhone, **Add account → Sign in with Claude** and **Sign in with Codex** sign in to Claude and ChatGPT/Codex directly (a browser approval and a short code), and the **Paste a provider key** section lets you paste any API key straight into the app — no terminal required. Reach for `vigil-link` when you'd rather reuse a Claude Code or Codex sign-in already on a computer and hand it to the phone by QR.
 
 ## Supported providers
 
-Thirteen providers ship in the registry. Claude and ChatGPT/Codex are enabled by default; the rest are opt-in and activate when you set their environment variable(s). Plain `npx vigil-link` (and `status`/`doctor`) scans **every** provider in the registry — see [docs/provider-spec.md](https://github.com/ogprotege/vigil/blob/main/docs/provider-spec.md) for the full list and verified endpoint facts.
+Fourteen providers ship in the registry. Claude and ChatGPT/Codex are enabled by default; the rest are opt-in. Plain `npx vigil-link` scans **every** provider in the registry and activates an opt-in provider when you set its environment variable(s); `status` and `doctor` check only the default-enabled providers unless you pass `--provider` — see [docs/provider-spec.md](https://github.com/ogprotege/vigil/blob/main/docs/provider-spec.md) for the full list and verified endpoint facts.
 
 | Provider | Data | Activation | Default |
 |---|---|---|---|

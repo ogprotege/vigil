@@ -88,12 +88,24 @@ struct VigilApp: App {
 
         // M7 — the always-fresh surface: percentages in the menu bar while no
         // window is open, refreshed by the model's timer (ledger-gated).
+        // The lock overlay only covers the WindowGroup, but the menu bar is a
+        // sibling scene showing the same account labels (the Codex label
+        // carries the sign-in email), live percentages and a working Refresh —
+        // with no authentication. Settings promises "Lock Vigil whenever it
+        // returns to the foreground" unqualified, so this surface has to honor
+        // it too, otherwise the app promises protection it does not provide.
         MenuBarExtra {
-            MenuBarContentView()
-                .environment(model)
-                .preferredColorScheme(.dark)
+            Group {
+                if model.lockEnabled && locked {
+                    MenuBarLockedView()
+                } else {
+                    MenuBarContentView()
+                }
+            }
+            .environment(model)
+            .preferredColorScheme(.dark)
         } label: {
-            Text(model.menuBarTitle)
+            Text(model.lockEnabled && locked ? "Vigil" : model.menuBarTitle)
                 .monospacedDigit()
         }
         .menuBarExtraStyle(.window)

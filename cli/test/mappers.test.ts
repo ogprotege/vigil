@@ -233,3 +233,58 @@ describe("schema-drift tolerance", () => {
     ).toBeNull();
   });
 });
+
+// Mirrors MapperDivergenceTests in packages/VigilKit — cases whose correct
+// outcome is null (schemaChanged) cannot be expressed as a fixture pair, so
+// both implementations pin them explicitly instead.
+describe("aggregate drift detection (Swift parity)", () => {
+  const registry = loadRegistry();
+
+  it("treats an absent aggregate leaf as a shape change, not $0.00", () => {
+    expect(
+      mapUsageResponse(registry.providers.github, {
+        usageItems: [{ date: "2026-07-02", product: "copilot" }, { date: "x" }],
+      })
+    ).toBeNull();
+    expect(
+      mapUsageResponse(registry.providers.openai, {
+        data: [{ results: [{ amount: { currency: "usd" } }] }],
+      })
+    ).toBeNull();
+  });
+
+  it("treats a non-array aggregate root as a shape change, not $0.00", () => {
+    expect(mapUsageResponse(registry.providers.github, { usageItems: { message: "not found" } })).toBeNull();
+    expect(mapUsageResponse(registry.providers.github, { usageItems: "nope" })).toBeNull();
+    expect(mapUsageResponse(registry.providers.openai, { data: { error: "x" } })).toBeNull();
+    expect(mapUsageResponse(registry.providers.openai, { data: true })).toBeNull();
+  });
+
+  it("still reports a genuinely empty period as zero", () => {
+    const mapped = mapUsageResponse(registry.providers.github, { usageItems: [] });
+    expect(mapped?.metrics.find((m) => m.id === "spend_month")?.value).toBe(0);
+  });
+
+  it("keeps a partial aggregate honest: real number kept, absent one dropped", () => {
+    const mapped = mapUsageResponse(registry.providers.github, {
+      usageItems: [{ netQuantity: 125 }],
+    });
+    expect(mapped?.metrics.map((m) => m.id)).toEqual(["credits_used"]);
+  });
+
+  it("rejects Unicode format characters the way the Swift sanitizer does", () => {
+    expect(
+      mapUsageResponse(registry.providers.deepseek, {
+        balance_infos: [{ currency: "US‍D", total_balance: "5" }],
+      })
+    ).toBeNull();
+  });
+
+  it("accepts fractional-second ISO resets (Swift parity)", () => {
+    const mapped = mapUsageResponse(registry.providers.claude, {
+      five_hour: { utilization: 50, resets_at: "2026-07-18T21:00:00.500Z" },
+    });
+    expect(mapped?.windows[0]?.id).toBe("session");
+    expect(mapped?.windows[0]?.resetsAt).toBe("2026-07-18T21:00:00Z");
+  });
+});

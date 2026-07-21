@@ -19,6 +19,47 @@ final class SchedulerTests: XCTestCase {
         )
     }
 
+    /// A cancelled in-flight fetch already put bytes on the wire, so it must
+    /// charge the poll floor. Releasing the lease without charging left
+    /// `nextAllowedAt` at `.distantPast` on a fresh account — and since
+    /// backgrounding the app cancels the refresh task group, a
+    /// foreground/background cycle could send one Claude request per cycle with
+    /// no floor at all.
+    func testChargeFloorHoldsThePollFloorAfterACancelledFetch() async throws {
+        let clock = ClockBox(Date(timeIntervalSince1970: 1_784_408_400))
+        let store = FileLedgerStore(directory: try TestSupport.tempDirectory())
+        let scheduler = makeScheduler(clock: clock, store: store)
+
+        let acquired = await scheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertTrue(acquired)
+        let charged = await scheduler.chargeFloor(accountKey: key, policy: policy)
+        XCTAssertTrue(charged)
+
+        clock.advance(by: 1)
+        let blocked = await scheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertFalse(blocked, "a cancelled fetch must still hold the 5-minute floor")
+
+        clock.advance(by: policy.minSeconds)
+        let allowed = await scheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertTrue(allowed, "the floor must lift once minSeconds has elapsed")
+    }
+
+    /// chargeFloor must not be usable to shorten an existing backoff.
+    func testChargeFloorNeverPullsAn429BackoffEarlier() async throws {
+        let clock = ClockBox(Date(timeIntervalSince1970: 1_784_408_400))
+        let store = FileLedgerStore(directory: try TestSupport.tempDirectory())
+        let scheduler = makeScheduler(clock: clock, store: store)
+
+        let acquiredForBackoff = await scheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertTrue(acquiredForBackoff)
+        _ = await scheduler.recordResult(accountKey: key, policy: policy, status: .rateLimited)
+        let backoffUntil = await scheduler.nextAllowedFetch(accountKey: key)
+
+        _ = await scheduler.chargeFloor(accountKey: key, policy: policy)
+        let afterCharge = await scheduler.nextAllowedFetch(accountKey: key)
+        XCTAssertEqual(afterCharge, backoffUntil, "429 backoff must not be shortened")
+    }
+
     func testSingleFlightAndMinInterval() async throws {
         let clock = ClockBox(Date(timeIntervalSince1970: 1_784_408_400))
         let store = FileLedgerStore(directory: try TestSupport.tempDirectory())
@@ -244,7 +285,7 @@ final class SchedulerTests: XCTestCase {
         let scheduler = makeScheduler(clock: clock, store: FailingLedgerStore())
 
         let acquired = await scheduler.acquire(accountKey: key, policy: policy)
-        let message = await scheduler.persistenceErrorDescription()
+        let message = await scheduler.persistenceErrorDescription(accountKey: key)
 
         XCTAssertFalse(acquired, "a fetch must not start when its lease cannot be persisted")
         XCTAssertEqual(message, FailingLedgerStore.message)
@@ -268,7 +309,7 @@ final class SchedulerTests: XCTestCase {
 
         let scheduler = makeScheduler(clock: clock, store: store)
         let acquired = await scheduler.acquire(accountKey: key, policy: policy)
-        let persistenceError = await scheduler.persistenceErrorDescription()
+        let persistenceError = await scheduler.persistenceErrorDescription(accountKey: key)
         XCTAssertFalse(acquired)
         XCTAssertNotNil(persistenceError)
     }

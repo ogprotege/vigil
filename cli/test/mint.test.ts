@@ -146,3 +146,38 @@ describe("claude mint (PKCE loopback)", () => {
     }
   });
 });
+
+describe("classic-path paste prompt lifecycle", () => {
+  // The classic link flow shares ONE readline interface between the mint paste
+  // lane, the consent gate and the QR dismissal. mintClaude starts the paste
+  // prompt as a racing recovery lane and aborts it when the loopback lane wins.
+  // Node drops the callback of a question issued while another is still
+  // pending, so a paste prompt that ignores its AbortSignal leaves every later
+  // prompt unresolvable — the CLI hangs after a successful mint with the
+  // credential QR still on screen. This pins the contract that fix relies on.
+  it("an aborted question releases the interface for the next prompt", async () => {
+    const { createInterface } = await import("node:readline/promises");
+    const { PassThrough } = await import("node:stream");
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const rl = createInterface({ input, output });
+    try {
+      const controller = new AbortController();
+      const paste = rl
+        .question("Paste URL/code here (or just wait): ", { signal: controller.signal })
+        .catch((error: { name?: string }) => `aborted:${error?.name}`);
+      controller.abort();
+      expect(await paste).toBe("aborted:AbortError");
+
+      const consent = rl.question("Continue? [y/N] ");
+      input.write("y\n");
+      const answered = await Promise.race([
+        consent,
+        new Promise((resolve) => setTimeout(() => resolve("HUNG"), 2_000)),
+      ]);
+      expect(answered).toBe("y");
+    } finally {
+      rl.close();
+    }
+  });
+});

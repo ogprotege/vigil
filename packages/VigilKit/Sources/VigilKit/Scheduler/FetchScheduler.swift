@@ -226,7 +226,13 @@ public actor FetchScheduler {
     /// The value is also persisted in the shared ledger. Keeping it here lets
     /// this actor prove ownership before release or result recording.
     private var inFlight: [String: String] = [:]
-    private var lastStoreError: String?
+    /// Keyed by account. A single shared slot was overwritten and cleared by
+    /// whichever account happened to run next on this reentrant actor —
+    /// `refreshAll` fans every account out concurrently — so a ledger write
+    /// failure could be attributed to the wrong account, or cleared before its
+    /// owner read it and reported as an ordinary poll-floor deferral. That
+    /// silently broke the fail-closed-and-surface rule for storage errors.
+    private var lastStoreError: [String: String] = [:]
 
     public init(
         store: LedgerStore,
@@ -245,21 +251,21 @@ public actor FetchScheduler {
     public func nextAllowedFetch(accountKey: String) -> Date? {
         do {
             let entry = try store.load()[accountKey]
-            lastStoreError = nil
+            lastStoreError[accountKey] = nil
             guard let entry else { return nil }
             // When a process currently owns the slot, the lease expiry is the
             // earliest safe retry even if the ordinary poll clock has passed.
             return max(entry.nextAllowedAt, entry.leaseExpiresAt ?? .distantPast)
         } catch {
-            lastStoreError = error.localizedDescription
+            lastStoreError[accountKey] = error.localizedDescription
             return nil
         }
     }
 
     /// A caller can distinguish an ordinary ledger refusal from a storage
     /// failure without changing the established non-throwing fetch API.
-    public func persistenceErrorDescription() -> String? {
-        lastStoreError
+    public func persistenceErrorDescription(accountKey: String) -> String? {
+        lastStoreError[accountKey]
     }
 
     /// True if a fetch may start now. The check and lease write happen in one
@@ -267,7 +273,7 @@ public actor FetchScheduler {
     /// follow with recordResult (or release on abandonment).
     public func acquire(accountKey: String, policy: PollPolicy) -> Bool {
         guard inFlight[accountKey] == nil else {
-            lastStoreError = nil
+            lastStoreError[accountKey] = nil
             return false
         }
 
@@ -294,9 +300,9 @@ public actor FetchScheduler {
                 ledger[accountKey] = entry
                 acquired = true
             }
-            lastStoreError = nil
+            lastStoreError[accountKey] = nil
         } catch {
-            lastStoreError = error.localizedDescription
+            lastStoreError[accountKey] = error.localizedDescription
             return false
         }
 
@@ -324,10 +330,10 @@ public actor FetchScheduler {
                 ledger[accountKey] = entry
                 released = true
             }
-            lastStoreError = nil
+            lastStoreError[accountKey] = nil
             return released
         } catch {
-            lastStoreError = error.localizedDescription
+            lastStoreError[accountKey] = error.localizedDescription
             return false
         }
     }
@@ -342,10 +348,56 @@ public actor FetchScheduler {
             try store.update { ledger in
                 ledger[accountKey] = nil
             }
-            lastStoreError = nil
+            lastStoreError[accountKey] = nil
             return true
         } catch {
-            lastStoreError = error.localizedDescription
+            lastStoreError[accountKey] = error.localizedDescription
+            return false
+        }
+    }
+
+    /// Releases the lease **and** advances the poll floor, for an attempt whose
+    /// request was already dispatched but whose outcome is unknown — a
+    /// cancelled in-flight fetch.
+    ///
+    /// A bare `release` is wrong there: it clears the lease without touching
+    /// `nextAllowedAt`, which is `.distantPast` on a never-fetched account, so
+    /// the next `acquire` succeeds immediately. Since cancellation is trivially
+    /// user-driven (backgrounding the app cancels the refresh task group), that
+    /// let a foreground/background cycle send one provider request per cycle
+    /// with no floor at all. The bytes were already on the wire and counted
+    /// against the provider's rate limit, so the clock must be charged.
+    ///
+    /// Unlike `recordResult` this never touches `consecutive429`: an unknown
+    /// outcome is not evidence of rate limiting in either direction.
+    @discardableResult
+    public func chargeFloor(accountKey: String, policy: PollPolicy) -> Bool {
+        let owner = inFlight.removeValue(forKey: accountKey)
+        let recordedAt = now()
+        var charged = false
+        do {
+            try store.update { ledger in
+                var entry = ledger[accountKey]
+                    ?? LedgerEntry(nextAllowedAt: .distantPast, consecutive429: 0)
+                if let owner {
+                    guard entry.leaseOwner == owner else { return }
+                } else if entry.leaseOwner != nil,
+                          (entry.leaseExpiresAt ?? .distantFuture) > recordedAt {
+                    return
+                }
+                let minimum = policy.minSeconds.isFinite ? max(0, policy.minSeconds) : 0
+                let floor = recordedAt.addingTimeInterval(minimum + boundedJitter(policy.jitterSeconds))
+                // Never pull an existing floor earlier.
+                entry.nextAllowedAt = max(entry.nextAllowedAt, floor)
+                entry.leaseOwner = nil
+                entry.leaseExpiresAt = nil
+                ledger[accountKey] = entry
+                charged = true
+            }
+            lastStoreError[accountKey] = nil
+            return charged
+        } catch {
+            lastStoreError[accountKey] = error.localizedDescription
             return false
         }
     }
@@ -407,10 +459,10 @@ public actor FetchScheduler {
                 ledger[accountKey] = entry
                 recorded = true
             }
-            lastStoreError = nil
+            lastStoreError[accountKey] = nil
             return recorded
         } catch {
-            lastStoreError = error.localizedDescription
+            lastStoreError[accountKey] = error.localizedDescription
             return false
         }
     }

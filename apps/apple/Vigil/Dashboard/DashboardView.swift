@@ -327,6 +327,10 @@ struct ProviderHomeRow: View {
         .foregroundStyle(
             snapshot.map { Staleness.tint(for: $0.fetchedAt) } ?? VigilPalette.inkFaint
         )
+        // Sibling Texts in a stack are separate accessibility elements, so this
+        // line was six VoiceOver stops per account — including a bare "middle
+        // dot". AccountCardView.footer already combines its equivalent.
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
@@ -432,6 +436,12 @@ struct StackedLimitBar: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text(UsagePresentation.title(for: window)))
         .accessibilityValue(Text("\(Int(remaining.rounded())) percent left"))
+        // An explicit label/value replaces the combined children, which drops
+        // the CompactResetLabel above. Home is the default screen and this is
+        // its only meter, so without the hint the reset countdown — a core
+        // honest-freshness value — was unreachable to VoiceOver on the screen
+        // users actually open. Matches LimitWindowView / LimitMeterRow.
+        .accessibilityHint(accessibilityCountdown(window.resetsAt))
     }
 
     /// Prefer short labels: Session, Weekly, Fable, Opus — like the screenshot.

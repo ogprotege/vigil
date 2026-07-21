@@ -83,6 +83,10 @@ public enum CodexAuth {
 
     /// Minimum poll interval — the server can send `0`, which would busy-loop.
     public static let minimumPollInterval: TimeInterval = 5
+    /// Upper bound on the provider-supplied poll interval. Keeps a malformed or
+    /// hostile value from stalling the sign-in screen and, more importantly,
+    /// out of the range where converting it to `UInt64` for a sleep would trap.
+    public static let maximumPollInterval: TimeInterval = 60
 
     public struct DeviceCode: Equatable, Sendable {
         public let deviceAuthId: String
@@ -132,10 +136,19 @@ public enum CodexAuth {
         if let number = object["interval"] as? NSNumber { rawInterval = number.doubleValue }
         else if let text = object["interval"] as? String, let value = Double(text) { rawInterval = value }
         else { rawInterval = 0 }
+        // The interval is provider-controlled and feeds a sleep. `Double(text)`
+        // accepts Swift's float spellings, so "inf" parses to .infinity, and
+        // converting a non-finite or out-of-range Double to UInt64 is a runtime
+        // TRAP — uncatchable, so a malformed field would crash the app the
+        // moment the sign-in screen opened. Clamp both ends and reject
+        // non-finite values, the same way this file's JWT expiry parser does.
+        let interval = rawInterval.isFinite
+            ? min(max(minimumPollInterval, rawInterval), maximumPollInterval)
+            : minimumPollInterval
         return DeviceCode(
             deviceAuthId: deviceAuthId,
             userCode: userCode,
-            intervalSeconds: max(minimumPollInterval, rawInterval)
+            intervalSeconds: interval
         )
     }
 

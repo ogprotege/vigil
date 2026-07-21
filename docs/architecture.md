@@ -8,7 +8,7 @@
 │   ├─ Onboarding / "Add account"                                           │
 │   │   ├─ Sign in with Claude (ClaudeAuth, on-device OAuth)                ┼─▶ provider OAuth /
 │   │   ├─ Sign in with Codex  (CodexAuth, device-code sign-in)             ┼─▶ token endpoints
-│   │   └─ Add a provider directly (paste an API key)                       │
+│   │   └─ Paste a provider key → <provider>                               │
 │   ├─ VigilKit                                                             │
 │   │   ├─ ProviderRegistry                                                 ┼─▶ provider usage endpoints
 │   │   ├─ FetchScheduler (ledger)                                          │

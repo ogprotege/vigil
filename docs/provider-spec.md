@@ -32,7 +32,7 @@ Region variants (`moonshot` / `moonshot_cn`, `minimax` / `minimax_cn`) are separ
 
 ## Activating providers
 
-Claude and Codex are set up **on-device in the app** — "Add account" → "Sign in with Claude" (approve in a browser, then paste the code back) or "Sign in with Codex" (the app shows a code, you approve it in a browser, and the app polls until it completes) — and each API-key provider is added by pasting its key under "Add a provider directly". `npx vigil-link` is an **optional** path for reusing a Claude Code / Codex sign-in that already lives on a computer; the CLI commands below are that optional/advanced lane, not a prerequisite.
+Claude and Codex are set up **on-device in the app** — "Add account" → "Sign in with Claude" (approve in a browser, then paste the code back) or "Sign in with Codex" (the app shows a code, you approve it in a browser, and the app polls until it completes) — and each API-key provider is added by tapping it under "Paste a provider key" and pasting the key. `npx vigil-link` is an **optional** path for reusing a Claude Code / Codex sign-in that already lives on a computer; the CLI commands below are that optional/advanced lane, not a prerequisite.
 
 The default command selects Claude and Codex:
 
@@ -226,7 +226,6 @@ Every candidate below was researched against vendor documentation and real clien
 | Codex `rate_limits_by_limit_id` | The response also carries per-limit-id windows as an object keyed by id (not the array `additionalWindows` iterates). Supporting it needs an object-fan-out engine primitive; the shipped Codex windows already cover primary/secondary plus `additional_rate_limits` lanes. |
 | Codex reset-credit balance | `chatgpt.com/backend-api/wham/rate-limit-reset-credits` is a *second* endpoint; the registry models one usage request per provider. Multi-request providers need an engine change. |
 | GitHub Copilot percent windows | The only per-user quota window is the undocumented `copilot_internal/user` endpoint, which needs a GitHub device-flow OAuth mint — new machinery. The shipped GitHub provider covers spend/credits honestly via the documented billing API. |
-| Kimi coding plan (`api.kimi.com/coding/v1/usages`) | Official-CLI-backed but undocumented, with several observed response spellings; a fixture-pinned mapper would guess. |
 | Anthropic Admin API cost report | Organization accounts only, and the query-parameter shape has not been verified against a live key. |
 | Mistral Admin usage | Route verified live (401 unauthenticated) but the response shape is unconfirmed. Negative finding: `api.mistral.ai/v1/usage` does not exist (404) despite third-party claims. |
 | Fireworks billing summary | Documented, but the time-parameter format is unverified; token totals arrive as int64 strings. |

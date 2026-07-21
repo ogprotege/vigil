@@ -173,7 +173,14 @@ function boundedProviderText(raw: unknown, maximumLength: number): string | null
     typeof raw !== "string" ||
     raw.length === 0 ||
     raw.length > maximumLength ||
-    /[\u0000-\u001F\u007F-\u009F]/.test(raw)
+    // Cc AND Cf, matching Swift's CharacterSet.controlCharacters exactly (it
+    // covers both categories). Cc alone let zero-width and bidi-override
+    // characters through, which (a) created provider ids the two mappers
+    // disagreed about - a window visible in the CLI and silently absent
+    // from the app - and (b) left the only sanitizer between
+    // provider-controlled text and rendered terminal output blind to bidi
+    // spoofing.
+    /[\p{Cc}\p{Cf}]/u.test(raw)
   ) {
     return null;
   }
@@ -243,7 +250,15 @@ export function mapUsageResponse(spec: ProviderSpec, body: unknown): MappedUsage
       const firstSegment = mapping.sourceKey.split(".")[0] ?? "";
       const firstKey = firstSegment.endsWith("[]") ? firstSegment.slice(0, -2) : firstSegment;
       const root = (body as Record<string, unknown>)[firstKey];
-      if (root === undefined || root === null) {
+      // The "root present but empty" case that legitimately sums to 0 is an
+      // empty ARRAY. A non-array root (an error envelope, a pagination wrapper
+      // a provider added) collects no leaves either, and treating that as a
+      // zero-spend month reports a confident $0.00 for what is a schema change.
+      if (
+        root === undefined ||
+        root === null ||
+        (firstSegment.endsWith("[]") && !Array.isArray(root))
+      ) {
         value = null;
       } else {
         const leaves = collectPath(body, mapping.sourceKey);

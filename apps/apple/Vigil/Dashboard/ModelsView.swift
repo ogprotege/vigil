@@ -42,7 +42,9 @@ struct ModelsView: View {
                                 }
                                 LimitMeterRow(
                                     window: candidate.window,
-                                    accountName: accountName(for: candidate)
+                                    accountName: accountName(for: candidate),
+                                    status: candidate.snapshot.status,
+                                    fetchedAt: candidate.snapshot.fetchedAt
                                 )
                             }
                         }

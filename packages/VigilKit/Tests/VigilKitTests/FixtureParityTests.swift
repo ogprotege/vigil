@@ -312,3 +312,73 @@ final class FixtureParityTests: XCTestCase {
         XCTAssertTrue(openaiURL.contains("bucket_width=1d"), openaiURL)
     }
 }
+
+/// Cases whose correct outcome is `nil` (schemaChanged) and therefore cannot be
+/// expressed as a fixture pair, plus the reset formats the committed fixtures
+/// do not cover. Each mirrors an assertion in the CLI's mappers test, so the two
+/// implementations stay in lockstep on inputs no fixture can pin.
+final class MapperDivergenceTests: XCTestCase {
+    /// A provider renaming the aggregated leaf must read as a shape change, not
+    /// as a real $0.00. Dropping absent leaves made the "leaves exist but none
+    /// parsed" branch unreachable, so a rename reported a confident zero.
+    func testAbsentAggregateLeafIsSchemaChangedNotZero() {
+        let github = #"{"usageItems":[{"date":"2026-07-02","product":"copilot"},{"date":"x"}]}"#
+        XCTAssertNil(UsageMapper.map(spec: ProviderRegistry.gitHub, body: Data(github.utf8)))
+
+        let openAI = #"{"data":[{"results":[{"amount":{"currency":"usd"}}]}]}"#
+        XCTAssertNil(UsageMapper.map(spec: ProviderRegistry.openAI, body: Data(openAI.utf8)))
+    }
+
+    /// "Root present but empty" that legitimately sums to 0 means an empty
+    /// ARRAY. An error envelope or a pagination wrapper is a shape change.
+    func testNonArrayAggregateRootIsSchemaChangedNotZero() {
+        for body in [#"{"usageItems":{"message":"not found"}}"#, #"{"usageItems":"nope"}"#] {
+            XCTAssertNil(
+                UsageMapper.map(spec: ProviderRegistry.gitHub, body: Data(body.utf8)),
+                body
+            )
+        }
+        for body in [#"{"data":{"error":"x"}}"#, #"{"data":true}"#] {
+            XCTAssertNil(
+                UsageMapper.map(spec: ProviderRegistry.openAI, body: Data(body.utf8)),
+                body
+            )
+        }
+    }
+
+    /// An empty array really is a zero-spend month and must still map.
+    func testEmptyAggregateArrayStillReportsZero() throws {
+        let mapped = try XCTUnwrap(
+            UsageMapper.map(spec: ProviderRegistry.gitHub, body: Data(#"{"usageItems":[]}"#.utf8))
+        )
+        XCTAssertEqual(mapped.metrics.first(where: { $0.id == "spend_month" })?.value, 0)
+    }
+
+    /// TS parses ISO-8601 with `new Date(...)`, which accepts fractional
+    /// seconds. A single ISO8601DateFormatter cannot parse both forms, so a
+    /// cosmetic serializer change upstream used to drop every Claude window.
+    func testFractionalSecondResetsParse() throws {
+        let body = #"{"five_hour":{"utilization":50,"resets_at":"2026-07-18T21:00:00.500Z"}}"#
+        let mapped = try XCTUnwrap(
+            UsageMapper.map(spec: ProviderRegistry.claude, body: Data(body.utf8))
+        )
+        XCTAssertEqual(mapped.windows.first?.id, "session")
+        XCTAssertEqual(mapped.windows.first?.utilization, 50)
+        XCTAssertNotNil(mapped.windows.first?.resetsAt)
+    }
+
+    /// Whole seconds must keep working after adding the fractional parser.
+    func testWholeSecondResetsStillParse() throws {
+        let body = #"{"five_hour":{"utilization":25,"resets_at":"2026-07-18T21:00:00Z"}}"#
+        let mapped = try XCTUnwrap(
+            UsageMapper.map(spec: ProviderRegistry.claude, body: Data(body.utf8))
+        )
+        XCTAssertNotNil(mapped.windows.first?.resetsAt)
+    }
+
+    /// Cc and Cf are both rejected, matching the TS sanitizer.
+    func testFormatCharactersAreRejectedInProviderText() {
+        let zeroWidth = "{\"balance_infos\":[{\"currency\":\"US\u{200D}D\",\"total_balance\":\"5\"}]}"
+        XCTAssertNil(UsageMapper.map(spec: ProviderRegistry.deepSeek, body: Data(zeroWidth.utf8)))
+    }
+}

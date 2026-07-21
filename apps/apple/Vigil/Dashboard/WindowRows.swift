@@ -74,9 +74,21 @@ struct LimitMeterRow: View {
     let window: UsageWindow
     /// Shown under the title when the same row appears across accounts (Models view).
     var accountName: String? = nil
+    /// Snapshot the window came from, so a row never presents preserved
+    /// last-good numbers as current. `UsageService` deliberately keeps the last
+    /// good windows on authExpired / network / rateLimited / schemaChanged, so
+    /// without this a three-day-old value renders with a live-ticking countdown
+    /// and no marker at all.
+    var status: SnapshotStatus? = nil
+    var fetchedAt: Date? = nil
 
     private var remaining: Double {
         UsagePresentation.remainingPercent(for: window)
+    }
+
+    private var isDegraded: Bool {
+        guard let status, let fetchedAt else { return false }
+        return SnapshotFreshness.isDegraded(status: status, fetchedAt: fetchedAt)
     }
 
     var body: some View {
@@ -111,7 +123,19 @@ struct LimitMeterRow: View {
             )
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                ResetCountdownView(resetsAt: window.resetsAt)
+                if isDegraded, let status, let fetchedAt {
+                    // Not current: say so instead of ticking a countdown that
+                    // implies the number behind it is live.
+                    Label(
+                        UsagePresentation.stalenessNote(status: status, fetchedAt: fetchedAt),
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(VigilPalette.caution)
+                    .lineLimit(1)
+                } else {
+                    ResetCountdownView(resetsAt: window.resetsAt)
+                }
                 Spacer()
                 Text("\(Int(window.utilization.rounded()))% used")
                     .font(.caption2.monospacedDigit())
@@ -119,6 +143,7 @@ struct LimitMeterRow: View {
             }
         }
         .padding(.vertical, 9)
+        .opacity(isDegraded ? 0.7 : 1)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             Text((accountName.map { "\($0), " } ?? "") + UsagePresentation.title(for: window))
@@ -127,9 +152,12 @@ struct LimitMeterRow: View {
             Text(
                 "\(Int(remaining.rounded())) percent left, "
                     + "\(Int(window.utilization.rounded())) percent used"
+                    + (isDegraded && status != nil && fetchedAt != nil
+                        ? ", \(UsagePresentation.stalenessNote(status: status!, fetchedAt: fetchedAt!))"
+                        : "")
             )
         )
-        .accessibilityHint(accessibilityCountdown(window.resetsAt))
+        .accessibilityHint(isDegraded ? Text("") : accessibilityCountdown(window.resetsAt))
     }
 }
 

@@ -102,6 +102,40 @@ final class UsagePeriodTests: XCTestCase {
         XCTAssertEqual(delta.amount, 2.5, accuracy: 0.001)
     }
 
+    /// SnapshotStore and PendingEventStore both fail closed on corrupt data
+    /// and both have tests pinning that the bytes survive. This store used to
+    /// swallow the read error and overwrite the file with a single row,
+    /// destroying up to 400 days of history on the first poll after corruption.
+    func testCorruptHistoryFailsClosedAndIsPreserved() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("VigilObs-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let corrupt = Data("{not-json".utf8)
+        let fileURL = directory.appendingPathComponent("usage-observations.json")
+        try corrupt.write(to: fileURL)
+
+        let store = UsageObservationStore(directory: directory)
+        XCTAssertThrowsError(
+            try store.append(UsageObservation(
+                accountKey: "openrouter:1",
+                providerId: "openrouter",
+                spendUSD: 5
+            )),
+            "append must fail closed on unreadable history"
+        )
+        XCTAssertThrowsError(
+            try store.removeAll(accountKey: "openrouter:1"),
+            "removeAll must fail closed rather than report a deletion it did not do"
+        )
+        XCTAssertEqual(
+            try Data(contentsOf: fileURL),
+            corrupt,
+            "the corrupt bytes must be preserved, not overwritten"
+        )
+    }
+
     /// Removing an account must take its money history with it — otherwise the
     /// deleted account keeps driving the Home hero and its dollar amounts sit
     /// in the App Group container for up to 400 days.
