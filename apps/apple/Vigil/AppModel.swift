@@ -163,6 +163,19 @@ final class AppModel {
                 error: error
             )
         }
+        // Hydrate poll clocks so Home can tell the truth before the first tap.
+        Task { await hydrateNextAllowed() }
+    }
+
+    /// Loads each account's ledger next-allowed time into UI state.
+    func hydrateNextAllowed() async {
+        var next: [String: Date] = [:]
+        for account in accounts {
+            if let date = await scheduler.nextAllowedFetch(accountKey: account.key) {
+                next[account.key] = date
+            }
+        }
+        nextAllowed = next
     }
 
     var hasAccounts: Bool { !accounts.isEmpty }
@@ -549,26 +562,86 @@ final class AppModel {
 
     // MARK: - Refresh
 
-    /// Ledger-gated refresh of every account. Safe to call aggressively —
-    /// the scheduler enforces the real polling budget.
-    func refreshAll(surface: String) async {
-        guard !isDemo else { return }
-        await withTaskGroup(of: Void.self) { group in
-            for account in accounts {
-                group.addTask { await self.refresh(account: account, surface: surface) }
+    struct RefreshReport: Equatable, Sendable {
+        var fetched: Int
+        var deferred: Int
+        var failed: Int
+        /// Earliest time any deferred account may be checked again.
+        var nextAllowedAt: Date?
+
+        var didFetchAnything: Bool { fetched > 0 }
+
+        var userMessage: String {
+            if fetched > 0 && deferred == 0 && failed == 0 {
+                return "Updated \(fetched) account\(fetched == 1 ? "" : "s") from providers."
             }
+            if fetched > 0 {
+                var parts = ["Updated \(fetched)"]
+                if deferred > 0 { parts.append("\(deferred) waiting on poll floor") }
+                if failed > 0 { parts.append("\(failed) failed") }
+                return parts.joined(separator: " · ")
+            }
+            if deferred > 0, let nextAllowedAt, nextAllowedAt > Date() {
+                return "Providers were checked recently. Next safe refresh \(nextAllowedAt.formatted(date: .omitted, time: .shortened)) — showing last known values until then."
+            }
+            if deferred > 0 {
+                return "Providers were checked recently. Showing last known values until the next safe refresh."
+            }
+            if failed > 0 {
+                return "Couldn't reach \(failed) provider\(failed == 1 ? "" : "s"). Last known values stay visible."
+            }
+            return "Nothing to refresh."
         }
     }
 
-    func refresh(account: AccountRef, surface: String) async {
-        guard !isDemo else { return }
+    /// Ledger-gated refresh of every account. Safe to call aggressively —
+    /// the scheduler enforces the real polling budget. Returns an honest
+    /// summary so the UI never pretends a gated tap "updated live."
+    @discardableResult
+    func refreshAll(surface: String) async -> RefreshReport {
+        guard !isDemo else {
+            return RefreshReport(fetched: 0, deferred: 0, failed: 0, nextAllowedAt: nil)
+        }
+        var fetched = 0
+        var deferred = 0
+        var failed = 0
+        await withTaskGroup(of: AccountRefreshOutcome.self) { group in
+            for account in accounts {
+                group.addTask { await self.refresh(account: account, surface: surface) }
+            }
+            for await outcome in group {
+                switch outcome {
+                case .fetched: fetched += 1
+                case .deferred: deferred += 1
+                case .failed: failed += 1
+                }
+            }
+        }
+        let soonest = nextAllowed.values.filter { $0 > Date() }.min()
+        return RefreshReport(
+            fetched: fetched,
+            deferred: deferred,
+            failed: failed,
+            nextAllowedAt: soonest
+        )
+    }
+
+    private enum AccountRefreshOutcome: Sendable {
+        case fetched
+        case deferred
+        case failed
+    }
+
+    @discardableResult
+    func refresh(account: AccountRef, surface: String) async -> AccountRefreshOutcome {
+        guard !isDemo else { return .deferred }
         let credentials: Credentials
         do {
             guard let loaded = try vault.load(accountKey: account.key) else {
                 reportStorageError(
                     "Vigil couldn't find credentials for \(account.displayName). Re-link the account."
                 )
-                return
+                return .failed
             }
             credentials = loaded
         } catch {
@@ -576,7 +649,7 @@ final class AppModel {
                 "Vigil couldn't read \(account.displayName) credentials from the Keychain.",
                 error: error
             )
-            return
+            return .failed
         }
         let result = await UsageService.refresh(
             account: account,
@@ -588,19 +661,32 @@ final class AppModel {
             pendingEvents: pendingEvents
         )
         handle(result.persistenceIssue, account: account)
+
+        // Always sync the poll clock into UI — even when the ledger refused.
+        nextAllowed[account.key] = await scheduler.nextAllowedFetch(accountKey: account.key)
+
         if let snapshot = result.snapshot {
             snapshots[account.key] = snapshot
-            nextAllowed[account.key] = await scheduler.nextAllowedFetch(accountKey: account.key)
             if snapshot.status == .ok {
                 recordObservation(snapshot: snapshot, account: account)
+                await drainPendingEvents(for: account)
+                return .fetched
             }
-        } else if let next = result.nextAllowed {
-            nextAllowed[account.key] = next
+            await drainPendingEvents(for: account)
+            // rateLimited / network / authExpired still produced a classified
+            // outcome — treat as fetched for the report (we learned something).
+            if snapshot.status == .rateLimited {
+                return .deferred
+            }
+            return .failed
         }
-        // Crossings are computed inside UsageService (every surface) and
-        // parked in the shared container; the app process delivers them —
-        // including ones a widget refresh detected while the app was closed.
+
+        if result.nextAllowed != nil {
+            await drainPendingEvents(for: account)
+            return .deferred
+        }
         await drainPendingEvents(for: account)
+        return result.persistenceIssue == nil ? .deferred : .failed
     }
 
     func drainPendingEvents(for account: AccountRef) async {
