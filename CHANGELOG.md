@@ -18,6 +18,23 @@ Phone-native reliability pass — stop depending on `npx vigil-link` for core se
 - **Home redesigned like token-monitor Limits.** Day / Week / Month / Year / Lifetime period picker, hero summary, LIMITS section with a one-tap refresh button (same feel as token-monitor's circular refresh), and compact per-provider cards with dual Session/Weekly bars + "Updated Xm ago". Absolute token totals from local transcripts aren't available on iPhone — spend/balance history is recorded on-device for period heroes when providers report those metrics.
 - **Honest refresh feedback.** Tapping refresh reports whether providers were actually fetched, deferred by the poll floor (with next safe time), or failed — so Home never pretends a gated tap was a live update. Poll clocks hydrate on launch.
 
+Build fixes found cutting this build (the merged branches left `main` red — the
+`apple` CI job had been failing since PR #12, so the iOS build break was never
+reached):
+
+- **iOS build restored.** `LocalCredentialDiscovery`'s default-path helpers used
+  `FileManager.homeDirectoryForCurrentUser`, which is unavailable on iOS, so the
+  whole app target failed to compile. The four filesystem helpers are now
+  `#if os(macOS)`-gated — matching the feature, which is Mac-only — while the
+  pure `parse*` functions stay cross-platform.
+- **VigilKit tests compile again.** `LocalCredentialDiscoveryTests` passed an
+  optional `Date?` to `XCTAssertEqual(_:_:accuracy:)`; it now unwraps first.
+- **First-run empty state restored.** The Home redesign deleted
+  `EmptyDashboardView` but kept its call site, so a fresh install with no
+  accounts referenced a missing view. Restored unchanged.
+- **`AppModel.refresh(account:surface:)`** is now `private`, matching the
+  visibility of the `AccountRefreshOutcome` it returns.
+
 ## 0.13.0 (8) — TestFlight internal, 2026-07-20
 
 Polish pass on the Models release:

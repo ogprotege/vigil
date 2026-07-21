@@ -477,6 +477,51 @@ struct CompactResetLabel: View {
     }
 }
 
+/// First-run state — shown on Home until the first account is connected.
+struct EmptyDashboardView: View {
+    let addAccount: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: VigilSpacing.large) {
+            HStack(spacing: 14) {
+                Image(systemName: "scope")
+                    .font(.system(size: 32, weight: .medium))
+                    .foregroundStyle(VigilPalette.signal)
+                    .frame(width: 58, height: 58)
+                    .background(VigilPalette.signal.opacity(0.11), in: RoundedRectangle(cornerRadius: 18))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("The watch is quiet.")
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(VigilPalette.ink)
+                    Text("Sign in with Claude or Codex, or paste a provider key. Vigil keeps credentials on this device.")
+                        .font(.subheadline)
+                        .foregroundStyle(VigilPalette.inkMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Button(action: addAccount) {
+                Label("Add an account", systemImage: "plus")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 48)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(VigilPalette.signal)
+            .foregroundStyle(VigilPalette.canvas)
+
+            HStack(spacing: 8) {
+                Image(systemName: "lock.shield")
+                Text("No Vigil account, cloud sync, or analytics.")
+            }
+            .font(.caption)
+            .foregroundStyle(VigilPalette.inkMuted)
+        }
+        .frame(maxWidth: 620, alignment: .leading)
+        .vigilCard(padding: VigilSpacing.large)
+    }
+}
+
 #Preview {
     NavigationStack {
         DashboardView()

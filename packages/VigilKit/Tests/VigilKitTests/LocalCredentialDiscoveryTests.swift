@@ -21,8 +21,9 @@ final class LocalCredentialDiscoveryTests: XCTestCase {
         XCTAssertEqual(credentials.plan, "max")
         XCTAssertEqual(credentials.label, "Claude (max)")
         XCTAssertEqual(credentials.source, LocalCredentialDiscovery.fileSource)
+        let expiresAt = try XCTUnwrap(credentials.expiresAt)
         XCTAssertEqual(
-            credentials.expiresAt?.timeIntervalSince1970,
+            expiresAt.timeIntervalSince1970,
             2_000_000_000,
             accuracy: 0.001,
             "Claude Code stores expiresAt in epoch milliseconds"

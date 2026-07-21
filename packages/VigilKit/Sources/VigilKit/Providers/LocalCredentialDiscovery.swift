@@ -25,6 +25,10 @@ public enum LocalCredentialDiscovery {
         public let filePath: String
     }
 
+    // The default-path helpers below are macOS-only: `homeDirectoryForCurrentUser`
+    // is unavailable on iOS, and there are no Claude Code / Codex CLI files inside
+    // an iOS sandbox. The `parse*` functions stay cross-platform — they are pure.
+#if os(macOS)
     /// Default Claude Code credentials file (`~/.claude/.credentials.json`).
     public static func defaultClaudeCredentialsURL(
         home: URL = FileManager.default.homeDirectoryForCurrentUser
@@ -43,6 +47,7 @@ public enum LocalCredentialDiscovery {
         }
         return home.appendingPathComponent(".codex/auth.json")
     }
+#endif
 
     /// Parses Claude Code's credentials JSON (file or Keychain blob).
     public static func parseClaudeCredentials(json: String) -> Credentials? {
@@ -117,6 +122,7 @@ public enum LocalCredentialDiscovery {
         return credentials
     }
 
+#if os(macOS)
     /// Reads Claude credentials from the default file path when present.
     public static func loadClaudeFromDefaultFile(
         home: URL = FileManager.default.homeDirectoryForCurrentUser
@@ -139,6 +145,7 @@ public enum LocalCredentialDiscovery {
         else { return nil }
         return CodexResult(credentials: credentials, filePath: url.path)
     }
+#endif
 
     private static func string(_ value: Any?) -> String? {
         guard let value = value as? String else { return nil }
