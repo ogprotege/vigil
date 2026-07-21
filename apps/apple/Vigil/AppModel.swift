@@ -167,6 +167,24 @@ final class AppModel {
 
     var hasAccounts: Bool { !accounts.isEmpty }
 
+    /// How this account was linked — shown as "Updated · OAuth / API / Local"
+    /// under each provider row (token-monitor style).
+    func connectionLabel(for account: AccountRef) -> String {
+        if let credentials = try? vault.load(accountKey: account.key),
+           let source = credentials.source?.lowercased() {
+            switch source {
+            case "mint": return "OAuth"
+            case "file", "keychain": return "Local"
+            case "manual": return "API"
+            default: break
+            }
+        }
+        if let spec = ProviderRegistry.spec(for: account.providerId), spec.oauth != nil {
+            return "OAuth"
+        }
+        return "API"
+    }
+
     // MARK: - Linking
 
     enum LinkError: LocalizedError {
