@@ -140,11 +140,18 @@ struct LocalImportView: View {
         isImporting = true
         defer { isImporting = false }
         if let result = LocalCredentialDiscovery.loadClaudeFromDefaultFile() {
-            finish(result.credentials, note: "Imported Claude from ~/.claude/.credentials.json")
+            let origin = result.location == .keychain
+                ? "the login Keychain"
+                : "~/.claude/.credentials.json"
+            finish(result.credentials, note: "Imported Claude from \(origin)")
             return
         }
         statusIsError = true
-        statusMessage = "Couldn't find ~/.claude/.credentials.json. Sign in with Claude Code first, or choose the file manually."
+        // Both sources failed. On macOS Claude Code often keeps its session in
+        // the login Keychain and writes no file, and Vigil's sandbox may be
+        // refused access to another app's item — so naming only the file would
+        // send a signed-in user to a path that does not exist.
+        statusMessage = "Couldn't read Claude credentials from ~/.claude/.credentials.json or the login Keychain. If Claude Code keeps your session in the Keychain, macOS may have denied Vigil access — paste an access token instead, or choose the file manually if you have one."
     }
 
     private func importCodex() {
@@ -159,7 +166,11 @@ struct LocalImportView: View {
     }
 
     private func pickClaudeFile() {
-        guard let url = chooseJSONFile(title: "Choose Claude credentials.json") else { return }
+        guard let url = chooseJSONFile(
+            title: "Choose Claude credentials.json",
+            startingAt: LocalCredentialDiscovery.realHomeDirectory
+                .appendingPathComponent(".claude", isDirectory: true)
+        ) else { return }
         guard url.startAccessingSecurityScopedResource() else {
             statusIsError = true
             statusMessage = "Couldn't access that file."
@@ -181,7 +192,11 @@ struct LocalImportView: View {
     }
 
     private func pickCodexFile() {
-        guard let url = chooseJSONFile(title: "Choose Codex auth.json") else { return }
+        guard let url = chooseJSONFile(
+            title: "Choose Codex auth.json",
+            startingAt: LocalCredentialDiscovery.defaultCodexAuthURL()
+                .deletingLastPathComponent()
+        ) else { return }
         guard url.startAccessingSecurityScopedResource() else {
             statusIsError = true
             statusMessage = "Couldn't access that file."
@@ -205,13 +220,24 @@ struct LocalImportView: View {
         }
     }
 
-    private func chooseJSONFile(title: String) -> URL? {
+    /// Both targets are hidden — `.credentials.json` is a dot-file inside the
+    /// dot-directory `.claude`, and `.codex` is a dot-directory. NSOpenPanel
+    /// hides both by default, so a user told to "choose the file manually"
+    /// would open the panel onto an apparently empty home folder unless they
+    /// happened to know Cmd+Shift+period. Show hidden entries and start in the
+    /// directory the copy actually names.
+    private func chooseJSONFile(title: String, startingAt directory: URL?) -> URL? {
         let panel = NSOpenPanel()
         panel.title = title
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
         panel.allowedContentTypes = [.json, .data]
+        panel.showsHiddenFiles = true
+        panel.treatsFilePackagesAsDirectories = true
+        if let directory {
+            panel.directoryURL = directory
+        }
         return panel.runModal() == .OK ? panel.url : nil
     }
 

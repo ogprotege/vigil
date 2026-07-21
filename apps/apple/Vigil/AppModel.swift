@@ -455,8 +455,9 @@ final class AppModel {
             return
         }
         do {
-            try observationStore.append(observation)
-            observations = try observationStore.load()
+            // append returns the pruned array it persisted, so this does not
+            // decode the whole file a second time on the main actor.
+            observations = try observationStore.append(observation)
         } catch {
             Self.log.error(
                 "observation append failed: \(error.localizedDescription, privacy: .public)"
@@ -513,6 +514,14 @@ final class AppModel {
         }
         do {
             try pendingEvents.delete(accountKey: account.key)
+        } catch {
+            cleanupError = cleanupError ?? error
+        }
+        do {
+            // Without this the removed account's dollar amounts stay in the
+            // App Group container for up to 400 days and keep driving the Home
+            // hero — contradicting the "cached usage was deleted" copy below.
+            observations = try observationStore.removeAll(accountKey: account.key)
         } catch {
             cleanupError = cleanupError ?? error
         }

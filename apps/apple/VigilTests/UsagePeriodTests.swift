@@ -74,7 +74,13 @@ final class UsagePeriodTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let store = UsageObservationStore(directory: directory)
-        let now = Date()
+        // Pinned to local noon. `periodStart(.day)` is startOfDay, so a wall
+        // clock `Date()` put the -3600s sample before the period start whenever
+        // the suite ran in the first hour after midnight — the delta collapsed
+        // to 0 and this test failed on an unchanged tree (~4% of CI runs).
+        let now = try XCTUnwrap(
+            Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date())
+        )
         try store.append(UsageObservation(
             recordedAt: now.addingTimeInterval(-3_600),
             accountKey: "openrouter:1",
@@ -94,6 +100,238 @@ final class UsagePeriodTests: XCTestCase {
         )
         XCTAssertTrue(delta.hasValue)
         XCTAssertEqual(delta.amount, 2.5, accuracy: 0.001)
+    }
+
+    /// Removing an account must take its money history with it — otherwise the
+    /// deleted account keeps driving the Home hero and its dollar amounts sit
+    /// in the App Group container for up to 400 days.
+    func testRemoveAllDropsOnlyThatAccountsHistory() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("VigilObs-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let store = UsageObservationStore(directory: directory)
+        let now = Date()
+        try store.append(UsageObservation(
+            recordedAt: now,
+            accountKey: "openrouter:1",
+            providerId: "openrouter",
+            spendUSD: 10
+        ), now: now)
+        try store.append(UsageObservation(
+            recordedAt: now,
+            accountKey: "deepseek:1",
+            providerId: "deepseek",
+            spendUSD: 4
+        ), now: now)
+
+        let remaining = try store.removeAll(accountKey: "openrouter:1")
+        XCTAssertEqual(remaining.map(\.accountKey), ["deepseek:1"])
+        XCTAssertEqual(try store.load().map(\.accountKey), ["deepseek:1"])
+    }
+
+    /// Polling is on a timer, so an idle account would append an identical row
+    /// every interval and eventually evict its own baseline.
+    func testAppendSkipsRowsThatRepeatTheSameValues() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("VigilObs-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let store = UsageObservationStore(directory: directory)
+        let now = Date()
+        for offset in 0..<5 {
+            try store.append(UsageObservation(
+                recordedAt: now.addingTimeInterval(Double(offset) * 300),
+                accountKey: "openrouter:1",
+                providerId: "openrouter",
+                spendUSD: 10
+            ), now: now)
+        }
+        XCTAssertEqual(try store.load().count, 1, "Unchanged values must not accumulate rows")
+
+        try store.append(UsageObservation(
+            recordedAt: now.addingTimeInterval(1_800),
+            accountKey: "openrouter:1",
+            providerId: "openrouter",
+            spendUSD: 11
+        ), now: now)
+        XCTAssertEqual(try store.load().count, 2, "A changed value must still be recorded")
+    }
+
+    /// The oldest sample is the baseline every delta measures from; capping the
+    /// log must not silently shorten Lifetime by evicting it.
+    func testPruneKeepsEachAccountsOldestSample() {
+        let now = Date()
+        let oldest = UsageObservation(
+            recordedAt: now.addingTimeInterval(-86_400 * 30),
+            accountKey: "openrouter:1",
+            providerId: "openrouter",
+            spendUSD: 1
+        )
+        var all = [oldest]
+        for index in 0..<6_000 {
+            all.append(UsageObservation(
+                recordedAt: now.addingTimeInterval(-Double(6_000 - index)),
+                accountKey: "openrouter:1",
+                providerId: "openrouter",
+                spendUSD: Double(index) + 2
+            ))
+        }
+        let pruned = UsageObservationStore.pruned(all, now: now)
+        XCTAssertTrue(
+            pruned.contains(where: { $0.id == oldest.id }),
+            "The baseline sample must survive the entry cap"
+        )
+    }
+
+    /// openai/spend_month, github/spend_month and claude/extra_used all reset
+    /// monthly, and .week/.month/.year are rolling ranges that always straddle
+    /// a reset. `last - first` reported 0 (or a meaningless difference) there.
+    func testSpendDeltaSurvivesAMonthlyCounterReset() {
+        let now = Date()
+        let observations = [
+            observation(at: now.addingTimeInterval(-86_400 * 3), spend: 40),
+            observation(at: now.addingTimeInterval(-86_400 * 2), spend: 52),
+            // Counter resets: the provider's month rolled over.
+            observation(at: now.addingTimeInterval(-86_400), spend: 3),
+            observation(at: now, spend: 15),
+        ]
+        let delta = UsageObservationStore.spendDelta(
+            observations: observations,
+            period: .week,
+            now: now
+        )
+        let summary = delta!
+        XCTAssertTrue(summary.hasValue)
+        // 12 before the reset + 3 at the reset + 12 after it.
+        XCTAssertEqual(summary.amount, 27, accuracy: 0.001)
+    }
+
+    /// A single reading is not a delta — `last - first` over one element is
+    /// identically 0, which rendered a confident "$0.00" as the 42pt hero.
+    func testSingleObservationReportsNoSpendValue() {
+        let now = Date()
+        let delta = UsageObservationStore.spendDelta(
+            observations: [observation(at: now, spend: 47)],
+            period: .day,
+            now: now
+        )
+        XCTAssertFalse(delta!.hasValue, "One sample must not be reported as $0.00 spend")
+    }
+
+    /// A balance that rises was topped up; that tells us nothing about spend.
+    func testBalanceTopUpDoesNotCountAsNegativeSpend() {
+        let now = Date()
+        let observations = [
+            observation(at: now.addingTimeInterval(-7_200), remaining: 20),
+            observation(at: now.addingTimeInterval(-3_600), remaining: 12),
+            observation(at: now, remaining: 50),
+        ]
+        let delta = UsageObservationStore.spendDelta(
+            observations: observations,
+            period: .day,
+            now: now
+        )
+        XCTAssertEqual(delta!.amount, 8, accuracy: 0.001)
+    }
+
+    /// Home exists to surface the quota about to run out; a linked balance-only
+    /// account must not displace it.
+    func testTightestLimitOutranksABalanceHero() {
+        let claude = AccountRef(key: "claude:1", providerId: "claude", label: nil, plan: nil)
+        let openRouter = AccountRef(
+            key: "openrouter:1",
+            providerId: "openrouter",
+            label: nil,
+            plan: nil
+        )
+        let claudeSnapshot = ProviderSnapshot(
+            providerId: "claude",
+            accountKey: claude.key,
+            accountLabel: nil,
+            planLabel: nil,
+            fetchedAt: Date(),
+            status: .ok,
+            windows: [window(id: "session", used: 96, seconds: 18_000)],
+            metrics: []
+        )
+        let balanceSnapshot = ProviderSnapshot(
+            providerId: "openrouter",
+            accountKey: openRouter.key,
+            accountLabel: nil,
+            planLabel: nil,
+            fetchedAt: Date(),
+            status: .ok,
+            windows: [],
+            metrics: [
+                UsageMetric(
+                    id: "usage",
+                    label: "Credits remaining",
+                    kind: .remaining,
+                    value: 18.42,
+                    unit: "USD",
+                    secondary: false
+                )
+            ]
+        )
+        let hero = PeriodHero.summary(
+            period: .day,
+            accounts: [claude, openRouter],
+            snapshots: [claude.key: claudeSnapshot, openRouter.key: balanceSnapshot]
+        )
+        XCTAssertEqual(hero.primaryValue, "4%")
+        XCTAssertTrue(hero.title.lowercased().contains("tightest"))
+    }
+
+    /// With no windows anywhere, the balance hero is still the right answer.
+    func testBalanceHeroStillShowsWhenNoAccountReportsWindows() {
+        let openRouter = AccountRef(
+            key: "openrouter:1",
+            providerId: "openrouter",
+            label: nil,
+            plan: nil
+        )
+        let snapshot = ProviderSnapshot(
+            providerId: "openrouter",
+            accountKey: openRouter.key,
+            accountLabel: nil,
+            planLabel: nil,
+            fetchedAt: Date(),
+            status: .ok,
+            windows: [],
+            metrics: [
+                UsageMetric(
+                    id: "usage",
+                    label: "Credits remaining",
+                    kind: .remaining,
+                    value: 18.42,
+                    unit: "USD",
+                    secondary: false
+                )
+            ]
+        )
+        let hero = PeriodHero.summary(
+            period: .day,
+            accounts: [openRouter],
+            snapshots: [openRouter.key: snapshot]
+        )
+        XCTAssertEqual(hero.title, "Credits remaining")
+    }
+
+    private func observation(
+        at date: Date,
+        spend: Double? = nil,
+        remaining: Double? = nil
+    ) -> UsageObservation {
+        UsageObservation(
+            recordedAt: date,
+            accountKey: "acct:1",
+            providerId: "openrouter",
+            spendUSD: spend,
+            remainingUSD: remaining
+        )
     }
 
     private func window(

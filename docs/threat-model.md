@@ -142,6 +142,23 @@ Snapshots, account indexes, notification events, and polling ledgers live in the
 
 Snapshot and pending-notification cleanup failures are reported. Poll-ledger cleanup runs asynchronously and raises a storage warning if it fails. Credential deletion remains the privacy-critical gate.
 
+Removing an account also deletes that account's spend/balance observation history (`usage-observations.json`). Without that, dollar amounts for a removed account would persist in the container until the 400-day prune and keep feeding the Home period hero.
+
+### macOS local import and the sandbox exception
+
+The macOS build stays sandboxed (`com.apple.security.app-sandbox`). "Import from this Mac" reads credentials that another application wrote, so it requests two additional entitlements:
+
+- `com.apple.security.files.user-selected.read-only` — the file picker fallback, scoped to what the user explicitly chooses.
+- `com.apple.security.temporary-exception.files.home-relative-path.read-only` for `.claude/` and `.codex/` — read-only access to exactly those two directories in the real home.
+
+These widen the sandbox from "no filesystem access outside the container" to "read-only access to two named credential directories." The exception is resolved against the account's real home, which under the sandbox is **not** what `FileManager.homeDirectoryForCurrentUser` or `NSHomeDirectory()` return — both resolve to the container — so the code reads `getpwuid(getuid())->pw_dir` instead.
+
+Consequences accepted:
+
+- A temporary exception is reviewable by Apple and may not survive App Store review. The file-picker path is the fallback if it is refused; the menu-bar / direct-distribution build is unaffected.
+- Imported credentials are marked `source: "file"` (or `"keychain"`) and are **never auto-refreshed** — refreshing a copied refresh token would race the owning CLI's own rotation (ADR-0005). They expire when the CLI session does, and the user re-imports.
+- The Claude Keychain fallback reads a generic-password item owned by Claude Code. Under the sandbox this lookup is commonly denied, and macOS may prompt the user for access. A denial is treated as "not found" and the user is routed to the file picker or manual paste — Vigil never presents the failure as an absent sign-in.
+
 ### Background freshness
 
 iOS and WidgetKit decide when background work runs. Vigil cannot guarantee exact refresh times. Countdown rendering can remain current relative to a known reset time while the underlying usage value grows stale.
