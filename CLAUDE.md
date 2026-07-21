@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What Vigil is
 
-An on-device AI usage monitor. It polls Claude and ChatGPT/Codex subscription windows, plus 11 opt-in API-key providers (OpenRouter, DeepSeek, Moonshot/Kimi and its China variant, MiniMax and its China variant, OpenAI, GitHub Copilot, and the experimental xAI, Z.ai, and Cursor), directly from the user's phone or Mac. There is **no Vigil server**. Credentials are provisioned on the phone and live in the device Keychain (ADR-0001): Claude via on-device "Sign in with Claude" OAuth, Codex via OpenAI's device-code sign-in, and each API-key provider by pasting a key. The `vigil1` QR handoff via `npx vigil-link` is an **optional** way to reuse a Claude Code / Codex sign-in that already exists on a computer.
+An on-device AI usage monitor. It polls Claude and ChatGPT/Codex subscription windows, plus 12 opt-in API-key providers (OpenRouter, DeepSeek, Moonshot/Kimi and its China variant, MiniMax and its China variant, OpenAI, GitHub Copilot, and the experimental xAI, Z.ai, Cursor, and Kimi K3 coding plan), directly from the user's phone or Mac. There is **no Vigil server**. Credentials are provisioned on the phone and live in the device Keychain (ADR-0001): Claude via on-device "Sign in with Claude" OAuth, Codex via OpenAI's device-code sign-in, and each API-key provider by pasting a key. The `vigil1` QR handoff via `npx vigil-link` is an **optional** way to reuse a Claude Code / Codex sign-in that already exists on a computer.
 
 ## Commands
 

@@ -4,6 +4,24 @@
 
 Anything that changes shipped behavior gets an entry here: `vigil-link` npm versions, TestFlight app builds, and protocol or registry changes that affect both. Provider-schema and local-state migration notes are recorded per release so an existing installation can be upgraded deliberately.
 
+## 0.13.0 (7) — TestFlight internal, 2026-07-20
+
+Adds the flagship coding-plan monitor requested alongside the Models view:
+
+- **Kimi K3 coding plan** (`kimi_code`, opt-in · experimental). A new provider
+  that reads Kimi's coding-plan usage endpoint (`api.kimi.com/coding/v1/usages`)
+  and surfaces **session and weekly** limit windows — distinct from the existing
+  balance-only Moonshot (Kimi) provider. Added on the phone (or via QR/paste)
+  with a coding-plan key (`KIMI_CODE_API_KEY`), it feeds the new Models view so
+  Kimi's per-plan caps sit next to Claude's model-scoped weeklies and Codex's
+  per-model lanes. Registry, TS + Swift mappers, fixtures, and the Swift mirror
+  land in lockstep (14 providers; CLI 163 tests, VigilKit 89 tests green).
+- **Honest labeling.** The endpoint shape is modeled, not yet live-verified, so
+  the provider carries the visible **Experimental** marker everywhere and needs a
+  real coding-plan key to confirm the exact field/selector names before it's
+  promoted. Docs (README, getting-started, FAQ, provider-spec, threat model)
+  updated to match.
+
 ## 0.13.0 (6) — TestFlight internal, 2026-07-20
 
 Follow-up to the mobile-first release:

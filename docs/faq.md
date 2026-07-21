@@ -71,6 +71,7 @@ No. Claude and ChatGPT/Codex both sign in right in the app (a browser approval a
 - **OpenAI** needs a read-only **Admin** key, not a project (`sk-proj-...`) key — the billing endpoint rejects project keys.
 - **GitHub Copilot** needs a fine-grained token *and* your username; org-managed seats report empty usage.
 - **Moonshot** and **MiniMax** each have separate China providers — use the China variant for China-platform keys.
-- **xAI**, **Z.ai/GLM**, and **Cursor** are marked **experimental**: their endpoints are undocumented and can drift, and Cursor's session cookie expires (re-paste when it does).
+- **xAI**, **Z.ai/GLM**, **Cursor**, and **Kimi K3** are marked **experimental**: their endpoints are undocumented and can drift, and Cursor's session cookie expires (re-paste when it does).
+- **Kimi K3** is the coding-plan usage view — session and weekly limits from a coding-plan key (`KIMI_CODE_API_KEY`), separate from the balance-only **Moonshot (Kimi)** provider.
 
 See the [provider spec](provider-spec.md) for verified endpoint facts and the researched backlog.

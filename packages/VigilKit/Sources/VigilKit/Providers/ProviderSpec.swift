@@ -683,10 +683,35 @@ public enum ProviderRegistry {
         manualEntryHint: "On cursor.com while signed in, open DevTools -> Application -> Cookies, copy the WorkosCursorSessionToken value, and paste it here. Experimental: undocumented web API; re-paste when the session expires."
     )
 
+    public static let kimiCode = ProviderSpec(
+        id: "kimi_code",
+        displayName: "Kimi K3",
+        auth: "api_key_bearer",
+        experimental: true,
+        usageMethod: "GET",
+        usageURL: "https://api.kimi.com/coding/v1/usages",
+        headers: gatewayHeaders(),
+        poll: standardPoll,
+        responseFields: ResponseFields(
+            utilization: "used_percent",
+            resetsAt: "reset_at",
+            windowSeconds: nil,
+            utilizationKind: .used,
+            allowStringNumbers: true
+        ),
+        planKey: nil,
+        additionalWindows: nil,
+        windows: [
+            WindowMapping(id: "session", sourceKey: "limits[type=session]", resetFormat: .unixSeconds, windowSeconds: 18000, secondary: false),
+            WindowMapping(id: "weekly", sourceKey: "usage", resetFormat: .unixSeconds, windowSeconds: 604_800, secondary: false),
+        ],
+        manualEntryHint: "Paste your Kimi Code API key (KIMI_CODE_API_KEY) — the coding-plan key from platform.kimi.ai, separate from the Moonshot balance key."
+    )
+
     public static let all: [ProviderSpec] = [
         claude, codex, openRouter, deepSeek,
         moonshot, moonshotCN, miniMax, miniMaxCN,
-        openAI, gitHub, xAI, zAI, cursor,
+        openAI, gitHub, xAI, zAI, cursor, kimiCode,
     ]
 
     public static func spec(for id: String) -> ProviderSpec? {

@@ -25,6 +25,7 @@ describe("provider registry selection", () => {
       "xai",
       "zai",
       "cursor",
+      "kimi_code",
     ]);
   });
 

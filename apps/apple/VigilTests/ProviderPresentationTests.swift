@@ -11,9 +11,9 @@ import VigilKit
 final class ProviderPresentationTests: XCTestCase {
     // MARK: - Manual entry provider coverage
 
-    func testRegistryExposesAllThirteenProvidersWithDistinctIds() {
+    func testRegistryExposesAllFourteenProvidersWithDistinctIds() {
         XCTAssertEqual(
-            ProviderRegistry.all.count, 13,
+            ProviderRegistry.all.count, 14,
             "The manual-entry picker renders ProviderRegistry.all — a missing provider cannot be added by hand"
         )
         XCTAssertEqual(

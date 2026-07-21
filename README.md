@@ -82,6 +82,7 @@ Thirteen providers ship in the registry. Claude and ChatGPT/Codex are enabled by
 | DeepSeek | opt-in | Balance by currency | `DEEPSEEK_API_KEY` |
 | Moonshot (Kimi) | opt-in | Balance | `MOONSHOT_API_KEY` |
 | Moonshot (Kimi) China | opt-in | Balance | `MOONSHOT_CN_API_KEY` |
+| Kimi K3 (coding plan) | opt-in · experimental | Session + weekly coding-plan windows | `KIMI_CODE_API_KEY` |
 | MiniMax Coding Plan | opt-in | Session + weekly windows (general and video models) | `MINIMAX_CODING_API_KEY` |
 | MiniMax Coding Plan China | opt-in | Session + weekly windows (general and video models) | `MINIMAX_CN_CODING_API_KEY` |
 | OpenAI API | opt-in | Month-to-date spend | `OPENAI_ADMIN_KEY` (Admin key) |

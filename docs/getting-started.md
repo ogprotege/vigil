@@ -32,7 +32,7 @@ Vigil exchanges the code for its own token that **renews itself automatically** 
 
 ### Add an API-key provider (on phone, no computer)
 
-Every API-key provider — OpenRouter, DeepSeek, Moonshot, MiniMax, OpenAI, GitHub Copilot, xAI, Z.ai, Cursor — is added entirely on the phone:
+Every API-key provider — OpenRouter, DeepSeek, Moonshot, MiniMax, OpenAI, GitHub Copilot, xAI, Z.ai, Cursor, Kimi K3 — is added entirely on the phone:
 
 1. Tap **Add account → Add a provider directly**.
 2. Pick the provider. Vigil asks only for the field(s) it needs and shows a hint for where to find them (see the table below).
@@ -83,6 +83,7 @@ Claude and ChatGPT/Codex sign in right on the phone (**Add account → Sign in w
 | **xAI API** *(experimental)* | A **Management Key** from **console.x.ai → Settings → Management Keys**, plus your team ID (from console URLs). Env vars: `XAI_MANAGEMENT_KEY` + `XAI_TEAM_ID`. |
 | **Z.ai / GLM Coding Plan** *(experimental)* | A GLM Coding Plan API key from **z.ai → Manage API Key**. Env var: `ZAI_API_KEY`. |
 | **Cursor** *(experimental)* | While signed in at cursor.com, open **DevTools → Application → Cookies** and copy the `WorkosCursorSessionToken` value. It expires; re-paste when it does. Env var: `CURSOR_SESSION_TOKEN`. |
+| **Kimi K3 (coding plan)** *(experimental)* | Your Kimi **coding-plan** API key from **platform.kimi.ai** — separate from the Moonshot balance key above; this one reports session and weekly coding-plan limits. Env var: `KIMI_CODE_API_KEY`. |
 
 To link several providers from the terminal in one QR session, set the env vars and pass `--provider`:
 
