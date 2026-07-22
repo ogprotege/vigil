@@ -7,21 +7,39 @@
   "seven_day_cowork": null,
   "limits": [
     {
-      "kind": "weekly_scoped",
-      "scope": { "model": { "display_name": "Fable" } },
-      "utilization": 55,
-      "resets_at": "2026-07-27T07:00:00Z"
+      "group": "session",
+      "is_active": false,
+      "kind": "session",
+      "percent": 70,
+      "resets_at": "2026-07-25T18:00:00.392525+00:00",
+      "scope": null,
+      "severity": "normal"
     },
     {
+      "group": "weekly",
+      "is_active": true,
+      "kind": "weekly_scoped",
+      "percent": 55,
+      "resets_at": "2026-07-27T07:00:00.392792+00:00",
+      "scope": { "model": { "display_name": "Fable", "id": null }, "surface": null },
+      "severity": "warning"
+    },
+    {
+      "group": "weekly",
+      "is_active": false,
       "kind": "monthly_overage",
-      "scope": { "model": { "display_name": "Ignore Me" } },
-      "utilization": 5,
-      "resets_at": "2026-07-27T07:00:00Z"
+      "percent": 5,
+      "resets_at": "2026-07-27T07:00:00Z",
+      "scope": { "model": { "display_name": "Ignore Me", "id": null }, "surface": null },
+      "severity": "normal"
     },
     {
+      "group": "weekly",
+      "is_active": false,
       "kind": "weekly_scoped",
-      "scope": { "model": { "display_name": "Broken" } },
-      "resets_at": "2026-07-27T07:00:00Z"
+      "resets_at": "2026-07-27T07:00:00Z",
+      "scope": { "model": { "display_name": "Broken", "id": null }, "surface": null },
+      "severity": "normal"
     }
   ],
   "extra_usage": {

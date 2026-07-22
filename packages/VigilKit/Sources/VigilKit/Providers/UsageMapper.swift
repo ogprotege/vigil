@@ -128,7 +128,7 @@ public enum UsageMapper {
         switch format {
         case .iso8601:
             guard let string = raw as? String, let date = parseISO8601(string) else { return nil }
-            return .some(date)
+            return .some(wholeSeconds(date))
         case .unixSeconds, .unixMillis:
             guard let numeric = windowNumber(raw, lenient: lenient) else { return nil }
             let milliseconds = format == .unixMillis ? numeric : numeric * 1_000
@@ -137,8 +137,19 @@ public enum UsageMapper {
             guard milliseconds.isFinite,
                   abs(milliseconds) <= 8_640_000_000_000_000
             else { return nil }
-            return .some(Date(timeIntervalSince1970: milliseconds / 1_000))
+            return .some(wholeSeconds(Date(timeIntervalSince1970: milliseconds / 1_000)))
         }
+    }
+
+    /// Truncates to whole seconds, matching the TS mapper's `toIso`, which
+    /// formats with `toISOString()` and strips the `.mmm` before returning.
+    ///
+    /// Claude's `limits[]` entries carry microsecond precision
+    /// (`...T07:00:00.392792+00:00`), so without this the two mappers produce
+    /// timestamps that differ by a fraction of a second — identical when
+    /// printed, unequal when compared, and impossible to express in a fixture.
+    private static func wholeSeconds(_ date: Date) -> Date {
+        Date(timeIntervalSince1970: floor(date.timeIntervalSince1970))
     }
 
     private static func readBucket(

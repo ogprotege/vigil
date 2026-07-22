@@ -156,7 +156,7 @@ final class UsagePresentationTests: XCTestCase {
         XCTAssertEqual(result.first?.account, codex)
     }
 
-    func testModelLimitsIncludesCodingPlanPrimaryWindowsWhenNoSpecialCaps() {
+    func testModelLimitsExcludesPrimaryPlanWindows() {
         let kimi = AccountRef(key: "kimi_code:one", providerId: "kimi_code", label: nil, plan: nil)
         let openrouter = AccountRef(key: "openrouter:one", providerId: "openrouter", label: nil, plan: nil)
         let kimiSnapshot = snapshot(
@@ -186,10 +186,14 @@ final class UsagePresentationTests: XCTestCase {
             snapshots: [kimi.key: kimiSnapshot, openrouter.key: openrouterSnapshot]
         )
 
-        // Kimi's primary session/weekly fill Models when there are no special
-        // lanes; metric-only OpenRouter contributes nothing.
-        XCTAssertEqual(result.map { $0.window.id }, ["session", "weekly"])
-        XCTAssertEqual(result.map(\.account.key), [kimi.key, kimi.key])
+        // Models lists per-model caps ONLY. An account whose windows are just
+        // the primary session/weekly plan quotas contributes nothing here —
+        // that data belongs on Home. Surfacing it under "Per-model caps"
+        // labelled a plan window as a model, which is simply untrue.
+        XCTAssertTrue(
+            result.isEmpty,
+            "primary session/weekly windows must not appear on the Models tab"
+        )
     }
 
     func testWatchlineChoosesTightestWindowAcrossAccounts() throws {

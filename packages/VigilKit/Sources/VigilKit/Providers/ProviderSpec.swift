@@ -359,7 +359,13 @@ public enum ProviderRegistry {
             resetFormat: .iso8601,
             idPrefix: "weekly_scoped",
             labelKey: "scope.model.display_name",
-            windowSeconds: 604_800
+            windowSeconds: 604_800,
+            // limits[] entries carry `percent`, NOT the top-level
+            // `utilization` key — verified against the live endpoint
+            // 2026-07-21. Without this override every model-scoped window is
+            // silently dropped, which is why the Models tab was empty while
+            // session and weekly mapped fine.
+            fields: WindowFieldOverride(utilization: "percent", resetsAt: "resets_at")
         ),
         windows: [
             WindowMapping(id: "session", sourceKey: "five_hour", resetFormat: .iso8601, windowSeconds: 18000, secondary: false),
