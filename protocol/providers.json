@@ -94,13 +94,20 @@
       ],
       "additionalWindows": {
         "sourceKey": "limits",
-        "filter": { "key": "kind", "equals": "weekly_scoped" },
+        "filter": {
+          "key": "kind",
+          "equals": "weekly_scoped"
+        },
         "idKey": "scope.model.display_name",
         "idPrefix": "weekly_scoped",
         "labelKey": "scope.model.display_name",
         "resetFormat": "iso8601",
         "windowSeconds": 604800,
-        "secondary": true
+        "secondary": true,
+        "fields": {
+          "utilization": "percent",
+          "resetsAt": "resets_at"
+        }
       },
       "metricMappings": [
         {
@@ -145,7 +152,14 @@
         "authorizeUrl": "https://auth.openai.com/oauth/authorize",
         "tokenUrl": "https://auth.openai.com/oauth/token",
         "clientId": "app_EMoamEEZ73f0CkXaXp7hrann",
-        "scopes": ["openid", "profile", "email", "offline_access", "api.connectors.read", "api.connectors.invoke"],
+        "scopes": [
+          "openid",
+          "profile",
+          "email",
+          "offline_access",
+          "api.connectors.read",
+          "api.connectors.invoke"
+        ],
         "loopbackPort": 1455,
         "manualRedirectUri": "https://auth.openai.com/deviceauth/callback",
         "deviceCodeUrl": "https://auth.openai.com/api/accounts/deviceauth/usercode",

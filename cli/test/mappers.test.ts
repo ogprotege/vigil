@@ -168,8 +168,8 @@ describe("schema-drift tolerance", () => {
     const mapped = mapUsageResponse(registry.providers.claude, {
       seven_day: { utilization: 40, resets_at: "2026-07-27T07:00:00Z" },
       limits: [
-        { kind: "weekly_scoped", scope: { model: { display_name: "Fable" } }, utilization: 55, resets_at: "2026-07-27T07:00:00Z" },
-        { kind: "monthly_overage", scope: { model: { display_name: "Ignore" } }, utilization: 5, resets_at: "2026-07-27T07:00:00Z" },
+        { kind: "weekly_scoped", scope: { model: { display_name: "Fable" } }, percent: 55, resets_at: "2026-07-27T07:00:00.392792+00:00" },
+        { kind: "monthly_overage", scope: { model: { display_name: "Ignore" } }, percent: 5, resets_at: "2026-07-27T07:00:00Z" },
         { kind: "weekly_scoped", scope: { model: { display_name: "Broken" } }, resets_at: "2026-07-27T07:00:00Z" },
       ],
     });
@@ -177,6 +177,9 @@ describe("schema-drift tolerance", () => {
     expect(scoped.map((w) => [w.id, w.label])).toEqual([["weekly_scoped_fable", "Fable"]]);
     expect(scoped[0]!.utilization).toBe(55);
     expect(scoped[0]!.windowSeconds).toBe(604800);
+    // Live entries carry microsecond precision; both mappers normalize to
+    // whole seconds so a fixture can express the result.
+    expect(scoped[0]!.resetsAt).toBe("2026-07-27T07:00:00Z");
   });
 
   it("keeps a scoped window but drops an over-long label", () => {
@@ -184,7 +187,7 @@ describe("schema-drift tolerance", () => {
     const mapped = mapUsageResponse(registry.providers.claude, {
       seven_day: { utilization: 40, resets_at: "2026-07-27T07:00:00Z" },
       limits: [
-        { kind: "weekly_scoped", scope: { model: { display_name: longName } }, utilization: 33, resets_at: "2026-07-27T07:00:00Z" },
+        { kind: "weekly_scoped", scope: { model: { display_name: longName } }, percent: 33, resets_at: "2026-07-27T07:00:00Z" },
       ],
     });
     const scoped = mapped!.windows.find((w) => w.id.startsWith("weekly_scoped"));
