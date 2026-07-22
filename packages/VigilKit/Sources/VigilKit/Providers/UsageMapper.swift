@@ -1,7 +1,7 @@
 import Foundation
 
-/// Data-driven response mapper — the Swift twin of cli/src/providers/map.ts.
-/// FixtureParityTests pins both to the same protocol/fixtures files.
+/// Data-driven response mapper pinned by FixtureParityTests to the committed
+/// protocol/fixtures response and expected-output pairs.
 public enum UsageMapper {
     private struct InvalidPathValue {}
 

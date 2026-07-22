@@ -9,14 +9,12 @@ import WidgetKit
 #endif
 
 /// Root observable state: linked accounts, their snapshots, and the shared
-/// fetch pipeline. All fetches — foreground timer, pull-to-refresh, background
-/// task, menu bar — go through UsageService and therefore the ledger.
+/// fetch pipeline. All fetches, including the foreground timer, pull-to-refresh,
+/// background task, and widgets, go through UsageService and the shared ledger.
 @MainActor
 @Observable
 final class AppModel {
     private static let log = Logger(subsystem: "app.vigil", category: "model")
-    static let maximumFutureLinkSkewSeconds = QRDecoder.maximumFutureSkewSeconds
-
     private(set) var accounts: [AccountRef] = []
     private(set) var snapshots: [String: ProviderSnapshot] = [:]
     /// Ledger-imposed earliest next fetch per account (for "next check at").
@@ -37,7 +35,7 @@ final class AppModel {
     let scheduler: FetchScheduler
     let snapshotStore: SnapshotStore
     let pendingEvents: PendingEventStore
-    let notifications: NotificationManager
+    let notifications: any NotificationManaging
     private let accountIndexURL: URL
     private let observationStore: UsageObservationStore
     private struct StorageNotice {
@@ -62,13 +60,14 @@ final class AppModel {
 
     init(
         vault: (any CredentialsStore)? = nil,
-        directory: URL = SharedContainer.directory
+        directory: URL = SharedContainer.directory,
+        notifications: any NotificationManaging = NotificationManager()
     ) {
         self.vault = vault ?? SharedKeychain.credentialsStore()
         self.scheduler = FetchScheduler(store: FileLedgerStore(directory: directory))
         self.snapshotStore = SnapshotStore(directory: directory)
         self.pendingEvents = PendingEventStore(directory: directory)
-        self.notifications = NotificationManager()
+        self.notifications = notifications
         self.accountIndexURL = directory.appendingPathComponent("account-index.json")
         self.observationStore = UsageObservationStore(directory: directory)
         self.lockEnabled = UserDefaults.standard.bool(forKey: "app.vigil.lockEnabled")
@@ -192,12 +191,9 @@ final class AppModel {
             default: break
             }
         }
-        // Only an explicit "mint" source proves Vigil owns a renewable pair,
-        // and the CLI writes `src` ONLY for minted credentials. A Claude or
-        // Codex sign-in handed over by QR therefore arrives with no source —
-        // guessing "OAuth" from `spec.oauth != nil` labelled exactly those
-        // copied, never-refreshed credentials as a renewing sign-in, which is
-        // the one direction the label must not be wrong in.
+        // Only an explicit "mint" source proves Vigil owns a renewable pair.
+        // Never infer OAuth from provider capability because manually pasted
+        // Claude or Codex credentials do not belong to Vigil's refresh flow.
         if let spec = ProviderRegistry.spec(for: account.providerId), spec.oauth != nil {
             return "Linked"
         }
@@ -208,12 +204,10 @@ final class AppModel {
 
     enum LinkError: LocalizedError {
         case verifyFailed(SnapshotStatus)
-        case noAccounts
         case unsupportedProvider(String)
         case invalidCredentials(String)
         case wouldReplace([String])
         case verificationDeferred(Date?)
-        case futureDated
         case persistence(String)
 
         var errorDescription: String? {
@@ -229,7 +223,6 @@ final class AppModel {
                 default:
                     return "Verification failed (\(status.rawValue))."
                 }
-            case .noAccounts: return "That link code contained no accounts."
             case .unsupportedProvider(let id):
                 return "\"\(id)\" isn't supported by this version of Vigil. Update the app for the latest provider support."
             case .invalidCredentials(let reason):
@@ -238,64 +231,9 @@ final class AppModel {
                 return "This replaces the already-linked \(labels.joined(separator: ", "))."
             case .verificationDeferred:
                 return "Vigil's polling safety gate deferred verification. Try again in a few minutes, or save now and verify on the next allowed refresh."
-            case .futureDated:
-                return "This link code is dated in the future. Check both devices' clocks, then create a fresh code."
             case .persistence(let message):
                 return message
             }
-        }
-    }
-
-    /// Adds every account in a decoded vigil1 payload: live verify first,
-    /// persist to Keychain only on success (docs/qr-protocol.md receiver
-    /// algorithm). Throws .verifyFailed(.network) so the UI can offer
-    /// "save anyway", and .wouldReplace so the UI confirms overwrites.
-    func addAccounts(
-        from payload: LinkPayload,
-        allowUnverified: Bool = false,
-        allowReplace: Bool = false,
-        now: Date = Date()
-    ) async throws {
-        try ensureAccountIndexUsable()
-        guard !payload.accounts.isEmpty else { throw LinkError.noAccounts }
-        guard payload.iat <= Int(now.timeIntervalSince1970) + Self.maximumFutureLinkSkewSeconds else {
-            throw LinkError.futureDated
-        }
-
-        let incoming = payload.accounts.map { linked in
-            Credentials(
-                providerId: linked.p,
-                accessToken: linked.c.at,
-                refreshToken: linked.c.rt,
-                expiresAt: linked.c.exp.map { Date(timeIntervalSince1970: TimeInterval($0)) },
-                accountId: linked.c.acct,
-                label: linked.label,
-                plan: linked.meta?.plan,
-                source: linked.c.src
-            )
-        }
-        for credentials in incoming where ProviderRegistry.spec(for: credentials.providerId) == nil {
-            throw LinkError.unsupportedProvider(credentials.providerId)
-        }
-        for credentials in incoming {
-            try Self.validate(credentials)
-        }
-        let incomingKeys = incoming.map(Self.accountKey(for:))
-        guard Set(incomingKeys).count == incomingKeys.count else {
-            throw LinkError.invalidCredentials("duplicate account entries")
-        }
-        // Conflicts checked up front so a multi-account payload never stores
-        // half its accounts before asking about replacement.
-        if !allowReplace {
-            let conflicts = incoming.compactMap { creds -> String? in
-                let key = Self.accountKey(for: creds)
-                guard let existing = accounts.first(where: { $0.key == key }) else { return nil }
-                return existing.label ?? existing.displayName
-            }
-            guard conflicts.isEmpty else { throw LinkError.wouldReplace(conflicts) }
-        }
-        for credentials in incoming {
-            try await addAccount(credentials: credentials, allowUnverified: allowUnverified, allowReplace: true)
         }
     }
 
@@ -360,7 +298,7 @@ final class AppModel {
             switch verifiedSnapshot?.status {
             case .some(let status) where status == .ok || status == .rateLimited:
                 // A genuine provider response — even a 429 — proves the
-                // credential reached the provider (same rule as the CLI).
+                // credential reached the provider.
                 break
             case .some(let status):
                 throw LinkError.verifyFailed(status)
@@ -796,11 +734,8 @@ final class AppModel {
             startForegroundTimer()
             Task { await drainAllPendingEvents() }
         default:
-            #if os(iOS)
             foregroundTimer?.cancel()
             foregroundTimer = nil
-            #endif
-            // macOS: keep ticking — the menu bar is the always-fresh surface.
         }
     }
 
@@ -812,58 +747,6 @@ final class AppModel {
                 try? await Task.sleep(for: .seconds(60))
             }
         }
-    }
-
-    // MARK: - Menu bar (M7)
-
-    /// "C 42% left · X 71% left" — the tightest remaining percentage for
-    /// each visible account, with direction stated rather than implied.
-    /// Degraded or stale accounts carry a warning mark: the most-glanced
-    /// surface must not silently show old numbers as fresh.
-    var menuBarTitle: String {
-        let visibleAccounts = Array(accounts.prefix(2))
-        var parts = visibleAccounts.map { account -> String in
-            let accountMark = menuBarAccountMark(for: account)
-            guard let snapshot = snapshots[account.key] else { return "\(accountMark) –" }
-            let degraded = SnapshotFreshness.isDegraded(
-                status: snapshot.status,
-                fetchedAt: snapshot.fetchedAt
-            )
-            let warning = degraded ? " ⚠︎" : ""
-            if let tightest = snapshot.windows.min(by: {
-                UsagePresentation.remainingPercent(for: $0)
-                    < UsagePresentation.remainingPercent(for: $1)
-            }) {
-                let remaining = UsagePresentation.remainingPercent(for: tightest)
-                return "\(accountMark) \(Int(remaining.rounded()))% left\(warning)"
-            }
-            if let metric = snapshot.metrics.first(where: { !$0.secondary })
-                ?? snapshot.metrics.first {
-                return "\(accountMark) \(Self.compactMetric(metric))\(warning)"
-            }
-            return "\(accountMark) –\(warning)"
-        }
-        if accounts.count > visibleAccounts.count {
-            parts.append("+\(accounts.count - visibleAccounts.count)")
-        }
-        return parts.isEmpty ? "Vigil" : parts.joined(separator: " · ")
-    }
-
-    private func menuBarAccountMark(for account: AccountRef) -> String {
-        let letter = account.providerId == "claude"
-            ? "C"
-            : account.providerId == "codex"
-                ? "X"
-                : String(account.displayName.prefix(1))
-        let matchingAccounts = accounts.filter { $0.providerId == account.providerId }
-        guard matchingAccounts.count > 1 else { return letter }
-
-        if let label = account.label?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !label.isEmpty {
-            return "\(letter):\(String(label.prefix(10)))"
-        }
-        let index = (matchingAccounts.firstIndex(of: account) ?? 0) + 1
-        return "\(letter)\(index)"
     }
 
     private func reloadWidgets() {
@@ -920,13 +803,6 @@ final class AppModel {
                 priority: 2
             )
         }
-    }
-
-    private static func compactMetric(_ metric: UsageMetric) -> String {
-        let value = metric.value.formatted(
-            .number.precision(.fractionLength(0...2))
-        )
-        return metric.unit.map { "\(value) \($0)" } ?? value
     }
 
     private static func validate(_ credentials: Credentials) throws {

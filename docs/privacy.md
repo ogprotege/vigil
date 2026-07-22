@@ -2,58 +2,54 @@
 
 Vigil has no collection server, Vigil account, analytics SDK, advertising SDK, or cloud synchronization service.
 
-When you activate a provider, the CLI or app sends that provider your credential and a usage request over TLS. The provider can observe the request under its own privacy policy. Vigil does not proxy, collect, sell, or receive that traffic.
+When a user activates a provider, Vigil sends that provider the required credential and usage request over TLS. The provider can observe the request under its own privacy policy. Vigil does not proxy, collect, sell, or receive that traffic.
 
-## What stays on your devices
+## Credentials
 
-### Credentials
+Credentials are created or entered on the iPhone:
 
-Credentials can exist in:
+- Claude browser approval returns a code that Vigil exchanges for its own credentials.
+- Codex device authorization returns Vigil's own credentials after the user approves the displayed code.
+- Other providers use a key, account identifier, or session credential pasted into the app.
 
-- files or Keychain items created by provider-owned tools on your computer;
-- environment variables supplied to `vigil-link`;
-- `vigil-link` process memory;
-- terminal output, scrollback, or QR pixels during linking;
-- the phone's browser and app memory during an on-device sign-in (Sign in with Claude / Sign in with Codex), before the token is stored in Apple Keychain;
-- Apple Keychain after the app accepts the account.
+The app stores accepted credentials in Apple Keychain with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. They do not sync through iCloud Keychain. Each device must be set up independently.
 
-The Apple app uses `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. The credentials do not sync through iCloud Keychain. Each device must be linked separately.
+The app and widget use an explicit shared Keychain access group. During an upgrade, the app can migrate a verified legacy app-only item into that group. The legacy item remains until explicit account removal.
 
-The app and widget use an explicit shared Keychain access group. On upgrade,
-the app reads the shared item first and can copy a verified legacy app-only
-item into that group. The legacy item remains until explicit account removal.
+Sign-in codes and pasted credentials can exist briefly in browser, clipboard, keyboard, and app process memory. Avoid third-party keyboards or screen sharing while entering them. Clear a sensitive clipboard after setup.
 
-The CLI never writes credentials to its cache.
-
-### Usage and account metadata
+## Usage and account metadata
 
 The Apple App Group container stores:
 
 - account references and labels;
-- current and previous usage snapshots;
+- current and prior usage snapshots;
+- spend and balance observation history;
 - pending threshold events;
-- poll timestamps, leases, and 429 counters.
+- poll timestamps, leases, and rate-limit counters.
 
-The widget reads this container. These files contain no bearer credential, but they can reveal subscription, usage, spending, balance, and timing information.
-
-The CLI stores only provider-level poll timestamps and 429 counters under the user cache directory. It does not store returned usage values.
+The widget reads this container. These files contain no bearer credential, but they can reveal subscriptions, usage, spending, balances, and timing.
 
 ## Account removal
 
-Credential deletion is the critical privacy step. Vigil does not remove an account from its index or UI unless Keychain confirms deletion. If deletion fails, the app keeps the account visible and reports the error.
+Credential deletion is the critical privacy step. Vigil does not remove an account from its index or UI unless Keychain confirms deletion. If deletion fails, the account remains visible and the app reports the error.
 
-Snapshot, event, and ledger cleanup follows. Snapshot and event deletion failures are reported, and an asynchronous ledger cleanup failure raises the app's storage warning. A stale local usage file is less sensitive than a bearer token, but it is still local metadata and should be considered when disposing of a device or debugging a failed removal.
+Snapshot, observation, event, and ledger cleanup follows. Cleanup failures are surfaced because local usage and billing metadata remains sensitive even without a bearer token.
 
-## QR warning
+## Network destinations
 
-`vigil1` QR and paste payloads are compressed plaintext. Anyone who can see the screen, capture terminal scrollback, read a pasted payload, or obtain a screenshot can recover the credentials. A 10-minute age check limits replay through Vigil. It does not revoke or encrypt the underlying credential.
+Vigil contacts only:
 
-Link in private. Do not screen-share, record, save, or reuse the code. Revoke a credential if exposure is suspected.
+- provider authorization and token endpoints used for Claude or Codex sign-in;
+- usage or billing endpoints for providers the user activates;
+- Apple services used by iOS, TestFlight, notifications, and WidgetKit.
+
+Vigil does not send provider data to a developer-operated service.
 
 ## App Store privacy label
 
-Vigil itself does not collect data. The intended App Store label is **Data Not Collected** because no data is transmitted to the developer or a Vigil service.
+The intended App Store privacy label is **Data Not Collected** because no data is transmitted to the developer or a Vigil service.
 
-This claim does not mean “no network traffic.” Activated provider requests go directly to Anthropic, OpenAI, OpenRouter, DeepSeek, or another provider added by the user. Those providers receive the request.
+This does not mean there is no network traffic. Each activated provider receives direct requests and applies its own privacy policy.
 
-See [threat-model.md](threat-model.md) for trust boundaries, accepted risks, and out-of-scope attacks.
+See [Threat model](threat-model.md) for trust boundaries, accepted risks, and exclusions.

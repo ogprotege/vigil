@@ -1,195 +1,153 @@
 # Threat model and limitations
 
-This document defines the security claim Vigil can defend. It does not claim that a compromised computer, jailbroken phone, malicious provider, or recorded screen is safe.
+Vigil is an iOS-only local client. It has no collection server. This document states what it protects, where trust changes hands, and what remains outside the design.
 
 ## Assets
 
-- OAuth access and refresh tokens;
-- API keys;
-- provider account IDs;
-- account labels and plan names;
-- usage windows, spend, limits, and balances;
-- polling timestamps and rate-limit history.
-
-Credentials are the highest-risk assets. Usage and account metadata are less sensitive, but they can reveal work patterns, subscription level, and spending.
+- provider access and refresh credentials;
+- API keys, management keys, session cookies, and account identifiers;
+- usage windows, reset times, balances, spend, and plan labels;
+- account index and user-provided labels;
+- poll leases, rate-limit state, observation history, and notification events;
+- release signing credentials and provisioning profiles used outside the repository.
 
 ## Trust boundaries
 
-Data crosses these boundaries:
+### iPhone and Keychain
 
-1. a provider OAuth browser session or device-code approval into the Vigil app (on-device Sign in with Claude / Sign in with Codex);
-2. a directly pasted API key into the Vigil app;
-3. provider-owned CLI files or macOS Keychain into `vigil-link` — now an optional path for reusing a sign-in already present on a computer;
-4. the CLI process into terminal output or a QR image;
-5. the QR, paste code, or `vigil1:` URL into the Vigil app;
-6. the app into Apple Keychain and the App Group container;
-7. the app or CLI over TLS to the activated provider;
-8. the app's App Group container into the widget extension.
+The app stores credentials in Apple Keychain with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. The app and widget share access through the configured Keychain group.
 
-Vigil has no application server, account service, telemetry collector, or cloud relay.
+Keychain protects credentials at rest under Apple's platform security model. Vigil does not add application-layer encryption around Keychain values.
+
+### App Group container
+
+The app and widget share snapshots, account metadata, poll leases, observation history, and notification events through `group.app.vigil.shared`.
+
+These files contain no bearer credential. They can still reveal account relationships, usage, balance, spending, and timing. Apple sandboxing and device data protection guard them.
+
+### Provider authorization pages
+
+Claude and Codex sign-in opens provider-controlled web pages. Credentials, passwords, multifactor prompts, and approval decisions remain inside the provider's authentication surface.
+
+Vigil receives an authorization code or device-authorization result and exchanges it with the provider's token endpoint. It does not receive the user's provider password.
+
+### Provider usage endpoints
+
+The device sends credentials and requests directly to each activated provider over TLS. The provider sees the request and applies its own authentication, retention, and privacy policies.
+
+No request passes through infrastructure operated by Vigil.
+
+### Apple services
+
+iOS, TestFlight, background tasks, notifications, and WidgetKit remain under Apple's platform controls. Vigil cannot guarantee when background work will execute.
 
 ## Controls
 
-### Credentials
+### Credential handling
 
-- Apple credentials use Keychain with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
-- `ThisDeviceOnly` prevents iCloud Keychain migration and sync.
-- The app and widget share an access group because the widget may perform a gated refresh.
-- Removing an account does not update the account index until Keychain confirms credential deletion.
-- A rotated refresh token must be saved before Vigil retries the provider request.
-- The CLI keeps credentials in process memory and never writes them to its safety cache.
+- Every credential is minted or entered on the iPhone.
+- Vigil refreshes only credentials it minted.
+- Manually pasted tokens and keys are treated as externally owned.
+- Credentials never enter the App Group snapshot store.
+- Account removal requires confirmed Keychain deletion before the UI drops the account.
+- Sensitive signing files are excluded from and rejected by repository checks.
 
-### QR handoff
+### OAuth and device authorization
 
-- The CLI obtains consent before printing credentials. An interactive run
-  prompts y/N. In `--json` mode, or when stdin is not a terminal, the CLI
-  refuses to print credentials and exits 1 unless `--yes` grants explicit
-  consent. `--yes` skips the prompt and prints a warning on stderr.
-- Terminal screen and scrollback clearing is best effort and applies to
-  interactive QR output. The CLI cannot clear a piped stream, so `--json`
-  prints a clear-your-scrollback caution to stderr instead.
-- Chunks have a session ID and cannot be mixed across sessions.
-- Receivers reject payloads older than 10 minutes.
-- Receivers reject payloads more than 60 seconds in the future.
-- Live verification runs before the app persists a linked credential unless
-  the user explicitly accepts an unverified network-failure or local
-  safety-cooldown path.
-- Receivers bound link chunks, account counts, credential fields, and metadata
-  before durable storage.
+Claude sign-in uses PKCE. The verifier binds the token exchange to the sign-in attempt that created the challenge.
 
-### vigil1 URL-scheme entry (iOS)
+Codex uses OpenAI device authorization. Vigil displays the user code, opens the provider page, and obeys the server-provided poll interval. The app does not embed a confidential client secret.
 
-The iOS app registers the `vigil1:` URL scheme so the stock camera can open
-Vigil from a scanned single-chunk code. Registration also means any installed
-app or webpage can invoke the scheme and deliver a crafted payload to Vigil.
+Sign-in state is short-lived. Old codes must not be reused.
 
-- A URL-delivered payload passes the same decoder validation as a scanned
-  code: the 10-minute age limit, the 60-second future-skew limit, and the
-  chunk, account, field-size, and control-character bounds.
-- A URL-delivered payload is never verified and never persisted until the
-  user confirms an explicit "Add account?" prompt naming the accounts the
-  link would add. Opening the in-app scanner remains a user-initiated act,
-  and replacing an already-linked account has always required its own
-  confirmation.
+### Provider mapping
 
-### Polling and local state
+Raw provider bodies pass strict JSON checks. The mapper rejects malformed numbers, invalid percentages, duplicate semantic keys, incompatible wrappers, unsupported collection identities, and incomplete correlated fields.
 
-- Apple fetch reservation uses an OS file lock and an expiring owner lease.
-- A stale process cannot clear a newer owner's lease.
-- Apple ledger failures fail closed and surface in the app.
-- CLI reservation uses a cross-process directory lock and writes before network I/O.
-- CLI state contains provider ID in the filename, timestamps, and a 429 counter. It contains no credential or usage value.
-- Shared-container directories use owner-only permissions. Snapshot, event,
-  lock, and ledger files are tightened to owner-only permissions on access.
+Required-output contracts prevent a partial response from being labeled Live. Structural drift becomes `schemaChanged`, and the app preserves the last successful snapshot.
 
-### Provider failures
+### Polling and rate limits
 
-- Requests use TLS through system networking.
-- CLI provider attempts stop at a hard 15-second per-attempt deadline.
-- Apple provider requests set a 15-second request timeout. That value bounds
-  idle time between bytes, not total request duration, so a slowly dripping
-  response can hold a connection longer.
-- Provider failures are isolated.
-- Invalid successful responses become `schemaChanged`, not an empty success.
-- Scalar metrics preserve their reported unit. Vigil does not silently convert currencies or invent utilization.
+The app and widget share durable account-level leases. Reservation happens before network I/O under an OS file lock. Ledger failure fails closed.
+
+HTTP 429 advances provider-configured backoff. Manual refresh cannot bypass an active lease or backoff.
+
+### Local presentation
+
+- Snapshot age remains visible.
+- Countdowns are identified as local projections from the last reset timestamp.
+- Experimental providers remain labeled.
+- Biometric app lock can reduce casual access while the device is unlocked.
 
 ## Accepted risks
 
-### Plaintext QR content
+### Undocumented provider endpoints
 
-`vigil1` compresses credentials but does not encrypt them. Anyone who sees the QR, captures the screen, reads terminal scrollback, or obtains a saved screenshot can recover the credential. Compression is not encryption.
+Claude, Codex, and several opt-in integrations use consumer or web endpoints without a stable third-party contract. Providers can change authentication, shape, availability, or terms without notice.
 
-Mitigations reduce exposure time but do not remove this risk. Link in private, avoid screen sharing and recording, and clear the terminal. Revoke the credential if exposure is suspected.
-
-### The vigil1 URL scheme is public
-
-iOS cannot reserve a URL scheme for one app. Another installed app can
-register `vigil1:` and receive a link code meant for Vigil, including its
-plaintext credentials, and any app or webpage can open Vigil with a crafted
-payload. Decoder validation and the explicit add confirmation bound what a
-crafted payload can do, but the confirmation is only as strong as the user's
-attention, and scheme squatting by another installed app is outside Vigil's
-control. The in-app scanner does not route through the URL scheme.
-
-### Provider endpoint stability
-
-Claude and Codex consumer usage endpoints are undocumented but live-verified. They can change, reject third-party traffic, or disappear. OpenRouter, DeepSeek, Moonshot global/China, OpenAI, GitHub, and xAI use vendor-documented API surfaces. MiniMax global/China, Z.ai, Cursor, and Kimi K3 are experimental because their usage surfaces are undocumented or community-researched without a Vigil production capture. Every provider can still change authentication or response policy.
-
-Fixtures detect regressions against known shapes. They do not provide production monitoring or advance warning of vendor drift.
+Vigil detects known structural incompatibility. It cannot guarantee advance notice or continued endpoint access.
 
 ### Credential authority
 
-OAuth tokens and API keys may authorize more than usage reads. Vigil cannot reduce authority that the provider does not expose as a narrower scope. A stolen API key may permit inference or spending.
+Some providers do not offer a read-only usage credential. A supplied API key, Admin key, Management Key, or session cookie may permit broader account action or spending.
 
-Use a dedicated, restricted key when the provider supports one. Do not reuse an organization-wide admin key.
+Use a dedicated, restricted credential where the provider supports one. Do not reuse an organization-wide administrative credential when a narrower credential exists.
 
-### Device and process compromise
+### Clipboard, keyboard, and screen capture
+
+Pasted keys and returned sign-in codes can pass through the clipboard, keyboard extension, screen buffer, or app process memory. Vigil cannot protect a value captured by a malicious keyboard, screen recorder, accessibility process, or unlocked-device observer.
+
+Clear sensitive clipboard content and avoid screen sharing during setup.
+
+### Device compromise
 
 Vigil does not defend against:
 
-- malware running as the user on the computer;
-- a compromised provider CLI credential file;
-- a jailbroken device or hostile OS;
-- debugging or memory inspection on a compromised device;
+- a jailbroken device or hostile operating system;
+- malware or debugging tools with sufficient process access;
 - an unlocked device in another person's control;
-- malicious keyboard, accessibility, screen-capture, or terminal software.
+- compromise of the user's Apple ID or TestFlight account;
+- malicious provider pages or a compromised provider.
 
-The optional app lock reduces casual access. It is not a separate cryptographic boundary around Keychain.
+The app lock is a convenience control, not a second hardware-backed credential vault.
 
 ### Local metadata
 
-Snapshots, account indexes, notification events, and polling ledgers live in the App Group container, not Keychain. They do not contain bearer credentials, but they can contain labels, account keys, utilization, balances, and timing metadata. They rely on Apple sandboxing and data protection rather than application-layer encryption.
+Snapshots and observations are not encrypted by Vigil. They rely on iOS sandboxing and data protection. A device compromise can expose usage and billing metadata even when bearer credentials remain in Keychain.
 
-Snapshot and pending-notification cleanup failures are reported. Poll-ledger cleanup runs asynchronously and raises a storage warning if it fails. Credential deletion remains the privacy-critical gate.
+### Multiple linked accounts
 
-Removing an account also deletes that account's spend/balance observation history (`usage-observations.json`). Without that, dollar amounts for a removed account would persist in the container until the 400-day prune and keep feeding the Home period hero.
-
-### macOS local import and the sandbox exception
-
-The macOS build stays sandboxed (`com.apple.security.app-sandbox`). "Import from this Mac" reads credentials that another application wrote, so it requests two additional entitlements:
-
-- `com.apple.security.files.user-selected.read-only` — the file picker fallback, scoped to what the user explicitly chooses.
-- `com.apple.security.temporary-exception.files.home-relative-path.read-only` for `.claude/` and `.codex/` — read-only access to exactly those two directories in the real home.
-
-These widen the sandbox from "no filesystem access outside the container" to "read-only access to two named credential directories." The exception is resolved against the account's real home, which under the sandbox is **not** what `FileManager.homeDirectoryForCurrentUser` or `NSHomeDirectory()` return — both resolve to the container — so the code reads `getpwuid(getuid())->pw_dir` instead.
-
-Consequences accepted:
-
-- A temporary exception is reviewable by Apple and may not survive App Store review. The file-picker path is the fallback if it is refused; the menu-bar / direct-distribution build is unaffected.
-- Imported credentials are marked `source: "file"` (or `"keychain"`) and are **never auto-refreshed** — refreshing a copied refresh token would race the owning CLI's own rotation (ADR-0005). They expire when the CLI session does, and the user re-imports.
-- The Claude Keychain fallback reads a generic-password item owned by Claude Code. Under the sandbox this lookup is commonly denied, and macOS may prompt the user for access. A denial is treated as "not found" and the user is routed to the file picker or manual paste — Vigil never presents the failure as an absent sign-in.
+The polling ledger is keyed by account. Several accounts for one provider can each make a request inside the same five-minute period. Vigil enforces each account's floor but does not coordinate a global provider-wide budget.
 
 ### Background freshness
 
-iOS and WidgetKit decide when background work runs. Vigil cannot guarantee exact refresh times. Countdown rendering can remain current relative to a known reset time while the underlying usage value grows stale.
+iOS and WidgetKit choose when background work runs. Vigil cannot guarantee exact refresh or notification times. A countdown can remain mathematically current relative to a known reset while utilization becomes stale.
 
-### Unsigned local fallback
+### Development fallback
 
-When the App Group container is unavailable, local previews or unsigned builds may use Application Support. App and widget processes then lack a shared ledger. This fallback is for development, not a security or reliability guarantee.
+When the App Group container is unavailable, unsigned previews or local builds can fall back to process-private Application Support. App and widget processes then lack shared locking.
+
+This fallback supports development. It is not a production reliability guarantee.
 
 ### No certificate pinning
 
-Vigil trusts the operating system's TLS validation. It does not pin provider certificates. This avoids brittle releases when providers rotate infrastructure, but it retains the risks of the system trust store.
+Vigil trusts the operating system's TLS validation. It does not pin provider certificates. This avoids breakage during provider certificate rotation but retains system trust-store risk.
 
 ## Out of scope
 
-- protecting credentials after a user exports, screenshots, logs, or shares them;
-- proving a provider's reported quota or balance is correct;
+- proving a provider's reported usage or balance is correct;
 - detecting a malicious or compromised provider;
-- enforcing organization billing policy;
+- enforcing organizational billing policy;
 - recovering access to a provider account;
 - exact-time background monitoring;
-- server-side push alerts.
+- server-side push alerts;
+- protecting data after a user logs, exports, screenshots, or shares it;
+- monitoring desktop transcript token counts unavailable to the phone.
 
 ## Security reporting
 
-Do not include credentials, QR payloads, raw provider responses, account IDs, or billing details in an issue. Provide:
+Do not include credentials, authorization codes, raw provider bodies, account IDs, billing details, or sensitive screenshots in an issue.
 
-- Vigil and `vigil-link` versions;
-- platform and OS version;
-- provider ID;
-- redacted error class and HTTP status;
-- whether the endpoint is documented or internal;
-- a minimal sanitized response shape if schema mapping is involved.
+Provide the Vigil version and build, iOS version, provider ID, sanitized error class, HTTP status when safe, and a minimal sanitized response shape when mapping is involved.
 
-Rotate or revoke any credential that entered logs, screenshots, an issue, or a commit.
+Rotate any credential that entered logs, screenshots, an issue, or a commit. See [Security policy](../SECURITY.md).

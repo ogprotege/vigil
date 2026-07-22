@@ -63,10 +63,10 @@ enum SharedContainer {
                 withIntermediateDirectories: true,
                 attributes: [.posixPermissions: 0o700]
             )
-            // Foundation's attribute bridge reads every extended attribute.
-            // On some macOS group containers, provenance metadata can block
-            // that read and even a redundant chmod. POSIX lstat reads only
-            // the mode, so already-secure directories skip the risky no-op.
+            // Foundation's attribute bridge reads every extended attribute,
+            // and provenance metadata can block that read or a redundant
+            // chmod. POSIX lstat reads only the mode, so already-secure
+            // directories skip the risky no-op.
             var fileInfo = stat()
             if Darwin.lstat(dir.path, &fileInfo) != 0 {
                 let code = errno

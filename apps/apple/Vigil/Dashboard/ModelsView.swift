@@ -86,7 +86,10 @@ struct ModelsView: View {
                                     window: candidate.window,
                                     accountName: accountName(for: candidate),
                                     status: candidate.snapshot.status,
-                                    fetchedAt: candidate.snapshot.fetchedAt
+                                    fetchedAt: candidate.snapshot.fetchedAt,
+                                    isExperimental: ProviderPresentation.isExperimental(
+                                        providerId: candidate.account.providerId
+                                    )
                                 )
                             }
                         }

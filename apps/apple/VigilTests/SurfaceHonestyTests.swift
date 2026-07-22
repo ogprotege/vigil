@@ -4,11 +4,11 @@ import XCTest
 import VigilKit
 @testable import Vigil
 
-/// Honest-freshness and degraded-surface rules shared by the lock-screen
-/// widget, home-screen widget, and macOS menu bar, plus the SharedContainer
-/// fallback exposure. Style follows AppModelReliabilityTests.
+/// Honest-freshness and degraded-surface rules shared by the lock-screen and
+/// home-screen widgets, plus the SharedContainer fallback exposure. Style
+/// follows AppModelReliabilityTests.
 final class SurfaceHonestyTests: XCTestCase {
-    // MARK: - SnapshotFreshness (accessoryCircular + menu bar degradation rule)
+    // MARK: - SnapshotFreshness (widget degradation rule)
 
     func testFreshOkSnapshotIsNotDegraded() {
         let now = Date()
@@ -22,7 +22,7 @@ final class SurfaceHonestyTests: XCTestCase {
         let now = Date()
         XCTAssertEqual(
             SnapshotFreshness.staleAfter, 1800,
-            "The 30-minute threshold is shared with the widget timeline and menu bar — do not fork it"
+            "The 30-minute threshold is shared across widget and app surfaces; do not fork it"
         )
         let atThreshold = now.addingTimeInterval(-SnapshotFreshness.staleAfter)
         let pastThreshold = now.addingTimeInterval(-SnapshotFreshness.staleAfter - 1)
@@ -49,7 +49,7 @@ final class SurfaceHonestyTests: XCTestCase {
         }
     }
 
-    // MARK: - MetricFormat (menu bar rows must match Dashboard formatting)
+    // MARK: - MetricFormat (all dashboard rows share one formatter)
 
     func testThreeLetterUnitFormatsAsCurrency() {
         let metric = UsageMetric(

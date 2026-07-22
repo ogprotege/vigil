@@ -545,10 +545,9 @@ final class TokenRefresherTests: XCTestCase {
         refreshless.refreshToken = nil
         XCTAssertNil(TokenRefresher.refreshRequest(spec: ProviderRegistry.claude, credentials: refreshless))
 
-        // A Codex credential COPIED from the Codex CLI (source "file") must never
-        // be refreshed — that would race the CLI's own rotation (ADR-0005). Only
-        // Vigil-minted (device-flow, source "mint") Codex tokens are refreshable,
-        // which CodexAuthTests covers.
+        // A manually supplied Codex credential (source "file") must never be
+        // refreshed. Only Vigil-minted (device-flow, source "mint") Codex tokens
+        // are refresh-owned (ADR-0005), which CodexAuthTests covers.
         let copiedCodex = Credentials(
             providerId: "codex", accessToken: "a", refreshToken: "r", source: "file"
         )
@@ -616,7 +615,7 @@ final class TokenRefresherTests: XCTestCase {
         let controlToken = Data("{\"access_token\":\"bad\\u0000token\"}".utf8)
         XCTAssertNil(
             TokenRefresher.apply(responseBody: controlToken, to: credentials),
-            "tokens carrying control characters must be refused like QR decode refuses them"
+            "tokens carrying control characters must be refused"
         )
 
         // A malformed rotated refresh token is dropped, keeping the previous

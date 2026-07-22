@@ -2,8 +2,8 @@ import Foundation
 import XCTest
 @testable import VigilKit
 
-/// Pins the Swift mapper to the same protocol/fixtures files the CLI is
-/// tested against. Any drift between the two implementations fails CI here.
+/// Pins the shipped Swift mapper to the committed protocol/fixtures response
+/// and expected-output pairs. Any implementation drift fails CI here.
 final class FixtureParityTests: XCTestCase {
     private struct ExpectedWindow: Decodable {
         let id: String
@@ -397,9 +397,9 @@ final class FixtureParityTests: XCTestCase {
         XCTAssertEqual(UsageClient.classify(data: ok, statusCode: 502, spec: ProviderRegistry.claude).status, .network)
         XCTAssertEqual(UsageClient.classify(data: Data("<html>".utf8), statusCode: 200, spec: ProviderRegistry.claude).status, .schemaChanged)
 
-        // The real Anthropic 429 error body (protocol/fixtures/claude-429.json,
-        // the one fixture without an -expected pair — the CLI consumes it in
-        // status/http tests; this is its Swift-side twin).
+        // The real Anthropic 429 error body (protocol/fixtures/claude-429.json)
+        // is the one input-only fixture because HTTP classification, rather
+        // than response mapping, is the behavior under test.
         let errorBody = try Data(
             contentsOf: TestSupport.repoRoot.appendingPathComponent("protocol/fixtures/claude-429.json")
         )
@@ -475,9 +475,8 @@ final class FixtureParityTests: XCTestCase {
 }
 
 /// Cases whose correct outcome is `nil` (schemaChanged) and therefore cannot be
-/// expressed as a fixture pair, plus the reset formats the committed fixtures
-/// do not cover. Each mirrors an assertion in the CLI's mappers test, so the two
-/// implementations stay in lockstep on inputs no fixture can pin.
+/// expressed as a fixture pair, plus reset formats the committed fixtures do
+/// not cover. These directly pin inputs that cannot use expected-output files.
 final class MapperDivergenceTests: XCTestCase {
     /// A provider renaming the aggregated leaf must read as a shape change, not
     /// as a real $0.00. Dropping absent leaves made the "leaves exist but none

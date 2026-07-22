@@ -198,8 +198,8 @@ struct UsageTimelineProvider: AppIntentTimelineProvider {
         return Timeline(entries: entries, policy: .after(now.addingTimeInterval(staleAfter)))
     }
 
-    /// A window whose reset has passed renders at ~0% until the next real
-    /// fetch confirms it (mac-checklist §M5 step 13).
+    /// A window whose reset has passed renders at approximately 0% until the
+    /// next provider fetch confirms its new state.
     private static func applyingResets(to snapshot: ProviderSnapshot, at date: Date) -> ProviderSnapshot {
         ProviderSnapshot(
             providerId: snapshot.providerId,

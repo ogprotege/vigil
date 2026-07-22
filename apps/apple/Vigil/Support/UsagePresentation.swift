@@ -18,7 +18,7 @@ struct WatchlineCoverage: Equatable {
     }
 }
 
-/// One presentation policy shared by the dashboard, menu bar, and tests.
+/// One presentation policy shared by the dashboard, widgets, and tests.
 /// Provider data stays intact; this layer only gives each window an honest,
 /// human-readable name and a consistent "percent left" representation.
 enum UsagePresentation {

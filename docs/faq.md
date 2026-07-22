@@ -1,77 +1,102 @@
 # Vigil FAQ
 
-Short answers to the questions people actually ask. For step-by-step setup see [getting-started.md](getting-started.md); for specific failures see [troubleshooting.md](troubleshooting.md).
+For setup, read [Getting started](getting-started.md). For failures, read [Troubleshooting](troubleshooting.md).
 
 ## Concepts
 
-### What's the difference between a session, weekly, and model limit?
+### What is the difference between a session, weekly, and model limit?
 
-- A **session window** resets frequently — Claude's 5-hour window, Codex's session window. It's the one that stops you mid-flow.
-- A **weekly window** is the longer cap that resets over the week.
-- A **model limit** is a *separate* quota a platform enforces for one model. Claude tracks Opus and Sonnet weekly caps of their own, plus newer model-scoped weekly limits; Codex exposes per-model lanes; MiniMax has a video-model quota. Vigil shows each of these as its own window with its own reset time: in the provider's stacked bars on Home, and gathered tightest-first on the **Models** tab.
+- A **session window** resets frequently, such as Claude's 5-hour window.
+- A **weekly window** is the longer plan-wide cap.
+- A **model limit** is a separate quota for a specific model or model family.
 
-Vigil never blends these into one number — the overall limit and the model-specific one can be very different, and you need to see both.
+Home leads with plan-wide windows and can include a compact subset of model or special lanes. Models is the complete model-only list. Vigil never substitutes an ordinary weekly limit just to fill that tab.
 
-### What does "percent left" mean, and why not "percent used"?
+### What does percent left mean?
 
-Vigil leads with **percent left** because that's the number you act on ("I have 15% of my weekly Opus quota"). The card also shows percent used. Vigil uses the provider's percentage when supplied, or computes the exact used-to-limit ratio when the provider supplies counts. It does not estimate from local activity.
+Vigil leads with the amount left because that is the actionable value. It uses the provider's percentage when available, or computes an exact used-to-limit ratio when the provider supplies both counts. It does not estimate utilization from local activity.
 
-### How do the reset countdowns stay live if Vigil only polls every few minutes?
+### How do countdowns move between provider checks?
 
-The countdown ticks **client-side** from the reset time the provider last reported. Vigil computes the time remaining locally, so the number moves every second even though the underlying data was fetched minutes ago. When a window actually resets, the next fetch corrects it.
+The provider reports a reset time. Vigil updates the countdown locally from that timestamp. A moving countdown does not mean another provider request occurred.
 
 ### What are balances, spend, and overage credits?
 
-Some providers (API gateways) don't expose a reset-based percentage — they expose money. Vigil shows those as **metrics**: a balance, month-to-date spend, or a credit limit, in the provider's own currency. Claude's overage ("extra usage") credits show up here too — spend so far and the monthly limit. Vigil never invents a percentage for these or converts between currencies.
+Some providers expose money or credits rather than a reset-based percentage. Vigil shows these as metrics in the provider's reported unit. It does not invent a denominator or convert currencies.
 
 ## Freshness and honesty
 
-### Why does a card say "Stale", "Cooling down", "Re-link needed", or "Offline"?
+### Why does Vigil poll no faster than every five minutes?
 
-Vigil would rather tell you the truth than show a confident wrong number:
+Provider usage endpoints rate-limit aggressively. Every current registry entry declares a 300-second minimum. The app and widgets share account-level leases so only one process can pass the gate at a time.
 
-- **Cooling down** — the provider is rate-limiting checks (a 429). Normal; it backs off and retries.
-- **Stale** — the data is older than expected (a fetch didn't land). The last-known numbers are shown but marked.
-- **Re-link needed** — the provider rejected the credentials (expired or revoked). Refresh the underlying sign-in and re-link.
-- **Provider changed** — the response no longer matched what Vigil expected to map. Check for a Vigil update.
-- **Offline** — a network problem reaching the provider.
+### What do the account states mean?
 
-### Why is polling capped at ~5 minutes?
+- **Live:** the latest response satisfied the provider's required-output contract.
+- **Stale:** the last accepted values are older than expected.
+- **Cooling down:** the provider rate-limited Vigil.
+- **Re-link needed:** the credential was rejected.
+- **Provider changed:** the response shape no longer mapped completely enough to trust.
+- **Offline:** a network or transport failure prevented the request.
 
-Provider usage endpoints rate-limit hard — Claude will 429-jail anything polling faster than about 5 minutes, and often without a `Retry-After`. Vigil enforces a shared poll floor across the app, widgets, and menu bar so they never collectively trip that limit. This is a deliberate invariant, not a limitation to work around.
+### Why can a provider show Provider changed when one value still mapped?
 
-### I linked an account but it says it'll "verify on the next refresh" — is something wrong?
+Partial output can be misleading. A provider that promises windows cannot be labeled Live merely because an unrelated balance or spend metric survived. Required-output contracts make missing essential values fail closed.
 
-No. If your computer polled a provider very recently (for example you ran `vigil-link status` moments before linking), the CLI can't check that provider again without tripping the poll floor. Instead of dropping the account, Vigil includes it and lets your **phone** verify it on its next allowed refresh. It'll go live shortly.
+## Accounts
+
+### Do I need a computer or terminal?
+
+No. Vigil is iOS-only and every account is added on the phone.
+
+### Why does Vigil mint separate Claude and Codex credentials?
+
+Refresh credentials can rotate. Sharing one refresh pair with another client can break one of the clients after rotation. Vigil therefore mints and refreshes its own credentials through phone-native sign-in.
+
+A manually pasted token is treated as externally owned and is not auto-refreshed.
+
+### Why does Codex need a device code?
+
+OpenAI's device authorization allows a public client to obtain its own credential without embedding a client secret or intercepting another app's session. Vigil shows the code and polls only at the interval OpenAI returns.
+
+### Why does Cursor use a cookie?
+
+Cursor does not offer a documented personal usage API credential. The experimental integration uses the signed-in web session cookie. It expires and must be pasted again.
 
 ## Security and privacy
 
-### Are my credentials safe?
+### Where are credentials stored?
 
-They travel only between your own devices and the providers you turn on, and they live in your device's Keychain. There is **no Vigil server**, no account, and no analytics. See [privacy.md](privacy.md) and [threat-model.md](threat-model.md).
+In Apple Keychain with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. They do not sync through iCloud Keychain. The app and widget share access through the configured Keychain group.
 
-### Is the QR code sensitive?
+### Does Vigil collect data?
 
-Yes. The `vigil1` QR (and the `--json` paste code) contains your credentials as compressed plaintext. Show it only somewhere private, don't screenshot or screen-share it, and clear your terminal scrollback afterward. Codes expire 10 minutes after they're generated. If a code was exposed, revoke the underlying credential.
+No. Vigil has no collection server, analytics SDK, advertising SDK, or cloud synchronization service. Activated providers still receive direct usage requests under their own privacy policies.
 
-### Does the CLI store anything?
+### What local data is not in Keychain?
 
-Only poll timestamps and 429 counters, under your cache directory — never credentials or usage values ([ADR-0004](decisions/0004-stateless-cli.md)). Deleting that cache is safe but can cause one unnecessary provider request; it does not bypass a rate limit.
+The App Group container stores account labels, usage snapshots, observation history, poll leases, and notification metadata. These files contain no bearer credential, but they can reveal usage, balance, spend, and timing information.
 
-### Why does Vigil "mint" a separate Claude token instead of copying my Claude Code one?
+## Provider support
 
-Refresh tokens rotate. If Vigil and Claude Code both refreshed the same token pair, they'd de-sync and one would break. So by default Vigil mints its **own** token pair via a browser sign-in ([ADR-0005](decisions/0005-mint-dont-copy.md)). You can choose to copy instead, but a copied token can't be renewed and will eventually expire.
+### What does experimental mean?
 
-## Do I need the terminal?
+The endpoint lacks both a stable vendor contract and a sanitized Vigil production capture. The mapping may be based on a maintained community client. Experimental providers remain visible but carry the label in account and picker surfaces.
 
-No. Claude and ChatGPT/Codex both sign in right in the app (a browser approval and a short code), and every other provider is added by pasting its requested key or session credential (**Add account → Paste a provider key → <provider>**). The terminal (`npx vigil-link`) is only an optional shortcut if you would rather reuse a Claude Code or Codex sign-in already on a computer.
+### Does a passing fixture prove a provider works live?
 
-## Per-provider notes
+No. A fixture proves that Vigil maps the committed example deterministically. `protocol/fixture-provenance.json` records whether the source was a live sanitized body, vendor example, community research, or synthetic case.
 
-- **OpenAI** needs a read-only **Admin** key, not a project (`sk-proj-...`) key — the billing endpoint rejects project keys.
-- **GitHub Copilot** needs a fine-grained token *and* your username; org-managed seats report empty usage.
-- **Moonshot** and **MiniMax** each have separate China providers — use the China variant for China-platform keys.
-- **MiniMax**, **MiniMax China**, **Z.ai/GLM**, **Cursor**, and **Kimi K3** are marked **experimental** because their usage endpoints are undocumented or community-researched without a Vigil production capture. Moonshot global/China and xAI use vendor-documented endpoints and are opt-in, but not experimental. Cursor's session cookie expires, so re-paste it when needed.
-- **Kimi K3** is the coding-plan usage view — session and weekly limits from a coding-plan key (`KIMI_CODE_API_KEY`), separate from the balance-only **Moonshot (Kimi)** provider.
+### Why are some providers balance-only?
 
-See the [provider spec](provider-spec.md) for verified endpoint facts and the researched backlog.
+That is the only meaningful value their supported endpoint returns. Vigil does not turn a balance into a fake utilization percentage.
+
+### Important provider notes
+
+- OpenAI organization costs require a read-only Admin key, not a project key.
+- GitHub Copilot needs both a fine-grained token and username. Organization-managed seats can report empty personal usage.
+- Moonshot and MiniMax use separate global and China key namespaces.
+- Kimi K3 coding-plan usage is separate from Moonshot open-platform balances.
+- MiniMax, MiniMax China, Z.ai, Cursor, and Kimi K3 are experimental.
+
+See [Provider registry and support](provider-spec.md) for endpoint details and evidence levels.

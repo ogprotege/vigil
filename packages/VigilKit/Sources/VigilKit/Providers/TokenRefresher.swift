@@ -1,12 +1,11 @@
 import Foundation
 
-/// Pure construction/parsing for the OAuth refresh grant — the Swift twin of
-/// cli/src/service.ts refreshClaude. Networking stays with the caller, like
-/// the rest of VigilKit's provider layer.
+/// Pure construction/parsing for the OAuth refresh grant. Networking stays
+/// with the caller, like the rest of VigilKit's provider layer.
 ///
 /// Refresh is allowed only for credentials Vigil minted itself
-/// (source == "mint"): rotating a copied pair would race the owning CLI's own
-/// refresh-token rotation (ADR-0005).
+/// (source == "mint"): rotating a credential copied from another client could
+/// break that client's refresh-token rotation (ADR-0005).
 public enum TokenRefresher {
     public static let mintSource = "mint"
 
@@ -32,7 +31,7 @@ public enum TokenRefresher {
     }
 
     /// A token usable for Bearer headers: non-empty, bounded, and free of
-    /// control characters — the same screen QR-decoded credentials pass.
+    /// control characters, matching account-entry validation.
     private static func usableToken(_ raw: Any?) -> String? {
         guard let token = raw as? String,
               !token.isEmpty,

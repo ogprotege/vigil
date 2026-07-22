@@ -6,8 +6,8 @@ import Foundation
 ///
 /// This type is pure request/response construction so it unit-tests without a
 /// device or a live account. Networking and polling loops stay with the caller.
-/// The minted pair is marked `source: "mint"` so Vigil renews it independently
-/// of the Codex CLI (the "mint, don't copy" posture of ADR-0005).
+/// The minted pair is marked `source: "mint"` so Vigil owns and renews these
+/// credentials independently.
 public enum CodexAuth {
     public struct Identity: Equatable, Sendable {
         public let accountId: String?
@@ -15,8 +15,8 @@ public enum CodexAuth {
         public let email: String?
     }
 
-    /// Decodes a JWT's payload (base64url, unverified — we only read claims the
-    /// provider already sent us, exactly like cli/src/util/jwt.ts).
+    /// Decodes a JWT's payload (base64url, unverified). Vigil only reads claims
+    /// the provider already sent to this authenticated client.
     public static func decodeJWTPayload(_ jwt: String) -> [String: Any]? {
         let segments = jwt.split(separator: ".", omittingEmptySubsequences: false)
         guard segments.count >= 2 else { return nil }
@@ -30,9 +30,8 @@ public enum CodexAuth {
         return object
     }
 
-    /// Reads the account id / plan / email from a Codex id_token, with the same
-    /// fallback order Vigil's CLI discovery uses (top-level claim, then the
-    /// nested `https://api.openai.com/auth` object).
+    /// Reads the account id / plan / email from a Codex id_token, checking the
+    /// top-level claim before the nested `https://api.openai.com/auth` object.
     public static func identity(fromIdToken idToken: String?) -> Identity {
         let payload = idToken.flatMap { decodeJWTPayload($0) }
         return Identity(
@@ -72,8 +71,8 @@ public enum CodexAuth {
         if let expiresIn, expiresIn.isFinite, expiresIn > 0, expiresIn <= 31_536_000 {
             credentials.expiresAt = now.addingTimeInterval(expiresIn)
         } else if let expiry = expiry(fromAccessToken: access) {
-            // The device-flow token response carries no expires_in; the CLI reads
-            // it from the access-token JWT's `exp` claim, so we do the same.
+            // The device-flow token response carries no expires_in, so recover
+            // the expiration from the access-token JWT's `exp` claim.
             credentials.expiresAt = expiry
         }
         return credentials
@@ -103,8 +102,8 @@ public enum CodexAuth {
         case failed
     }
 
-    /// The page the user opens to enter the code (the server doesn't return it;
-    /// the CLI constructs `{issuer}/codex/device`).
+    /// The page the user opens to enter the code. The server does not return
+    /// it, so construct `{issuer}/codex/device` from the device endpoint.
     public static func verificationURL(oauth: OAuthEndpoint) -> URL? {
         guard let device = oauth.deviceCodeUrl,
               var components = URLComponents(url: device, resolvingAgainstBaseURL: false)

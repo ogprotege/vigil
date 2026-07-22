@@ -1,174 +1,118 @@
 # Troubleshooting
 
-Start with:
+Start by confirming that you installed the newest TestFlight build. Then open **Connections**, select the affected account, and note its status and last-update time.
 
-```sh
-npx vigil-link doctor
-npx vigil-link doctor --live
-```
+If you are setting up Vigil for the first time, read [Getting started](getting-started.md).
 
-Use `--provider <id>` to isolate one provider. Live checks consume a poll slot.
+## Claude sign-in does not finish
 
-If you're new here, start with [getting-started.md](getting-started.md) and the [FAQ](faq.md); the sections below are for specific symptoms.
+- Complete the browser approval and copy the full code Claude displays.
+- Return to the same pending sign-in screen before submitting the code.
+- Do not reuse an earlier code. The PKCE verifier belongs to the sign-in attempt that created it.
+- If the browser shows an authorization error, cancel the attempt and begin again from Vigil.
+- If the account later says **Re-link needed**, remove it and use **Sign in with Claude** again.
 
-## The setup wizard didn't find my Claude or Codex sign-in
+Vigil refreshes only Claude credentials it minted. A manually pasted Claude token is not auto-refreshed.
 
-`npx vigil-link` reads existing sign-ins from `~/.claude/.credentials.json` (or the macOS Keychain) and `~/.codex/auth.json`. If a provider shows as `✗ not found`:
+## Codex sign-in does not finish
 
-- **You don't need the wizard at all for Claude or Codex.** On the iPhone, **Add account → Sign in with Claude** (on-device OAuth) or **Sign in with Codex** (OpenAI device-code) signs in directly — no computer involved.
-- **Codex device-code note:** OpenAI requires enabling "device code authorization" in ChatGPT → **Settings → Security** (one-time), or the approval page refuses the code.
-- Make sure you've signed in with that tool at least once on this computer (for Codex, run `codex login`).
-- Run `npx vigil-link doctor` to see exactly which locations were checked.
-- You don't have to fix this to proceed — pick the accounts it *did* find, or add an API-key provider directly on your phone (**Add account → Paste a provider key**).
+- Confirm the short code exactly matches the one Vigil displays.
+- OpenAI may require device-code authorization under ChatGPT **Settings → Security**.
+- Keep Vigil available while approval completes. The app respects the server's polling interval.
+- If the code expires, cancel and start a new sign-in.
+- If the account later says **Re-link needed**, use **Sign in with Codex** again.
 
-## The QR code won't scan
+## Claude says Live but shows no limits
 
-- **Too small / unreadable:** the wizard auto-sizes the code to your terminal. If it still won't scan, widen the terminal window or reduce the font size and re-run; you can also force the larger rendering with `npx vigil-link --big`.
-- **Low contrast:** scan against a light terminal background; some dark/transparent themes make the code unscannable.
-- **Multiple codes:** a large payload splits into several codes that cycle automatically — hold the camera steady and let it capture each; the app shows "Captured N of M".
-- **On macOS with no camera:** use the paste path — `npx vigil-link --json --yes` prints a code you paste into **Add account → Paste code** — then clear your terminal scrollback.
+Update to the newest build. Claude reset timestamps can contain fractional seconds, and older builds discarded those windows even when another metric survived.
 
-## The app says it will "verify on the next refresh"
+Current builds also enforce required outputs. A successful response with missing required windows becomes **Provider changed**, not Live.
 
-This is expected, not an error. If this computer polled a provider very recently, the CLI can't re-check it without tripping the 5-minute poll floor, so Vigil ships the account anyway and lets the phone verify it on its next allowed refresh. Wait a few minutes and the account goes live. (See the [FAQ](faq.md).)
+## Models shows no row for an account
 
-## A card shows Stale / Cooling down / Re-link needed / Offline
+The Models tab shows only genuine model-specific or special quota lanes. An ordinary session or weekly plan window stays on Home.
 
-These are honest states, not crashes:
+Some providers do not expose model-specific limits. An empty Models section for those providers is correct.
 
-- **Cooling down** — the provider returned a 429; Vigil backs off and retries. Normal.
-- **Stale** — a fetch didn't land; the last-known numbers are shown but marked. Usually resolves on the next refresh.
-- **Re-link needed** — the credentials were rejected (expired/revoked). Refresh the underlying sign-in (open the provider's own CLI, or re-create the API key) and add the account again.
-- **Offline** — a network problem reaching the provider.
+## A card shows Cooling down, Stale, Re-link needed, Provider changed, or Offline
 
-## Credentials are not found
+- **Cooling down:** the provider returned HTTP 429. Vigil backs off and retries after the allowed time.
+- **Stale:** a new accepted snapshot did not arrive. Vigil keeps the last-known values and labels their age.
+- **Re-link needed:** the provider rejected the credential. Sign in again or replace the pasted credential.
+- **Provider changed:** the response failed parsing or the provider's required-output contract. Update Vigil before attempting repeated refreshes.
+- **Offline:** a network, transport, or other provider HTTP failure prevented an accepted response.
 
-### Claude
+## A manual provider credential is rejected
 
-1. Confirm Claude Code is signed in.
-2. Check `~/.claude/.credentials.json`.
-3. On macOS, the CLI also checks the `Claude Code-credentials` generic-password item.
-4. Prefer `npx vigil-link --mint --provider claude` so Vigil owns its refresh token.
-5. Use `--copy` only as a fallback.
+Check these provider-specific requirements:
 
-### ChatGPT / Codex
+- **OpenAI API:** use a read-only organization Admin key. A project key such as `sk-proj-...` cannot access the organization costs endpoint.
+- **GitHub Copilot:** provide both a fine-grained token with Account Plan read permission and the username. Organization-managed seats can return an empty per-user result.
+- **Moonshot and MiniMax:** global and China hosts use separate key namespaces. Choose the matching provider.
+- **xAI:** provide a Management Key and team ID, not a model-inference key.
+- **Cursor:** paste the `WorkosCursorSessionToken` cookie. Browser sessions expire.
+- **Kimi K3:** use the coding-plan key from `kimi.com/code/console`, not a Moonshot open-platform balance key.
 
-1. Confirm the Codex CLI is signed in.
-2. Check `${CODEX_HOME:-~/.codex}/auth.json`.
-3. Vigil needs both `tokens.access_token` and `tokens.account_id`.
-4. If the token is expired, run Codex, let it refresh, then re-link.
+Copy the credential again without leading or trailing spaces. Revoke and replace any credential that appeared in a screenshot, log, issue, or shared clipboard history.
 
-### OpenRouter
+## Refresh is deferred
 
-```sh
-OPENROUTER_API_KEY='...' npx vigil-link doctor --provider openrouter
-```
+Every current provider has a 300-second poll floor. The app and widgets reserve an account-level lease in shared storage before a request.
 
-The variable must be set in the same process environment as `vigil-link`. OpenRouter is opt-in and is not selected by a plain `npx vigil-link`.
+A deferred refresh protects the account from rapid polling. Wait until the displayed next-safe time. Do not delete local data or reinstall the app to bypass a normal delay.
 
-### DeepSeek
+## The app stays in Cooling down
 
-```sh
-DEEPSEEK_API_KEY='...' npx vigil-link doctor --provider deepseek
-```
+Some providers return HTTP 429 without a `Retry-After` header. Vigil applies its configured exponential backoff and preserves the last accepted snapshot.
 
-DeepSeek is opt-in and is not selected by a plain `npx vigil-link`.
+Repeated manual refreshes do not bypass the backoff. Wait for the displayed time. If the state persists far beyond that time, check the provider's status page and network conditions.
 
-### Every other opt-in provider
+## Provider changed
 
-Every opt-in provider is activated the same way: set its documented environment variable in the same process as `vigil-link`, or paste the requested key or session credential directly on the phone (**Add account → Paste a provider key**). None are selected by a plain `npx vigil-link`. See [provider-spec.md](provider-spec.md) for the full env-var table.
+Vigil received a successful response, but parsing failed or the accepted result did not satisfy that provider's contract. Examples include:
 
-## A live check is deferred
+- a missing required window or metric;
+- an unknown array identity in an exhaustive collection;
+- malformed percentage, reset, currency, or denomination metadata;
+- a partial correlated field family;
+- an eligible model entry whose nested windows no longer map.
 
-The CLI reserves a provider-level poll slot before the request. It stores timestamps and a 429 counter, never credentials or usage values.
+The app preserves the last successful snapshot. It does not present partial new output as Live.
 
-State location priority:
+If you are developing a fix:
 
-1. `VIGIL_STATE_DIR`
-2. `$XDG_CACHE_HOME/vigil-link`
-3. `~/.cache/vigil-link`
+1. Capture the response only from an account you control.
+2. Sanitize tokens, account IDs, emails, request IDs, and distinctive billing values.
+3. Update `protocol/providers.json`, Swift `ProviderRegistry`, fixtures, expected output, provenance, UI behavior, and documentation as required.
+4. Run the full gate in [Provider contribution guide](provider-contribution.md).
 
-`status`, `doctor --live`, and link verification all use this gate. Re-running one command immediately after another can therefore show `deferred`. Wait until the reported time.
+Do not post a raw response.
 
-Deleting the state file removes the safety delay and can cause an extra provider request. Do it only to recover from a clearly invalid future timestamp, and do not use deletion to bypass normal rate limits.
+## Provider-specific schema notes
 
-## The CLI reports a corrupt poll-state file
-
-A malformed or unreadable `<provider>.poll.json` defers that provider's polls. The gate fails closed and never deletes the file on its own.
-
-- `status` prints the offending file path and the recovery step: delete that file to reset that provider's poll clock.
-- `doctor` flags each selected provider whose poll-state file is corrupt or unreadable.
-
-The file contains timestamps and a 429 counter, never credentials or usage values. Deleting it resets only the local poll clock and can cause one extra provider request.
-
-## One provider says network, but others work
-
-This is expected failure isolation. Each CLI provider request has a hard 15-second per-attempt timeout and transport-level retries; the app's requests use a 15-second idle timeout instead. A provider-specific DNS, TLS, timeout, or HTTP failure becomes `network` for that provider while the report continues.
-
-Check:
-
-- provider status pages;
-- VPN, proxy, firewall, and DNS behavior;
-- system clock;
-- whether the credential can access the endpoint;
-- `npx vigil-link doctor --provider <id> --live`.
-
-## `authExpired`
-
-- Claude with a Vigil-minted token: Vigil attempts one refresh. If the provider rotated the token but Keychain persistence fails, Vigil stops before retrying and asks for a re-link.
-- Claude copied from another client: re-link. Vigil will not rotate another client's refresh token.
-- Codex minted on the phone: Vigil attempts one refresh. If it still says Re-link needed, sign in with Codex again in Vigil.
-- Codex copied from the CLI: refresh the Codex CLI sign-in, then import it again.
-- Manually entered providers: verify that the key or session credential is active and copied completely.
-
-## `rateLimited`
-
-Wait for the next allowed time. Do not lower the provider's `minSeconds`.
-
-Apple surfaces share an account-level ledger in the App Group container. Reservation and lease creation happen under an OS file lock. The CLI uses its own provider-level cache and does not share Apple's state.
-
-## `schemaChanged`
-
-Vigil received a successful response, but parsing failed or the mapped result did not satisfy that provider's required-output contract. This includes missing required IDs, too few windows or metrics, and eligible dynamic windows that map incompletely. The app preserves the last successful snapshot and labels the account Provider changed instead of presenting the partial response as Live.
-
-1. Update Vigil and `vigil-link`.
-2. Re-run the provider-specific live check.
-3. Capture a sanitized response shape if you are developing a fix.
-4. Update the registry, both mappings, fixtures, Swift parity constants, UI, and docs as needed.
-
-Never post the raw response until tokens, account IDs, emails, request IDs, and distinctive billing data have been removed.
-
-Gateway-specific `schemaChanged` causes worth checking first:
-
-- **MiniMax**: error-envelope codes 1004, 1011, and 1024 become `authExpired`, even when the server uses HTTP 200. Switch between the global and China providers and use the matching credential.
-- **Experimental providers (MiniMax, MiniMax China, Z.ai, Cursor, Kimi K3)**: the endpoint may have drifted. `schemaChanged` is the designed failure mode; check for a Vigil update before anything else.
-
-Other gateway notes:
-
-- **GitHub Copilot**: organization-managed seats legitimately report empty usage through the per-user billing API. An honest $0.00 with no items is not a bug.
-- **OpenAI API**: the billing endpoint rejects regular project keys (`sk-proj-…`); it needs a read-only organization Admin key.
-- **Cursor**: the session cookie expires; `authExpired` means re-paste `WorkosCursorSessionToken` from a signed-in browser.
-- **Moonshot / MiniMax China vs global**: keys live in separate namespaces. The wrong host answers 401 or a known MiniMax authentication code inside a 200 body; both become `authExpired`.
+- **MiniMax:** 2xx error-envelope codes 1004, 1011, and 1024 become authentication failures. Confirm you selected the correct regional provider.
+- **Z.ai, Cursor, MiniMax, MiniMax China, and Kimi K3:** these integrations are experimental. Their undocumented or community-researched endpoints can drift without notice.
+- **GitHub Copilot:** an organization-managed seat can legitimately produce an empty personal billing result.
+- **OpenAI API:** Vigil requires `has_more == false` because it does not report a partial monthly page as a total.
+- **Cursor:** an expired session cookie becomes Re-link needed.
 
 ## The app says it could not save data
 
-Do not dismiss repeated storage failures as a network problem.
+Storage failures are separate from provider-network failures:
 
-- **Rotated credentials:** re-link before the next refresh. The previous refresh token may no longer be valid.
-- **Snapshot:** the visible update may not survive an app restart.
-- **Polling ledger:** Vigil fails closed and does not start a new request without a durable reservation.
-- **Account index:** the app either rolls back the link or leaves the incomplete removal visible.
-- **Keychain deletion:** the account remains linked because Vigil could not confirm credential deletion.
+- A rotated credential that could not be persisted requires a re-link.
+- A snapshot write failure means the visible update may not survive restart.
+- A ledger write failure blocks a new provider request.
+- An account-index failure rolls back or exposes the incomplete operation.
+- A Keychain deletion failure leaves the account linked and visible.
 
-On macOS, a queued storage error also appears as a read-only notice banner at the top of the menu bar window, so a menu-bar-only session cannot miss it. Open the main Vigil window to review and dismiss the error; the banner itself has no dismiss control.
+Check free device storage, restart once, and try again. If the error persists, collect sanitized Console logs for subsystem `app.vigil`.
 
-Check available device storage, reboot once, and retry. If the error persists, collect sanitized Console logs for subsystem `app.vigil`.
+## Shared storage is unavailable
 
-## The app warns that shared storage is unavailable
+The app and widgets normally share `group.app.vigil.shared`. If that App Group container cannot be resolved, the app uses app-private storage and shows a warning. The app and widget then cannot share one polling ledger.
 
-At startup the app checks whether its shared App Group container resolved. When the container is unavailable, the app continues on app-private storage and raises a storage alert, because the app and its widgets can no longer share the polling ledger and each process may poll providers separately.
-
-On a real install this usually indicates a signing or entitlement problem. Reinstall the app, validate the App Group entitlements, and test a properly signed build. Unsigned previews and local development builds are expected to use the fallback.
+On an installed build, this usually means a signing or entitlement problem. Reinstall the current TestFlight build. Developers should verify both target entitlements with a signed device build.
 
 ## The widget shows the wrong or no account
 
@@ -176,38 +120,34 @@ On a real install this usually indicates a signing or entitlement problem. Reins
 2. Choose **Edit Widget**.
 3. Select the intended Vigil account.
 
-An unconfigured widget defaults to the first linked account. A widget configured for a removed account stays empty instead of silently switching to another account.
+An unconfigured widget uses the first linked account. A widget configured for a removed account stays empty.
 
-The widget fetches only when its snapshot is older than 30 minutes and the shared ledger permits it. WidgetKit decides when timelines run, so updates are not exact-time guarantees.
+The widget fetches only when its snapshot is old enough and the shared ledger permits it. WidgetKit controls timeline scheduling, so exact refresh times are not guaranteed.
 
-Window widgets need a percentage window such as `session`. Providers that expose only scalar spend or balance data may have no meaningful circular gauge.
+Providers that expose only balances or spend may have no percentage window for a circular gauge.
 
-## App and widget both fetched in a local build
+## App and widget both fetched in a development build
 
-Signed app and widget targets share `group.app.vigil.shared`. Unsigned previews or local builds can fall back to Application Support when the App Group container is unavailable. That fallback is per process, so it cannot provide cross-process locking.
+Signed targets share the App Group ledger. Unsigned previews and some local builds can fall back to process-private Application Support, which cannot provide cross-process locking.
 
-Validate the App Group entitlements and test a properly signed build before treating this as a production scheduler failure.
+Validate App Group entitlements in a signed build before treating this as a production scheduler defect.
 
-## A link code is rejected
+## Notifications did not arrive
 
-Vigil rejects:
-
-- malformed or mixed-session chunks;
-- payloads older than 10 minutes;
-- payloads more than 60 seconds in the future;
-- unsupported provider IDs;
-- invalid compressed or JSON content.
-
-Check both devices' clocks and create a fresh code. Do not keep or reuse old credential QR screenshots.
+- Enable notifications in iOS Settings.
+- Confirm the account has a percentage window. Balance-only providers do not cross utilization thresholds.
+- Threshold notifications fire on observed crossings, not inferred activity between provider polls.
+- Background execution is opportunistic. iOS decides when the app may refresh.
 
 ## Build and CI mismatches
 
 Current CI:
 
-- builds and tests the Node CLI;
 - runs VigilKit tests;
 - generates the Xcode project;
 - builds the iOS Simulator app;
-- runs the app reliability test target against macOS.
+- runs the iOS app test target;
+- validates property lists and entitlements;
+- rejects tracked signing secrets.
 
-CI cannot prove device-only Keychain entitlements, camera scanning, background refresh timing, notification delivery, or real WidgetKit scheduling. Run the on-device checklist before release work.
+CI cannot prove device-only Keychain behavior, background scheduling, notification delivery, or real WidgetKit timing. Complete the on-device release walk before shipping.

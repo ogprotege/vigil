@@ -76,7 +76,7 @@ struct SettingsView: View {
                         }
                         .vigilInsetSurface()
 
-                        Text("Every app, widget, background, and menu-bar fetch uses the same safety ledger. Manual refresh never bypasses a provider cooldown.")
+                        Text("Foreground refreshes, background tasks, and widgets use the same safety ledger. Manual refresh never bypasses a provider cooldown.")
                             .font(.caption)
                             .foregroundStyle(VigilPalette.inkMuted)
                     }

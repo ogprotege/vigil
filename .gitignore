@@ -1,7 +1,3 @@
-# Node / CLI
-node_modules/
-cli/dist/
-
 # Swift
 .build/
 .swiftpm/

@@ -443,6 +443,30 @@ final class SpecParityTests: XCTestCase {
         }
     }
 
+    /// The canonical registry describes the shipped iOS runtime only. These
+    /// fields belonged to the deleted desktop/CLI discovery path or were never
+    /// consumed by the app, so their return would make the contract misleading.
+    func testRegistryExcludesRetiredDesktopFields() throws {
+        let data = try TestSupport.protocolFile("providers.json")
+        let root = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        let providers = try XCTUnwrap(root["providers"] as? [String: Any])
+
+        for (providerID, rawProvider) in providers {
+            let provider = try XCTUnwrap(
+                rawProvider as? [String: Any],
+                "\(providerID) must be a JSON object"
+            )
+            XCTAssertNil(provider["defaultEnabled"], providerID)
+            XCTAssertNil(provider["discovery"], providerID)
+
+            if let oauth = provider["oauth"] as? [String: Any] {
+                XCTAssertNil(oauth["loopbackPort"], providerID)
+            }
+        }
+    }
+
     /// Absolute-value tripwire for the GitHub premium-request billing schema.
     /// Generic mirror parity alone would still pass if both copies regressed
     /// to an API version whose response predates the mapped contract.

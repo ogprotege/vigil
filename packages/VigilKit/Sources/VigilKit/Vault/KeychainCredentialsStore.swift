@@ -8,12 +8,12 @@ public enum KeychainError: Error {
 }
 
 /// Keychain-backed vault. Items are AfterFirstUnlockThisDeviceOnly: background
-/// refresh can read them, iCloud Keychain never syncs them — each device links
-/// via its own scan (docs/privacy.md). Pass the shared access group so the
+/// refresh can read them, iCloud Keychain never syncs them, and each device
+/// signs in separately (docs/privacy.md). Pass the shared access group so the
 /// widget extension can read tokens for its staleness fetches.
 ///
 /// Note: Keychain requires an entitled host app, so this type is exercised on
-/// device (mac-checklist M4), not in `swift test`.
+/// an iOS device or simulator, not in host `swift test`.
 public final class KeychainCredentialsStore: CredentialsStore, @unchecked Sendable {
     private let service: String
     private let accessGroup: String?
