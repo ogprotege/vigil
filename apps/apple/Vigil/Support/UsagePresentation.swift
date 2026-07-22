@@ -75,13 +75,7 @@ enum UsagePresentation {
         case "billing": return "BILLING WINDOW"
         default:
             if window.secondary {
-                let id = window.id.lowercased()
-                // A model name (label), a weekly_* id, or a per-model video lane
-                // all read as a model-scoped quota rather than a special one.
-                let isModelScoped = window.label != nil
-                    || id.hasPrefix("weekly_")
-                    || id.hasSuffix("_video")
-                return isModelScoped ? "MODEL LIMIT" : "SPECIAL LIMIT"
+                return isModelWindow(window) ? "MODEL LIMIT" : "SPECIAL LIMIT"
             }
             return "USAGE WINDOW"
         }
@@ -94,6 +88,19 @@ enum UsagePresentation {
         default:
             return window.secondary
         }
+    }
+
+    /// A genuine model-scoped quota. Secondary provider features such as
+    /// Claude OAuth-app and Cowork caps remain special windows on Home, but do
+    /// not appear under the Models tab's narrower "Per-model caps" promise.
+    static func isModelWindow(_ window: UsageWindow) -> Bool {
+        guard window.secondary else { return false }
+        let id = window.id.lowercased()
+        return window.label != nil
+            || id == "weekly_sonnet"
+            || id == "weekly_opus"
+            || id.hasPrefix("weekly_scoped_")
+            || id.hasSuffix("_video")
     }
 
     static func sortedWindows(_ windows: [UsageWindow]) -> [UsageWindow] {
@@ -125,11 +132,8 @@ enum UsagePresentation {
             }
     }
 
-    /// Every per-model / special limit across all accounts, tightest first —
-    /// the data behind the dedicated Models view. When an account reports no
-    /// special windows but does report primary session/weekly plan windows
-    /// (Kimi K3, Z.ai coding plans, …), those primary windows are included so
-    /// the Models tab is not empty for a successfully linked coding plan.
+    /// Every genuine per-model limit across all accounts, tightest first.
+    /// Primary plan windows and non-model secondary caps stay on Home.
     static func modelLimits(
         accounts: [AccountRef],
         snapshots: [String: ProviderSnapshot]
@@ -137,7 +141,7 @@ enum UsagePresentation {
         accounts
             .compactMap { account -> [LimitCandidate]? in
                 guard let snapshot = snapshots[account.key] else { return nil }
-                // ONLY genuine per-model / special windows. This used to fall
+                // ONLY genuine per-model windows. This used to fall
                 // back to an account's primary session/weekly windows so the
                 // tab was never empty for a coding plan — but that put Home's
                 // data on Models under a "Per-model caps" heading, so a Codex
@@ -145,9 +149,9 @@ enum UsagePresentation {
                 // if it were a model. An honest empty state beats a wrong row;
                 // ModelsView already explains when a provider has no per-model
                 // caps.
-                let special = snapshot.windows.filter(isSpecialWindow)
-                guard !special.isEmpty else { return nil }
-                return special.map {
+                let modelWindows = snapshot.windows.filter(isModelWindow)
+                guard !modelWindows.isEmpty else { return nil }
+                return modelWindows.map {
                     LimitCandidate(account: account, snapshot: snapshot, window: $0)
                 }
             }

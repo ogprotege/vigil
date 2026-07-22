@@ -1,0 +1,12 @@
+{
+  "billingCycleStart": "2026-04-11T00:00:00.000Z",
+  "billingCycleEnd": "2026-05-11T00:00:00.000Z",
+  "membershipType": "team",
+  "individualUsage": {
+    "onDemand": { "enabled": true, "used": 500, "limit": 0, "remaining": null }
+  },
+  "teamUsage": {
+    "pooled": { "enabled": true, "used": 3000, "limit": 10000, "remaining": 7000 },
+    "onDemand": { "enabled": true, "used": 2000, "limit": 10000, "remaining": 8000 }
+  }
+}

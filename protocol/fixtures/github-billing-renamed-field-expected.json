@@ -2,10 +2,18 @@
   "windows": [],
   "metrics": [
     {
-      "id": "credits_used",
-      "label": "Credits used (month)",
+      "id": "credits_billable",
+      "label": "Billable AI credits (month)",
       "kind": "spend",
       "value": 200,
+      "unit": "credits",
+      "secondary": true
+    },
+    {
+      "id": "credits_included",
+      "label": "Included AI credits (month)",
+      "kind": "spend",
+      "value": 50,
       "unit": "credits",
       "secondary": true
     }

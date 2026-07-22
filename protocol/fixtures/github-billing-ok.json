@@ -1,20 +1,32 @@
 {
+  "timePeriod": { "year": 2026, "month": 7 },
+  "user": "monalisa",
   "usageItems": [
     {
-      "date": "2026-07-02",
-      "product": "copilot",
-      "sku": "ai_credits",
+      "product": "Copilot AI Credits",
+      "sku": "AI Credit",
+      "model": "GPT-5",
+      "unitType": "ai-credits",
+      "pricePerUnit": 0.01,
+      "grossQuantity": 175,
+      "grossAmount": 1.75,
+      "discountQuantity": 50,
+      "discountAmount": 0.5,
       "netAmount": 1.25,
-      "netQuantity": 125,
-      "discountQuantity": 50
+      "netQuantity": 125
     },
     {
-      "date": "2026-07-10",
-      "product": "copilot",
-      "sku": "ai_credits",
+      "product": "Copilot AI Credits",
+      "sku": "AI Credit",
+      "model": "Claude Sonnet",
+      "unitType": "ai-credits",
+      "pricePerUnit": 0.01,
+      "grossQuantity": 75,
+      "grossAmount": 0.75,
+      "discountQuantity": 0,
+      "discountAmount": 0,
       "netAmount": 0.75,
-      "netQuantity": 75,
-      "discountQuantity": 0
+      "netQuantity": 75
     }
   ]
 }

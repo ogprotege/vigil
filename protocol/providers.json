@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "providers": {
     "claude": {
       "displayName": "Claude",
@@ -52,6 +52,7 @@
         {
           "id": "session",
           "sourceKey": "five_hour",
+          "sourceContainer": "object",
           "resetFormat": "iso8601",
           "windowSeconds": 18000,
           "secondary": false
@@ -59,6 +60,7 @@
         {
           "id": "weekly",
           "sourceKey": "seven_day",
+          "sourceContainer": "object",
           "resetFormat": "iso8601",
           "windowSeconds": 604800,
           "secondary": false
@@ -66,6 +68,7 @@
         {
           "id": "weekly_sonnet",
           "sourceKey": "seven_day_sonnet",
+          "sourceContainer": "object",
           "resetFormat": "iso8601",
           "windowSeconds": 604800,
           "secondary": true
@@ -73,6 +76,7 @@
         {
           "id": "weekly_opus",
           "sourceKey": "seven_day_opus",
+          "sourceContainer": "object",
           "resetFormat": "iso8601",
           "windowSeconds": 604800,
           "secondary": true
@@ -80,6 +84,7 @@
         {
           "id": "weekly_oauth_apps",
           "sourceKey": "seven_day_oauth_apps",
+          "sourceContainer": "object",
           "resetFormat": "iso8601",
           "windowSeconds": 604800,
           "secondary": true
@@ -87,6 +92,7 @@
         {
           "id": "weekly_cowork",
           "sourceKey": "seven_day_cowork",
+          "sourceContainer": "object",
           "resetFormat": "iso8601",
           "windowSeconds": 604800,
           "secondary": true
@@ -107,28 +113,136 @@
         "fields": {
           "utilization": "percent",
           "resetsAt": "resets_at"
-        }
+        },
+        "conditions": [
+          {
+            "key": "is_active",
+            "equals": "true",
+            "valueType": "boolean",
+            "allowedNonMatches": ["false"]
+          }
+        ],
+        "requiredWhenPresent": true
       },
       "metricMappings": [
         {
           "id": "extra_used",
           "label": "Extra usage (month)",
+          "sourceKey": "spend.used.amount_minor",
+          "conditions": [
+            {
+              "key": "spend.enabled",
+              "equals": "true",
+              "valueType": "boolean",
+              "allowedNonMatches": ["false"]
+            }
+          ],
+          "kind": "spend",
+          "unit": "USD",
+          "unitKey": "spend.used.currency",
+          "requires": [
+            "spend.used.amount_minor",
+            "spend.limit.amount_minor",
+            "spend.used.exponent",
+            "spend.limit.exponent"
+          ],
+          "requiresPresent": ["spend.used.currency", "spend.limit.currency"],
+          "presencePaths": ["spend"],
+          "equalFields": [
+            ["spend.used.currency", "spend.limit.currency"],
+            ["spend.used.exponent", "spend.limit.exponent"]
+          ],
+          "incompleteWhenAnyRequiredPresent": true,
+          "scale": 0.01,
+          "exponentKey": "spend.used.exponent",
+          "secondary": false
+        },
+        {
+          "id": "extra_limit",
+          "label": "Extra usage limit",
+          "sourceKey": "spend.limit.amount_minor",
+          "conditions": [
+            {
+              "key": "spend.enabled",
+              "equals": "true",
+              "valueType": "boolean",
+              "allowedNonMatches": ["false"]
+            }
+          ],
+          "kind": "limit",
+          "unit": "USD",
+          "unitKey": "spend.limit.currency",
+          "requires": [
+            "spend.used.amount_minor",
+            "spend.limit.amount_minor",
+            "spend.used.exponent",
+            "spend.limit.exponent"
+          ],
+          "requiresPresent": ["spend.used.currency", "spend.limit.currency"],
+          "presencePaths": ["spend"],
+          "equalFields": [
+            ["spend.used.currency", "spend.limit.currency"],
+            ["spend.used.exponent", "spend.limit.exponent"]
+          ],
+          "incompleteWhenAnyRequiredPresent": true,
+          "scale": 0.01,
+          "exponentKey": "spend.limit.exponent",
+          "secondary": true
+        },
+        {
+          "id": "extra_used",
+          "label": "Extra usage (month)",
           "sourceKey": "extra_usage.used_credits",
+          "conditions": [
+            {
+              "key": "extra_usage.is_enabled",
+              "equals": "true",
+              "valueType": "boolean",
+              "allowedNonMatches": ["false"]
+            }
+          ],
           "kind": "spend",
           "unit": "USD",
           "unitKey": "extra_usage.currency",
+          "requires": ["extra_usage.used_credits", "extra_usage.monthly_limit"],
+          "requiresPresent": ["extra_usage.currency"],
+          "presencePaths": ["extra_usage"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "fallbackBlockedBy": ["spend"],
+          "scale": 0.01,
+          "exponentKey": "extra_usage.decimal_places",
           "secondary": false
         },
         {
           "id": "extra_limit",
           "label": "Extra usage limit",
           "sourceKey": "extra_usage.monthly_limit",
+          "conditions": [
+            {
+              "key": "extra_usage.is_enabled",
+              "equals": "true",
+              "valueType": "boolean",
+              "allowedNonMatches": ["false"]
+            }
+          ],
           "kind": "limit",
           "unit": "USD",
           "unitKey": "extra_usage.currency",
+          "requires": ["extra_usage.used_credits", "extra_usage.monthly_limit"],
+          "requiresPresent": ["extra_usage.currency"],
+          "presencePaths": ["extra_usage"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "fallbackBlockedBy": ["spend"],
+          "scale": 0.01,
+          "exponentKey": "extra_usage.decimal_places",
           "secondary": true
         }
       ],
+      "requiredOutputs": {
+        "minimumWindows": 1,
+        "minimumPrimaryWindows": 1
+      },
+      "requiredPaths": ["five_hour", "seven_day", "seven_day_sonnet", "seven_day_opus"],
       "capabilities": [
         "rate_windows",
         "spend"
@@ -187,23 +301,104 @@
       "planKey": "plan_type",
       "additionalWindows": {
         "sourceKey": "additional_rate_limits",
-        "idKey": "name",
-        "secondary": true
+        "idKey": "metered_feature",
+        "idFormat": "asciiSlug",
+        "labelKey": "limit_name",
+        "secondary": true,
+        "requiredWhenPresent": true,
+        "entryWindows": [
+          {
+            "sourceKey": "rate_limit.primary_window",
+            "sourceContainer": "object",
+            "idSuffix": "primary",
+            "idSuffixByWindowSeconds": {
+              "18000": "session",
+              "604800": "weekly"
+            },
+            "labelSuffixByWindowSeconds": {
+              "18000": "5 hours",
+              "604800": "Weekly"
+            }
+          },
+          {
+            "sourceKey": "rate_limit.secondary_window",
+            "sourceContainer": "object",
+            "idSuffix": "secondary",
+            "idSuffixByWindowSeconds": {
+              "18000": "session",
+              "604800": "weekly"
+            },
+            "labelSuffixByWindowSeconds": {
+              "18000": "5 hours",
+              "604800": "Weekly"
+            }
+          }
+        ]
       },
       "windows": [
         {
           "id": "session",
           "sourceKey": "rate_limit.primary_window",
+          "sourceContainer": "object",
           "resetFormat": "unixSeconds",
-          "secondary": false
+          "secondary": false,
+          "idByWindowSeconds": {
+            "18000": "session",
+            "604800": "weekly"
+          }
         },
         {
           "id": "weekly",
           "sourceKey": "rate_limit.secondary_window",
+          "sourceContainer": "object",
           "resetFormat": "unixSeconds",
-          "secondary": false
+          "secondary": false,
+          "idByWindowSeconds": {
+            "18000": "session",
+            "604800": "weekly"
+          }
         }
       ],
+      "metricMappings": [
+        {
+          "id": "credits_balance",
+          "label": "Flex credits",
+          "sourceKey": "credits.balance",
+          "conditions": [
+            {
+              "key": "credits.has_credits",
+              "equals": "true",
+              "valueType": "boolean",
+              "allowedNonMatches": ["false"]
+            },
+            {
+              "key": "credits.unlimited",
+              "equals": "false",
+              "valueType": "boolean",
+              "allowedNonMatches": ["true"]
+            }
+          ],
+          "presencePaths": ["credits"],
+          "kind": "balance",
+          "unit": "credits",
+          "secondary": false
+        },
+        {
+          "id": "reset_credits",
+          "label": "Reset credits available",
+          "sourceKey": "rate_limit_reset_credits.available_count",
+          "presencePaths": ["rate_limit_reset_credits"],
+          "kind": "remaining",
+          "unit": "resets",
+          "secondary": true
+        }
+      ],
+      "requiredOutputs": {
+        "minimumWindows": 1,
+        "minimumPrimaryWindows": 1
+      },
+      "requiredPaths": ["plan_type", "rate_limit.primary_window", "rate_limit.secondary_window"],
+      "absentOrNullPaths": ["spend_control", "code_review_rate_limit"],
       "capabilities": [
         "rate_windows"
       ]
@@ -236,34 +431,107 @@
       "manualEntryHint": "Create or copy an OpenRouter API key from openrouter.ai → Keys and paste it here.",
       "metricMappings": [
         {
-          "id": "usage",
-          "label": "Credits used",
+          "id": "usage_lifetime",
+          "label": "Usage (all time)",
           "sourceKey": "data.usage",
+          "kind": "spend",
+          "unit": "USD",
+          "secondary": true
+        },
+        {
+          "id": "usage_daily",
+          "label": "Usage (day)",
+          "sourceKey": "data.usage_daily",
+          "kind": "spend",
+          "unit": "USD",
+          "secondary": true
+        },
+        {
+          "id": "usage_weekly",
+          "label": "Usage (week)",
+          "sourceKey": "data.usage_weekly",
+          "kind": "spend",
+          "unit": "USD",
+          "secondary": true
+        },
+        {
+          "id": "usage_monthly",
+          "label": "Usage (month)",
+          "sourceKey": "data.usage_monthly",
           "kind": "spend",
           "unit": "USD",
           "secondary": false
         },
         {
-          "id": "limit",
-          "label": "Credit limit",
-          "sourceKey": "data.limit",
-          "kind": "limit",
+          "id": "byok_usage_lifetime",
+          "label": "BYOK usage (all time)",
+          "sourceKey": "data.byok_usage",
+          "kind": "spend",
           "unit": "USD",
           "secondary": true
         },
         {
+          "id": "byok_usage_daily",
+          "label": "BYOK usage (day)",
+          "sourceKey": "data.byok_usage_daily",
+          "kind": "spend",
+          "unit": "USD",
+          "secondary": true
+        },
+        {
+          "id": "byok_usage_weekly",
+          "label": "BYOK usage (week)",
+          "sourceKey": "data.byok_usage_weekly",
+          "kind": "spend",
+          "unit": "USD",
+          "secondary": true
+        },
+        {
+          "id": "byok_usage_monthly",
+          "label": "BYOK usage (month)",
+          "sourceKey": "data.byok_usage_monthly",
+          "kind": "spend",
+          "unit": "USD",
+          "secondary": true
+        },
+        {
+          "id": "limit",
+          "label": "Key spending limit",
+          "sourceKey": "data.limit",
+          "kind": "limit",
+          "unit": "USD",
+          "requires": ["data.limit", "data.limit_remaining"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "secondary": true
+        },
+        {
           "id": "remaining",
-          "label": "Credits remaining",
+          "label": "Key limit remaining",
           "sourceKey": "data.limit_remaining",
           "kind": "remaining",
           "unit": "USD",
+          "requires": ["data.limit", "data.limit_remaining"],
+          "incompleteWhenAnyRequiredPresent": true,
           "secondary": false
         }
       ],
+      "requiredOutputs": {
+        "minimumMetrics": 8,
+        "metricIds": [
+          "usage_lifetime",
+          "usage_daily",
+          "usage_weekly",
+          "usage_monthly",
+          "byok_usage_lifetime",
+          "byok_usage_daily",
+          "byok_usage_weekly",
+          "byok_usage_monthly"
+        ]
+      },
+      "requiredPaths": ["data.limit", "data.limit_reset", "data.limit_remaining"],
       "windows": [],
       "capabilities": [
-        "spend",
-        "balance"
+        "spend"
       ]
     },
     "deepseek": {
@@ -303,6 +571,9 @@
           "secondary": false
         }
       ],
+      "requiredOutputs": {
+        "minimumMetrics": 1
+      },
       "windows": [],
       "capabilities": [
         "balance"
@@ -311,6 +582,7 @@
     "moonshot": {
       "displayName": "Moonshot (Kimi)",
       "defaultEnabled": false,
+      "experimental": false,
       "auth": "api_key_bearer",
       "usage": {
         "method": "GET",
@@ -334,6 +606,17 @@
         }
       },
       "manualEntryHint": "Paste your Moonshot open-platform API key (sk-...) from platform.kimi.ai -> Console -> API Keys. China-platform keys need the Moonshot China provider.",
+      "responseEnvelope": {
+        "codeKey": "code",
+        "okCode": "0",
+        "codeValueType": "number",
+        "successKey": "status",
+        "successValue": "true",
+        "successValueType": "boolean"
+      },
+      "requiredConditions": [
+        { "key": "scode", "equals": "0x0", "valueType": "string" }
+      ],
       "metricMappings": [
         {
           "id": "balance",
@@ -360,6 +643,10 @@
           "secondary": true
         }
       ],
+      "requiredOutputs": {
+        "minimumMetrics": 3,
+        "metricIds": ["balance", "balance_cash", "balance_voucher"]
+      },
       "windows": [],
       "capabilities": [
         "balance"
@@ -368,6 +655,7 @@
     "moonshot_cn": {
       "displayName": "Moonshot (Kimi) China",
       "defaultEnabled": false,
+      "experimental": false,
       "auth": "api_key_bearer",
       "usage": {
         "method": "GET",
@@ -390,7 +678,18 @@
           "accessToken": "MOONSHOT_CN_API_KEY"
         }
       },
-      "manualEntryHint": "Paste your Moonshot China open-platform API key from platform.moonshot.cn -> Console -> API Keys.",
+      "manualEntryHint": "Paste your Moonshot China open-platform API key from platform.kimi.com (formerly platform.moonshot.cn) -> Console -> API Keys.",
+      "responseEnvelope": {
+        "codeKey": "code",
+        "okCode": "0",
+        "codeValueType": "number",
+        "successKey": "status",
+        "successValue": "true",
+        "successValueType": "boolean"
+      },
+      "requiredConditions": [
+        { "key": "scode", "equals": "0x0", "valueType": "string" }
+      ],
       "metricMappings": [
         {
           "id": "balance",
@@ -417,6 +716,10 @@
           "secondary": true
         }
       ],
+      "requiredOutputs": {
+        "minimumMetrics": 3,
+        "metricIds": ["balance", "balance_cash", "balance_voucher"]
+      },
       "windows": [],
       "capabilities": [
         "balance"
@@ -425,6 +728,7 @@
     "minimax": {
       "displayName": "MiniMax Coding Plan",
       "defaultEnabled": false,
+      "experimental": true,
       "auth": "api_key_bearer",
       "usage": {
         "method": "GET",
@@ -454,18 +758,36 @@
         "utilizationKind": "remaining",
         "allowStringNumbers": true
       },
+      "responseEnvelope": {
+        "codeKey": "base_resp.status_code",
+        "okCode": "0",
+        "codeValueType": "number",
+        "authCodes": ["1004", "1011", "1024"]
+      },
       "windows": [
         {
           "id": "session",
-          "sourceKey": "data.model_remains[model_name=general]",
+          "sourceKey": "model_remains",
+          "sourceContainer": "array",
+          "sourceKeys": ["data.model_remains"],
+          "conditions": [{ "key": "model_name", "equals": "general" }],
           "resetFormat": "unixMillis",
-          "secondary": false
+          "secondary": false,
+          "omitWhen": [
+            { "key": "current_interval_status", "equals": "3", "valueType": "number", "allowedNonMatches": ["1", "2"] }
+          ]
         },
         {
           "id": "weekly",
-          "sourceKey": "data.model_remains[model_name=general]",
+          "sourceKey": "model_remains",
+          "sourceContainer": "array",
+          "sourceKeys": ["data.model_remains"],
+          "conditions": [{ "key": "model_name", "equals": "general" }],
           "resetFormat": "unixMillis",
           "secondary": false,
+          "omitWhen": [
+            { "key": "current_weekly_status", "equals": "3", "valueType": "number", "allowedNonMatches": ["1", "2"] }
+          ],
           "fields": {
             "utilization": "current_weekly_remaining_percent",
             "resetsAt": "weekly_end_time"
@@ -473,19 +795,50 @@
         },
         {
           "id": "session_video",
-          "sourceKey": "data.model_remains[model_name=video]",
+          "sourceKey": "model_remains",
+          "sourceContainer": "array",
+          "sourceKeys": ["data.model_remains"],
+          "conditions": [{ "key": "model_name", "equals": "video" }],
           "resetFormat": "unixMillis",
-          "secondary": true
+          "secondary": true,
+          "omitWhen": [
+            { "key": "current_interval_status", "equals": "3", "valueType": "number", "allowedNonMatches": ["1", "2"] }
+          ]
         },
         {
           "id": "weekly_video",
-          "sourceKey": "data.model_remains[model_name=video]",
+          "sourceKey": "model_remains",
+          "sourceContainer": "array",
+          "sourceKeys": ["data.model_remains"],
+          "conditions": [{ "key": "model_name", "equals": "video" }],
           "resetFormat": "unixMillis",
           "secondary": true,
+          "omitWhen": [
+            { "key": "current_weekly_status", "equals": "3", "valueType": "number", "allowedNonMatches": ["1", "2"] }
+          ],
           "fields": {
             "utilization": "current_weekly_remaining_percent",
             "resetsAt": "weekly_end_time"
           }
+        }
+      ],
+      "requiredOutputs": {
+        "minimumWindows": 1,
+        "minimumPrimaryWindows": 1
+      },
+      "recognizedEmpty": {
+        "sourceKeys": ["model_remains", "data.model_remains"],
+        "allEntriesMatch": [
+          { "key": "current_interval_status", "equals": "3", "valueType": "number" },
+          { "key": "current_weekly_status", "equals": "3", "valueType": "number" }
+        ]
+      },
+      "exhaustiveCollections": [
+        {
+          "sourceKeys": ["model_remains", "data.model_remains"],
+          "identityKeys": ["model_name"],
+          "allowedIdentities": ["general", "video"],
+          "uniqueIdentities": ["general", "video"]
         }
       ],
       "capabilities": [
@@ -495,6 +848,7 @@
     "minimax_cn": {
       "displayName": "MiniMax Coding Plan China",
       "defaultEnabled": false,
+      "experimental": true,
       "auth": "api_key_bearer",
       "usage": {
         "method": "GET",
@@ -524,18 +878,36 @@
         "utilizationKind": "remaining",
         "allowStringNumbers": true
       },
+      "responseEnvelope": {
+        "codeKey": "base_resp.status_code",
+        "okCode": "0",
+        "codeValueType": "number",
+        "authCodes": ["1004", "1011", "1024"]
+      },
       "windows": [
         {
           "id": "session",
-          "sourceKey": "data.model_remains[model_name=general]",
+          "sourceKey": "model_remains",
+          "sourceContainer": "array",
+          "sourceKeys": ["data.model_remains"],
+          "conditions": [{ "key": "model_name", "equals": "general" }],
           "resetFormat": "unixMillis",
-          "secondary": false
+          "secondary": false,
+          "omitWhen": [
+            { "key": "current_interval_status", "equals": "3", "valueType": "number", "allowedNonMatches": ["1", "2"] }
+          ]
         },
         {
           "id": "weekly",
-          "sourceKey": "data.model_remains[model_name=general]",
+          "sourceKey": "model_remains",
+          "sourceContainer": "array",
+          "sourceKeys": ["data.model_remains"],
+          "conditions": [{ "key": "model_name", "equals": "general" }],
           "resetFormat": "unixMillis",
           "secondary": false,
+          "omitWhen": [
+            { "key": "current_weekly_status", "equals": "3", "valueType": "number", "allowedNonMatches": ["1", "2"] }
+          ],
           "fields": {
             "utilization": "current_weekly_remaining_percent",
             "resetsAt": "weekly_end_time"
@@ -543,19 +915,50 @@
         },
         {
           "id": "session_video",
-          "sourceKey": "data.model_remains[model_name=video]",
+          "sourceKey": "model_remains",
+          "sourceContainer": "array",
+          "sourceKeys": ["data.model_remains"],
+          "conditions": [{ "key": "model_name", "equals": "video" }],
           "resetFormat": "unixMillis",
-          "secondary": true
+          "secondary": true,
+          "omitWhen": [
+            { "key": "current_interval_status", "equals": "3", "valueType": "number", "allowedNonMatches": ["1", "2"] }
+          ]
         },
         {
           "id": "weekly_video",
-          "sourceKey": "data.model_remains[model_name=video]",
+          "sourceKey": "model_remains",
+          "sourceContainer": "array",
+          "sourceKeys": ["data.model_remains"],
+          "conditions": [{ "key": "model_name", "equals": "video" }],
           "resetFormat": "unixMillis",
           "secondary": true,
+          "omitWhen": [
+            { "key": "current_weekly_status", "equals": "3", "valueType": "number", "allowedNonMatches": ["1", "2"] }
+          ],
           "fields": {
             "utilization": "current_weekly_remaining_percent",
             "resetsAt": "weekly_end_time"
           }
+        }
+      ],
+      "requiredOutputs": {
+        "minimumWindows": 1,
+        "minimumPrimaryWindows": 1
+      },
+      "recognizedEmpty": {
+        "sourceKeys": ["model_remains", "data.model_remains"],
+        "allEntriesMatch": [
+          { "key": "current_interval_status", "equals": "3", "valueType": "number" },
+          { "key": "current_weekly_status", "equals": "3", "valueType": "number" }
+        ]
+      },
+      "exhaustiveCollections": [
+        {
+          "sourceKeys": ["model_remains", "data.model_remains"],
+          "identityKeys": ["model_name"],
+          "allowedIdentities": ["general", "video"],
+          "uniqueIdentities": ["general", "video"]
         }
       ],
       "capabilities": [
@@ -605,11 +1008,24 @@
           "label": "Spend (month to date)",
           "sourceKey": "data[].results[].amount.value",
           "aggregate": "sum",
+          "aggregateUnitKey": "data[].results[].amount.currency",
+          "aggregateExpectedUnit": "usd",
           "kind": "spend",
           "unit": "USD",
           "secondary": false
         }
       ],
+      "requiredOutputs": {
+        "minimumMetrics": 1,
+        "metricIds": ["spend_month"]
+      },
+      "incompleteWhen": [
+        { "key": "has_more", "equals": "true", "valueType": "boolean" }
+      ],
+      "requiredConditions": [
+        { "key": "has_more", "equals": "false", "valueType": "boolean" }
+      ],
+      "absentOrNullPaths": ["next_page"],
       "windows": [],
       "capabilities": [
         "spend"
@@ -625,7 +1041,7 @@
         "headers": {
           "Authorization": "Bearer {access_token}",
           "Accept": "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
+          "X-GitHub-Api-Version": "2026-03-10",
           "User-Agent": "Vigil/0.10"
         },
         "query": {
@@ -653,8 +1069,17 @@
       "manualEntryHint": "Create a fine-grained token at github.com -> Settings -> Developer settings with Account -> Plan (read) permission, and enter it together with your GitHub username. Org-managed Copilot seats report empty usage.",
       "metricMappings": [
         {
+          "id": "credits_used",
+          "label": "AI credits consumed (month)",
+          "sourceKey": "usageItems[].grossQuantity",
+          "aggregate": "sum",
+          "kind": "spend",
+          "unit": "credits",
+          "secondary": false
+        },
+        {
           "id": "spend_month",
-          "label": "AI spend (month)",
+          "label": "Billable AI spend (month)",
           "sourceKey": "usageItems[].netAmount",
           "aggregate": "sum",
           "kind": "spend",
@@ -662,15 +1087,28 @@
           "secondary": false
         },
         {
-          "id": "credits_used",
-          "label": "Credits used (month)",
+          "id": "credits_billable",
+          "label": "Billable AI credits (month)",
           "sourceKey": "usageItems[].netQuantity",
+          "aggregate": "sum",
+          "kind": "spend",
+          "unit": "credits",
+          "secondary": true
+        },
+        {
+          "id": "credits_included",
+          "label": "Included AI credits (month)",
+          "sourceKey": "usageItems[].discountQuantity",
           "aggregate": "sum",
           "kind": "spend",
           "unit": "credits",
           "secondary": true
         }
       ],
+      "requiredOutputs": {
+        "minimumMetrics": 2,
+        "metricIds": ["credits_used", "spend_month"]
+      },
       "windows": [],
       "capabilities": [
         "spend"
@@ -679,7 +1117,6 @@
     "xai": {
       "displayName": "xAI API",
       "defaultEnabled": false,
-      "experimental": true,
       "auth": "api_key_bearer",
       "usage": {
         "method": "GET",
@@ -703,17 +1140,22 @@
           "accountId": "XAI_TEAM_ID"
         }
       },
-      "manualEntryHint": "Create a Management Key at console.x.ai -> Settings -> Management Keys and enter it with your team ID (visible in console URLs). Experimental: the balance denomination has not been verified against a live account.",
+      "manualEntryHint": "Create a Management Key with billing read access at console.x.ai -> Settings -> Management Keys and enter it with your team ID (visible in console URLs).",
       "metricMappings": [
         {
           "id": "balance",
           "label": "Prepaid balance",
           "sourceKey": "total.val",
+          "scale": -0.01,
           "kind": "balance",
           "unit": "USD",
           "secondary": false
         }
       ],
+      "requiredOutputs": {
+        "minimumMetrics": 1,
+        "metricIds": ["balance"]
+      },
       "windows": [],
       "capabilities": [
         "balance"
@@ -751,20 +1193,263 @@
         "utilization": "percentage",
         "resetsAt": "nextResetTime"
       },
+      "responseEnvelope": {
+        "codeKey": "code",
+        "okCode": "200",
+        "codeValueType": "number",
+        "successKey": "success",
+        "successValue": "true",
+        "successValueType": "boolean",
+        "authCodes": ["1000", "1001"]
+      },
       "windows": [
         {
           "id": "session",
-          "sourceKey": "data.limits[type=TOKENS_LIMIT]",
-          "resetFormat": "unixSeconds",
+          "label": "Token usage (session)",
+          "sourceKey": "data.limits",
+          "sourceContainer": "array",
+          "sourceKeys": ["limits"],
+          "anyConditions": [
+            { "key": "type", "equals": "TOKENS_LIMIT" },
+            { "key": "name", "equals": "TOKENS_LIMIT" }
+          ],
+          "identityAliases": ["type", "name"],
+          "duration": {
+            "unitKey": "unit",
+            "numberKey": "number",
+            "unitSeconds": { "3": 3600, "4": 86400, "5": 2592000, "6": 604800 },
+            "allowedSeconds": [14400, 18000]
+          },
+          "resetFormat": "unixMillis",
           "secondary": false
         },
         {
-          "id": "monthly",
-          "sourceKey": "data.limits[type=TIME_LIMIT]",
-          "resetFormat": "unixSeconds",
+          "id": "weekly",
+          "label": "Token usage (week)",
+          "sourceKey": "data.limits",
+          "sourceContainer": "array",
+          "sourceKeys": ["limits"],
+          "anyConditions": [
+            { "key": "type", "equals": "TOKENS_LIMIT" },
+            { "key": "name", "equals": "TOKENS_LIMIT" }
+          ],
+          "identityAliases": ["type", "name"],
+          "duration": {
+            "unitKey": "unit",
+            "numberKey": "number",
+            "unitSeconds": { "3": 3600, "4": 86400, "5": 2592000, "6": 604800 },
+            "allowedSeconds": [604800]
+          },
+          "resetFormat": "unixMillis",
+          "secondary": false
+        }
+      ],
+      "exhaustiveCollections": [
+        {
+          "sourceKeys": ["data.limits", "limits"],
+          "identityKeys": ["type", "name"],
+          "allowedIdentities": ["TOKENS_LIMIT", "TIME_LIMIT"],
+          "uniqueIdentities": ["TIME_LIMIT"],
+          "durationIdentities": ["TOKENS_LIMIT"],
+          "duration": {
+            "unitKey": "unit",
+            "numberKey": "number",
+            "unitSeconds": {
+              "3": 3600,
+              "4": 86400,
+              "5": 2592000,
+              "6": 604800
+            },
+            "allowedSeconds": [14400, 18000, 604800]
+          }
+        }
+      ],
+      "metricMappings": [
+        {
+          "id": "websearch_used",
+          "label": "Web searches used",
+          "sourceKey": "data.limits[type=TIME_LIMIT].currentValue",
+          "requires": [
+            "data.limits[type=TIME_LIMIT].currentValue",
+            "data.limits[type=TIME_LIMIT].usage",
+            "data.limits[type=TIME_LIMIT].remaining"
+          ],
+          "presencePaths": ["data.limits[type=TIME_LIMIT]"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "kind": "spend",
+          "unit": "calls",
+          "secondary": true
+        },
+        {
+          "id": "websearch_used",
+          "label": "Web searches used",
+          "sourceKey": "data.limits[name=TIME_LIMIT].currentValue",
+          "requires": [
+            "data.limits[name=TIME_LIMIT].currentValue",
+            "data.limits[name=TIME_LIMIT].usage",
+            "data.limits[name=TIME_LIMIT].remaining"
+          ],
+          "presencePaths": ["data.limits[name=TIME_LIMIT]"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "kind": "spend",
+          "unit": "calls",
+          "secondary": true
+        },
+        {
+          "id": "websearch_used",
+          "label": "Web searches used",
+          "sourceKey": "limits[type=TIME_LIMIT].currentValue",
+          "requires": [
+            "limits[type=TIME_LIMIT].currentValue",
+            "limits[type=TIME_LIMIT].usage",
+            "limits[type=TIME_LIMIT].remaining"
+          ],
+          "presencePaths": ["limits[type=TIME_LIMIT]"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "kind": "spend",
+          "unit": "calls",
+          "secondary": true
+        },
+        {
+          "id": "websearch_used",
+          "label": "Web searches used",
+          "sourceKey": "limits[name=TIME_LIMIT].currentValue",
+          "requires": [
+            "limits[name=TIME_LIMIT].currentValue",
+            "limits[name=TIME_LIMIT].usage",
+            "limits[name=TIME_LIMIT].remaining"
+          ],
+          "presencePaths": ["limits[name=TIME_LIMIT]"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "kind": "spend",
+          "unit": "calls",
+          "secondary": true
+        },
+        {
+          "id": "websearch_limit",
+          "label": "Web search limit",
+          "sourceKey": "data.limits[type=TIME_LIMIT].usage",
+          "requires": [
+            "data.limits[type=TIME_LIMIT].currentValue",
+            "data.limits[type=TIME_LIMIT].usage",
+            "data.limits[type=TIME_LIMIT].remaining"
+          ],
+          "presencePaths": ["data.limits[type=TIME_LIMIT]"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "kind": "limit",
+          "unit": "calls",
+          "secondary": true
+        },
+        {
+          "id": "websearch_limit",
+          "label": "Web search limit",
+          "sourceKey": "data.limits[name=TIME_LIMIT].usage",
+          "requires": [
+            "data.limits[name=TIME_LIMIT].currentValue",
+            "data.limits[name=TIME_LIMIT].usage",
+            "data.limits[name=TIME_LIMIT].remaining"
+          ],
+          "presencePaths": ["data.limits[name=TIME_LIMIT]"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "kind": "limit",
+          "unit": "calls",
+          "secondary": true
+        },
+        {
+          "id": "websearch_limit",
+          "label": "Web search limit",
+          "sourceKey": "limits[type=TIME_LIMIT].usage",
+          "requires": [
+            "limits[type=TIME_LIMIT].currentValue",
+            "limits[type=TIME_LIMIT].usage",
+            "limits[type=TIME_LIMIT].remaining"
+          ],
+          "presencePaths": ["limits[type=TIME_LIMIT]"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "kind": "limit",
+          "unit": "calls",
+          "secondary": true
+        },
+        {
+          "id": "websearch_limit",
+          "label": "Web search limit",
+          "sourceKey": "limits[name=TIME_LIMIT].usage",
+          "requires": [
+            "limits[name=TIME_LIMIT].currentValue",
+            "limits[name=TIME_LIMIT].usage",
+            "limits[name=TIME_LIMIT].remaining"
+          ],
+          "presencePaths": ["limits[name=TIME_LIMIT]"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "kind": "limit",
+          "unit": "calls",
+          "secondary": true
+        },
+        {
+          "id": "websearch_remaining",
+          "label": "Web searches remaining",
+          "sourceKey": "data.limits[type=TIME_LIMIT].remaining",
+          "requires": [
+            "data.limits[type=TIME_LIMIT].currentValue",
+            "data.limits[type=TIME_LIMIT].usage",
+            "data.limits[type=TIME_LIMIT].remaining"
+          ],
+          "presencePaths": ["data.limits[type=TIME_LIMIT]"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "kind": "remaining",
+          "unit": "calls",
+          "secondary": true
+        },
+        {
+          "id": "websearch_remaining",
+          "label": "Web searches remaining",
+          "sourceKey": "data.limits[name=TIME_LIMIT].remaining",
+          "requires": [
+            "data.limits[name=TIME_LIMIT].currentValue",
+            "data.limits[name=TIME_LIMIT].usage",
+            "data.limits[name=TIME_LIMIT].remaining"
+          ],
+          "presencePaths": ["data.limits[name=TIME_LIMIT]"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "kind": "remaining",
+          "unit": "calls",
+          "secondary": true
+        },
+        {
+          "id": "websearch_remaining",
+          "label": "Web searches remaining",
+          "sourceKey": "limits[type=TIME_LIMIT].remaining",
+          "requires": [
+            "limits[type=TIME_LIMIT].currentValue",
+            "limits[type=TIME_LIMIT].usage",
+            "limits[type=TIME_LIMIT].remaining"
+          ],
+          "presencePaths": ["limits[type=TIME_LIMIT]"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "kind": "remaining",
+          "unit": "calls",
+          "secondary": true
+        },
+        {
+          "id": "websearch_remaining",
+          "label": "Web searches remaining",
+          "sourceKey": "limits[name=TIME_LIMIT].remaining",
+          "requires": [
+            "limits[name=TIME_LIMIT].currentValue",
+            "limits[name=TIME_LIMIT].usage",
+            "limits[name=TIME_LIMIT].remaining"
+          ],
+          "presencePaths": ["limits[name=TIME_LIMIT]"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "kind": "remaining",
+          "unit": "calls",
           "secondary": true
         }
       ],
+      "requiredOutputs": {
+        "minimumWindows": 2,
+        "windowIds": ["session", "weekly"]
+      },
       "capabilities": [
         "rate_windows"
       ]
@@ -799,28 +1484,240 @@
       "manualEntryHint": "On cursor.com while signed in, open DevTools -> Application -> Cookies, copy the WorkosCursorSessionToken value, and paste it here. Experimental: undocumented web API; re-paste when the session expires.",
       "planKey": "membershipType",
       "responseFields": {
-        "utilization": "plan.totalPercentUsed",
+        "utilization": "totalPercentUsed",
         "resetsAt": "billingCycleEnd"
       },
       "windows": [
         {
           "id": "plan",
-          "sourceKey": "individualUsage",
-          "resetFormat": "unixMillis",
-          "secondary": false
+          "sourceKey": "individualUsage.plan",
+          "sourceContainer": "object",
+          "resetFormat": "iso8601",
+          "secondary": false,
+          "requiredWhenPresent": false,
+          "fallbackGroup": "plan",
+          "fields": {
+            "utilization": "totalPercentUsed",
+            "resetsAt": "$.billingCycleEnd"
+          }
+        },
+        {
+          "id": "plan",
+          "sourceKey": "individualUsage.plan",
+          "sourceContainer": "object",
+          "resetFormat": "iso8601",
+          "secondary": false,
+          "requiredWhenPresent": false,
+          "fallbackGroup": "plan",
+          "fields": {
+            "used": "used",
+            "limit": "limit",
+            "resetsAt": "$.billingCycleEnd"
+          }
+        },
+        {
+          "id": "plan",
+          "sourceKey": "individualUsage.overall",
+          "sourceContainer": "object",
+          "resetFormat": "iso8601",
+          "secondary": false,
+          "requiredWhenPresent": false,
+          "fallbackGroup": "plan",
+          "fields": {
+            "used": "used",
+            "limit": "limit",
+            "resetsAt": "$.billingCycleEnd"
+          }
+        },
+        {
+          "id": "plan",
+          "sourceKey": "teamUsage.pooled",
+          "sourceContainer": "object",
+          "resetFormat": "iso8601",
+          "secondary": false,
+          "requiredWhenPresent": false,
+          "fallbackGroup": "plan",
+          "fields": {
+            "used": "used",
+            "limit": "limit",
+            "resetsAt": "$.billingCycleEnd"
+          }
+        },
+        {
+          "id": "plan_auto",
+          "label": "Auto-selected models",
+          "sourceKey": "individualUsage.plan",
+          "sourceContainer": "object",
+          "resetFormat": "iso8601",
+          "secondary": true,
+          "requiredWhenPresent": false,
+          "fields": {
+            "utilization": "autoPercentUsed",
+            "resetsAt": "$.billingCycleEnd"
+          }
+        },
+        {
+          "id": "plan_api",
+          "label": "API models",
+          "sourceKey": "individualUsage.plan",
+          "sourceContainer": "object",
+          "resetFormat": "iso8601",
+          "secondary": true,
+          "requiredWhenPresent": false,
+          "fields": {
+            "utilization": "apiPercentUsed",
+            "resetsAt": "$.billingCycleEnd"
+          }
         }
       ],
       "metricMappings": [
         {
           "id": "spend_ondemand",
           "label": "On-demand spend",
-          "sourceKey": "individualUsage.onDemand",
+          "sourceKey": "individualUsage.onDemand.used",
+          "conditions": [
+            {
+              "key": "individualUsage.onDemand.enabled",
+              "equals": "true",
+              "valueType": "boolean",
+              "allowedNonMatches": ["false"]
+            }
+          ],
+          "requires": [
+            "individualUsage.onDemand.used",
+            "individualUsage.onDemand.limit"
+          ],
+          "presencePaths": ["individualUsage.onDemand"],
+          "requiresPositive": ["individualUsage.onDemand.limit"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "scale": 0.01,
+          "kind": "spend",
+          "unit": "USD",
+          "secondary": true
+        },
+        {
+          "id": "limit_ondemand",
+          "label": "On-demand limit",
+          "sourceKey": "individualUsage.onDemand.limit",
+          "conditions": [
+            {
+              "key": "individualUsage.onDemand.enabled",
+              "equals": "true",
+              "valueType": "boolean",
+              "allowedNonMatches": ["false"]
+            }
+          ],
+          "requires": [
+            "individualUsage.onDemand.used",
+            "individualUsage.onDemand.limit"
+          ],
+          "presencePaths": ["individualUsage.onDemand"],
+          "requiresPositive": ["individualUsage.onDemand.limit"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "scale": 0.01,
+          "kind": "limit",
+          "unit": "USD",
+          "secondary": true
+        },
+        {
+          "id": "spend_ondemand",
+          "label": "On-demand spend",
+          "sourceKey": "teamUsage.onDemand.used",
+          "conditions": [
+            {
+              "key": "teamUsage.onDemand.enabled",
+              "equals": "true",
+              "valueType": "boolean",
+              "allowedNonMatches": ["false"]
+            }
+          ],
+          "requires": [
+            "teamUsage.onDemand.used",
+            "teamUsage.onDemand.limit"
+          ],
+          "presencePaths": ["teamUsage.onDemand"],
+          "requiresPositive": ["teamUsage.onDemand.limit"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "scale": 0.01,
+          "kind": "spend",
+          "unit": "USD",
+          "secondary": true
+        },
+        {
+          "id": "limit_ondemand",
+          "label": "On-demand limit",
+          "sourceKey": "teamUsage.onDemand.limit",
+          "conditions": [
+            {
+              "key": "teamUsage.onDemand.enabled",
+              "equals": "true",
+              "valueType": "boolean",
+              "allowedNonMatches": ["false"]
+            }
+          ],
+          "requires": [
+            "teamUsage.onDemand.used",
+            "teamUsage.onDemand.limit"
+          ],
+          "presencePaths": ["teamUsage.onDemand"],
+          "requiresPositive": ["teamUsage.onDemand.limit"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "scale": 0.01,
+          "kind": "limit",
+          "unit": "USD",
+          "secondary": true
+        },
+        {
+          "id": "spend_ondemand",
+          "label": "On-demand spend",
+          "sourceKey": "individualUsage.onDemand.used",
+          "conditions": [
+            {
+              "key": "individualUsage.onDemand.enabled",
+              "equals": "true",
+              "valueType": "boolean",
+              "allowedNonMatches": ["false"]
+            }
+          ],
+          "requires": [
+            "individualUsage.onDemand.used",
+            "individualUsage.onDemand.limit"
+          ],
+          "presencePaths": ["individualUsage.onDemand"],
+          "incompleteWhenAnyRequiredPresent": true,
+          "scale": 0.01,
+          "kind": "spend",
+          "unit": "USD",
+          "secondary": true
+        },
+        {
+          "id": "spend_ondemand",
+          "label": "On-demand spend",
+          "sourceKey": "teamUsage.onDemand.used",
+          "conditions": [
+            {
+              "key": "teamUsage.onDemand.enabled",
+              "equals": "true",
+              "valueType": "boolean",
+              "allowedNonMatches": ["false"]
+            }
+          ],
+          "requires": [
+            "teamUsage.onDemand.used",
+            "teamUsage.onDemand.limit"
+          ],
+          "presencePaths": ["teamUsage.onDemand"],
+          "incompleteWhenAnyRequiredPresent": true,
           "scale": 0.01,
           "kind": "spend",
           "unit": "USD",
           "secondary": true
         }
       ],
+      "requiredOutputs": {
+        "minimumWindows": 1,
+        "windowIds": ["plan"]
+      },
       "capabilities": [
         "rate_windows",
         "spend"
@@ -852,28 +1749,64 @@
           "accessToken": "KIMI_CODE_API_KEY"
         }
       },
-      "manualEntryHint": "Paste your Kimi Code API key (KIMI_CODE_API_KEY) — the coding-plan key from platform.kimi.ai, separate from the Moonshot balance key.",
+      "manualEntryHint": "Paste your Kimi Code API key (sk-kimi-...) from kimi.com/code/console. This coding-plan key is separate from a Moonshot open-platform key.",
+      "planKey": "user.membership.level",
       "responseFields": {
-        "utilization": "used_percent",
-        "resetsAt": "reset_at",
+        "utilization": "used",
+        "resetsAt": "resetTime",
         "allowStringNumbers": true
       },
       "windows": [
         {
           "id": "session",
-          "sourceKey": "limits[type=session]",
-          "resetFormat": "unixSeconds",
+          "sourceKey": "limits",
+          "sourceContainer": "array",
+          "conditions": [
+            { "key": "window.duration", "equals": "300" },
+            { "key": "window.timeUnit", "equals": "TIME_UNIT_MINUTE" }
+          ],
+          "resetFormat": "iso8601",
           "windowSeconds": 18000,
-          "secondary": false
+          "secondary": false,
+          "fields": {
+            "used": "detail.used",
+            "limit": "detail.limit",
+            "resetsAt": "detail.resetTime"
+          }
         },
         {
           "id": "weekly",
           "sourceKey": "usage",
-          "resetFormat": "unixSeconds",
+          "sourceContainer": "object",
+          "resetFormat": "iso8601",
           "windowSeconds": 604800,
-          "secondary": false
+          "secondary": false,
+          "fields": {
+            "used": "used",
+            "limit": "limit",
+            "resetsAt": "resetTime"
+          }
         }
       ],
+      "exhaustiveCollections": [
+        {
+          "sourceKeys": ["limits"],
+          "identityKeys": ["window.timeUnit"],
+          "allowedIdentities": ["TIME_UNIT_MINUTE"],
+          "uniqueIdentities": ["TIME_UNIT_MINUTE"],
+          "durationIdentities": ["TIME_UNIT_MINUTE"],
+          "duration": {
+            "unitKey": "window.timeUnit",
+            "numberKey": "window.duration",
+            "unitSeconds": {"TIME_UNIT_MINUTE": 60},
+            "allowedSeconds": [18000]
+          }
+        }
+      ],
+      "requiredOutputs": {
+        "minimumWindows": 2,
+        "windowIds": ["session", "weekly"]
+      },
       "capabilities": [
         "rate_windows"
       ]

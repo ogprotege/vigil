@@ -78,15 +78,19 @@ final class ProviderPresentationTests: XCTestCase {
     func testExperimentalFlagCoversExactlyTheUnverifiedIntegrations() {
         XCTAssertEqual(
             Set(ProviderRegistry.all.filter(\.experimental).map(\.id)),
-            ["xai", "zai", "cursor", "kimi_code"],
-            "Experimental marks community-documented endpoints — vendor-supported providers must never carry it"
+            ["minimax", "minimax_cn", "zai", "cursor", "kimi_code"],
+            "Experimental marks undocumented or community-researched endpoints; vendor-documented providers must not carry it"
         )
     }
 
     func testIsExperimentalResolvesFromProviderId() {
         XCTAssertTrue(ProviderPresentation.isExperimental(providerId: "cursor"))
         XCTAssertTrue(ProviderPresentation.isExperimental(providerId: "zai"))
-        XCTAssertTrue(ProviderPresentation.isExperimental(providerId: "xai"))
+        XCTAssertTrue(ProviderPresentation.isExperimental(providerId: "minimax"))
+        XCTAssertTrue(ProviderPresentation.isExperimental(providerId: "minimax_cn"))
+        XCTAssertFalse(ProviderPresentation.isExperimental(providerId: "moonshot"))
+        XCTAssertFalse(ProviderPresentation.isExperimental(providerId: "moonshot_cn"))
+        XCTAssertFalse(ProviderPresentation.isExperimental(providerId: "xai"))
         XCTAssertFalse(ProviderPresentation.isExperimental(providerId: "claude"))
         XCTAssertFalse(
             ProviderPresentation.isExperimental(providerId: "no-such-provider"),

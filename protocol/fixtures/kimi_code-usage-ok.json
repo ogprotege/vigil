@@ -1,6 +1,20 @@
 {
-  "usage": { "used_percent": 30, "reset_at": 1784530800 },
+  "user": { "membership": { "level": "LEVEL_INTERMEDIATE" } },
+  "usage": {
+    "limit": "100",
+    "used": "26",
+    "remaining": "74",
+    "resetTime": "2026-02-11T17:32:50.757941Z"
+  },
   "limits": [
-    { "type": "session", "used_percent": 45, "reset_at": 1784408400 }
+    {
+      "window": { "duration": 300, "timeUnit": "TIME_UNIT_MINUTE" },
+      "detail": {
+        "limit": "100",
+        "used": "15",
+        "remaining": "85",
+        "resetTime": "2026-02-07T12:32:50.757941Z"
+      }
+    }
   ]
 }

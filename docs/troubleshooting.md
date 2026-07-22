@@ -74,9 +74,9 @@ DEEPSEEK_API_KEY='...' npx vigil-link doctor --provider deepseek
 
 DeepSeek is opt-in and is not selected by a plain `npx vigil-link`.
 
-### Every other opt-in API-key provider
+### Every other opt-in provider
 
-Every opt-in API-key provider is activated the same way: set its documented environment variable in the same process as `vigil-link`, or paste the key directly on the phone (**Add account → Paste a provider key**). None are selected by a plain `npx vigil-link`. See [provider-spec.md](provider-spec.md) for the full env-var table.
+Every opt-in provider is activated the same way: set its documented environment variable in the same process as `vigil-link`, or paste the requested key or session credential directly on the phone (**Add account → Paste a provider key**). None are selected by a plain `npx vigil-link`. See [provider-spec.md](provider-spec.md) for the full env-var table.
 
 ## A live check is deferred
 
@@ -117,8 +117,9 @@ Check:
 
 - Claude with a Vigil-minted token: Vigil attempts one refresh. If the provider rotated the token but Keychain persistence fails, Vigil stops before retrying and asks for a re-link.
 - Claude copied from another client: re-link. Vigil will not rotate another client's refresh token.
-- Codex: run the Codex CLI to refresh its own sign-in, then re-link.
-- API-key providers: verify that the key is active and copied completely.
+- Codex minted on the phone: Vigil attempts one refresh. If it still says Re-link needed, sign in with Codex again in Vigil.
+- Codex copied from the CLI: refresh the Codex CLI sign-in, then import it again.
+- Manually entered providers: verify that the key or session credential is active and copied completely.
 
 ## `rateLimited`
 
@@ -128,7 +129,7 @@ Apple surfaces share an account-level ledger in the App Group container. Reserva
 
 ## `schemaChanged`
 
-Vigil received a successful response but could not map a valid window or metric. This usually means the provider changed its response.
+Vigil received a successful response, but parsing failed or the mapped result did not satisfy that provider's required-output contract. This includes missing required IDs, too few windows or metrics, and eligible dynamic windows that map incompletely. The app preserves the last successful snapshot and labels the account Provider changed instead of presenting the partial response as Live.
 
 1. Update Vigil and `vigil-link`.
 2. Re-run the provider-specific live check.
@@ -139,15 +140,15 @@ Never post the raw response until tokens, account IDs, emails, request IDs, and 
 
 Gateway-specific `schemaChanged` causes worth checking first:
 
-- **MiniMax**: a wrong-region key gets an HTTP 200 with an error body (code 1004). Switch between the MiniMax global and China providers instead of debugging the mapper.
-- **Experimental providers (xAI, Z.ai, Cursor)**: the endpoint is undocumented and may have drifted. `schemaChanged` is the designed failure mode; check for a Vigil update before anything else.
+- **MiniMax**: error-envelope codes 1004, 1011, and 1024 become `authExpired`, even when the server uses HTTP 200. Switch between the global and China providers and use the matching credential.
+- **Experimental providers (MiniMax, MiniMax China, Z.ai, Cursor, Kimi K3)**: the endpoint may have drifted. `schemaChanged` is the designed failure mode; check for a Vigil update before anything else.
 
 Other gateway notes:
 
 - **GitHub Copilot**: organization-managed seats legitimately report empty usage through the per-user billing API. An honest $0.00 with no items is not a bug.
 - **OpenAI API**: the billing endpoint rejects regular project keys (`sk-proj-…`); it needs a read-only organization Admin key.
 - **Cursor**: the session cookie expires; `authExpired` means re-paste `WorkosCursorSessionToken` from a signed-in browser.
-- **Moonshot / MiniMax China vs global**: keys live in separate namespaces; the wrong host answers 401 (`authExpired`) or a 200 error body (`schemaChanged`), never silently wrong numbers.
+- **Moonshot / MiniMax China vs global**: keys live in separate namespaces. The wrong host answers 401 or a known MiniMax authentication code inside a 200 body; both become `authExpired`.
 
 ## The app says it could not save data
 

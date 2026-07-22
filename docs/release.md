@@ -51,21 +51,36 @@ cd apps/apple
 
 # 1. Bump the version/build in project.yml if needed:
 #    MARKETING_VERSION (user-facing) / CURRENT_PROJECT_VERSION (build number).
-#    ExportOptions.plist sets manageAppVersionAndBuildNumber, so Apple will
-#    auto-bump colliding build numbers on upload.
+#    ExportOptions.plist deliberately refuses automatic build-number changes.
+#    A collision must fail so the archive and uploaded number cannot disagree.
+
+VIGIL_RELEASE_VERSION=0.13.0
+VIGIL_RELEASE_BUILD=13
+VIGIL_ARCHIVE_PATH="build/Vigil-${VIGIL_RELEASE_VERSION}-${VIGIL_RELEASE_BUILD}.xcarchive"
+VIGIL_EXPORT_PATH="build/export-${VIGIL_RELEASE_VERSION}-${VIGIL_RELEASE_BUILD}"
+
+# Never reuse an archive/export path from an earlier build.
+test ! -e "$VIGIL_ARCHIVE_PATH"
+test ! -e "$VIGIL_EXPORT_PATH"
 
 # 2. Generate + archive (manual distribution signing from project.yml):
 xcodegen generate
 xcodebuild -project Vigil.xcodeproj -scheme Vigil \
-  -destination 'generic/platform=iOS' archive -archivePath build/Vigil.xcarchive
+  -destination 'generic/platform=iOS' archive -archivePath "$VIGIL_ARCHIVE_PATH"
+
+# Verify the exact artifact before export. These are assertions, not merely
+# informational prints: a mismatch stops the release.
+test "$(/usr/libexec/PlistBuddy -c 'Print:ApplicationProperties:CFBundleShortVersionString' "$VIGIL_ARCHIVE_PATH/Info.plist")" = "$VIGIL_RELEASE_VERSION"
+test "$(/usr/libexec/PlistBuddy -c 'Print:ApplicationProperties:CFBundleVersion' "$VIGIL_ARCHIVE_PATH/Info.plist")" = "$VIGIL_RELEASE_BUILD"
+codesign --verify --deep --strict "$VIGIL_ARCHIVE_PATH/Products/Applications/Vigil.app"
 
 # 3. Export + upload. PATH is sanitized because Xcode's IPA step spawns a
 #    server-side rsync via PATH, and Homebrew's rsync 3.4.4 rejects Apple's
 #    flags ("Copy failed"). The API key authenticates the upload.
 env PATH="/usr/bin:/bin:/usr/sbin:/sbin" xcodebuild -exportArchive \
-  -archivePath build/Vigil.xcarchive \
+  -archivePath "$VIGIL_ARCHIVE_PATH" \
   -exportOptionsPlist ExportOptions.plist \
-  -exportPath build/export \
+  -exportPath "$VIGIL_EXPORT_PATH" \
   -allowProvisioningUpdates \
   -authenticationKeyPath ~/private_keys/AuthKey_<KEYID>.p8 \
   -authenticationKeyID <KEYID> \

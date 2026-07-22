@@ -2,7 +2,15 @@
   "data": {
     "label": "vigil-unlimited-test",
     "usage": 3.75,
+    "usage_daily": 0,
+    "usage_weekly": 1.25,
+    "usage_monthly": 3.5,
+    "byok_usage": 0,
+    "byok_usage_daily": 0,
+    "byok_usage_weekly": 0,
+    "byok_usage_monthly": 0,
     "limit": null,
+    "limit_reset": null,
     "is_free_tier": false,
     "limit_remaining": null
   }

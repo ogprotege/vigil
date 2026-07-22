@@ -58,6 +58,11 @@ final class UsagePresentationTests: XCTestCase {
                 window(id: "weekly_opus", used: 20, secondary: true)
             )
         )
+        XCTAssertTrue(
+            UsagePresentation.isModelWindow(
+                window(id: "weekly_opus", used: 20, secondary: true)
+            )
+        )
     }
 
     func testModelScopedWindowUsesLabelAndReadsAsModelLimit() {
@@ -65,6 +70,7 @@ final class UsagePresentationTests: XCTestCase {
         XCTAssertEqual(UsagePresentation.title(for: scoped), "Fable weekly")
         XCTAssertEqual(UsagePresentation.category(for: scoped), "MODEL LIMIT")
         XCTAssertTrue(UsagePresentation.isSpecialWindow(scoped))
+        XCTAssertTrue(UsagePresentation.isModelWindow(scoped))
     }
 
     func testVideoModelWindowsHaveSpecificTitlesAndModelCategory() {
@@ -127,7 +133,7 @@ final class UsagePresentationTests: XCTestCase {
         )
     }
 
-    func testModelLimitsGathersOnlySpecialWindowsAcrossAccountsTightestFirst() {
+    func testModelLimitsGathersOnlyModelWindowsAcrossAccountsTightestFirst() {
         let claude = AccountRef(key: "claude:one", providerId: "claude", label: nil, plan: "max")
         let codex = AccountRef(key: "codex:two", providerId: "codex", label: nil, plan: "pro")
         let claudeSnapshot = snapshot(
@@ -142,7 +148,7 @@ final class UsagePresentationTests: XCTestCase {
         let codexSnapshot = snapshot(
             account: codex,
             windows: [
-                window(id: "gpt-5-codex-spark", used: 95, secondary: true), // model — 5% left
+                window(id: "gpt-5-codex-spark", used: 95, secondary: true, label: "GPT-5 Codex Spark"), // model — 5% left
             ]
         )
 
@@ -151,9 +157,34 @@ final class UsagePresentationTests: XCTestCase {
             snapshots: [claude.key: claudeSnapshot, codex.key: codexSnapshot]
         )
 
-        // Only the three model/special windows, none of the primary ones, tightest first.
+        // Only the three model windows, none of the primary ones, tightest first.
         XCTAssertEqual(result.map { $0.window.id }, ["gpt-5-codex-spark", "weekly_opus", "weekly_sonnet"])
         XCTAssertEqual(result.first?.account, codex)
+    }
+
+    func testModelsExcludesNonModelSecondaryWindows() {
+        let claude = AccountRef(key: "claude:one", providerId: "claude", label: nil, plan: "max")
+        let claudeSnapshot = snapshot(
+            account: claude,
+            windows: [
+                window(id: "weekly_oauth_apps", used: 30, secondary: true),
+                window(id: "weekly_cowork", used: 40, secondary: true),
+                window(id: "weekly_opus", used: 50, secondary: true),
+            ]
+        )
+
+        let result = UsagePresentation.modelLimits(
+            accounts: [claude],
+            snapshots: [claude.key: claudeSnapshot]
+        )
+
+        XCTAssertEqual(result.map { $0.window.id }, ["weekly_opus"])
+        XCTAssertEqual(
+            UsagePresentation.category(
+                for: window(id: "weekly_oauth_apps", used: 30, secondary: true)
+            ),
+            "SPECIAL LIMIT"
+        )
     }
 
     func testModelLimitsExcludesPrimaryPlanWindows() {
@@ -193,6 +224,124 @@ final class UsagePresentationTests: XCTestCase {
         XCTAssertTrue(
             result.isEmpty,
             "primary session/weekly windows must not appear on the Models tab"
+        )
+    }
+
+    func testModelsEmptyStateRecognizesHealthyPlanWideWindowsWithoutModelCaps() {
+        let account = AccountRef(
+            key: "kimi_code:one",
+            providerId: "kimi_code",
+            label: nil,
+            plan: nil
+        )
+        let planWideSnapshot = snapshot(
+            account: account,
+            windows: [
+                window(id: "session", used: 48),
+                window(id: "weekly", used: 29),
+            ]
+        )
+
+        let state = ModelsEmptyState.resolve(
+            accounts: [account],
+            snapshots: [account.key: planWideSnapshot]
+        )
+
+        XCTAssertEqual(state, .noPerModelCaps)
+        XCTAssertEqual(state.title, "No per-model caps from these providers")
+        XCTAssertEqual(
+            state.detail,
+            "Your connected providers report plan-wide limits, balances, spend, or no finite quota, but no model-specific caps. Open Home for those details."
+        )
+    }
+
+    func testModelsEmptyStateRecognizesHealthyUnlimitedAccountWithoutFiniteRows() {
+        let account = AccountRef(
+            key: "minimax:one",
+            providerId: "minimax",
+            label: nil,
+            plan: nil
+        )
+        let unlimitedSnapshot = snapshot(account: account, windows: [])
+
+        XCTAssertEqual(
+            ModelsEmptyState.resolve(
+                accounts: [account],
+                snapshots: [account.key: unlimitedSnapshot]
+            ),
+            .noPerModelCaps
+        )
+    }
+
+    func testModelsEmptyStateDoesNotDescribeDegradedDataAsHealthy() {
+        let account = AccountRef(
+            key: "kimi_code:one",
+            providerId: "kimi_code",
+            label: nil,
+            plan: nil
+        )
+        let preservedSnapshot = snapshot(
+            account: account,
+            windows: [window(id: "weekly", used: 29)],
+            status: .authExpired
+        )
+
+        XCTAssertEqual(
+            ModelsEmptyState.resolve(
+                accounts: [account],
+                snapshots: [account.key: preservedSnapshot]
+            ),
+            .waitingForData
+        )
+        XCTAssertEqual(
+            ModelsEmptyState.resolve(accounts: [account], snapshots: [:]),
+            .waitingForData
+        )
+        XCTAssertEqual(
+            ModelsEmptyState.resolve(accounts: [], snapshots: [:]),
+            .noAccounts
+        )
+    }
+
+    func testModelsEmptyStateDoesNotLetOneHealthyAccountMaskAnotherDegradedAccount() {
+        let gateway = AccountRef(
+            key: "openrouter:one",
+            providerId: "openrouter",
+            label: nil,
+            plan: nil
+        )
+        let claude = AccountRef(
+            key: "claude:two",
+            providerId: "claude",
+            label: nil,
+            plan: nil
+        )
+        let healthyGateway = snapshot(
+            account: gateway,
+            windows: [],
+            metrics: [
+                UsageMetric(
+                    id: "usage_lifetime",
+                    label: "Lifetime usage",
+                    kind: .spend,
+                    value: 12,
+                    unit: "USD",
+                    secondary: false
+                )
+            ]
+        )
+        let expiredClaude = snapshot(
+            account: claude,
+            windows: [],
+            status: .authExpired
+        )
+
+        XCTAssertEqual(
+            ModelsEmptyState.resolve(
+                accounts: [gateway, claude],
+                snapshots: [gateway.key: healthyGateway, claude.key: expiredClaude]
+            ),
+            .waitingForData
         )
     }
 

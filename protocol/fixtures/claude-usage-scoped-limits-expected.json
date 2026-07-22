@@ -5,9 +5,5 @@
     { "id": "weekly_sonnet", "utilization": 30, "resetsAt": "2026-07-27T07:00:00Z", "windowSeconds": 604800, "secondary": true },
     { "id": "weekly_opus", "utilization": 20, "resetsAt": "2026-07-29T07:00:00Z", "windowSeconds": 604800, "secondary": true },
     { "id": "weekly_scoped_fable", "label": "Fable", "utilization": 55, "resetsAt": "2026-07-27T07:00:00Z", "windowSeconds": 604800, "secondary": true }
-  ],
-  "metrics": [
-    { "id": "extra_used", "label": "Extra usage (month)", "kind": "spend", "value": 12.5, "unit": "USD", "secondary": false },
-    { "id": "extra_limit", "label": "Extra usage limit", "kind": "limit", "value": 50, "unit": "USD", "secondary": true }
   ]
 }

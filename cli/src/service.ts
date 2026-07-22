@@ -1,8 +1,74 @@
 import type { ProviderId, ProviderSpec, Registry } from "./spec/registry.js";
 import { fetchUsage, fetchWithTimeout, resolveUrl, type HttpOptions } from "./http.js";
 import { recordPollResult, reservePoll, type PollGateOptions } from "./polling.js";
-import { mapUsageResponse } from "./providers/map.js";
+import { classifyResponseEnvelope, mapUsageResponse } from "./providers/map.js";
+
+/** Enforces the provider's declared minimum useful output. Dynamic-window
+ * incompleteness comes from the mapper because only it knows which filtered
+ * entries were actually eligible. */
+function mappingIsComplete(
+  spec: ProviderSpec,
+  mapped: ReturnType<typeof mapUsageResponse> & {}
+): boolean {
+  if (!mapped || mapped.incomplete) return false;
+  const required = spec.requiredOutputs;
+  const declaresWindows = spec.windows.length > 0 || spec.additionalWindows != null;
+  const minimumWindows = mapped.recognizedEmpty
+    ? 0
+    : required?.minimumWindows ?? (declaresWindows ? 1 : 0);
+  if (mapped.windows.length < minimumWindows) return false;
+  if (
+    !mapped.recognizedEmpty &&
+    mapped.windows.filter((window) => !window.secondary).length <
+    (required?.minimumPrimaryWindows ?? 0)
+  ) return false;
+  if ((required?.minimumMetrics ?? 0) > mapped.metrics.length) return false;
+  const windowIds = new Set(mapped.windows.map((window) => window.id));
+  if (!mapped.recognizedEmpty && required?.windowIds?.some((id) => !windowIds.has(id))) return false;
+  const metricIds = new Set(mapped.metrics.map((metric) => metric.id));
+  if (required?.metricIds?.some((id) => !metricIds.has(id))) return false;
+  return true;
+}
 import type { Credentials, ProviderSnapshot } from "./providers/types.js";
+
+export type UsageBodyClassification = Pick<
+  ProviderSnapshot,
+  "status" | "planLabel" | "windows" | "metrics"
+>;
+
+/** Classifies an already-decoded HTTP 2xx usage body. Keeping this as the
+ * production path gives every provider a deterministic fixture-level test of
+ * the complete envelope -> mapper -> required-output decision. */
+export function classifyUsageBody(
+  spec: ProviderSpec,
+  body: unknown,
+  fallbackPlan: string | null = null
+): UsageBodyClassification {
+  const envelopeStatus = classifyResponseEnvelope(spec, body);
+  if (envelopeStatus) {
+    return {
+      status: envelopeStatus,
+      planLabel: fallbackPlan,
+      windows: [],
+      metrics: [],
+    };
+  }
+  const mapped = mapUsageResponse(spec, body);
+  if (!mapped) {
+    return {
+      status: "schemaChanged",
+      planLabel: fallbackPlan,
+      windows: [],
+      metrics: [],
+    };
+  }
+  return {
+    status: mappingIsComplete(spec, mapped) ? "ok" : "schemaChanged",
+    planLabel: mapped.planLabel ?? fallbackPlan,
+    windows: mapped.windows,
+    metrics: mapped.metrics,
+  };
+}
 
 export interface RefreshResult {
   credentials: Credentials;
@@ -141,24 +207,10 @@ export async function getSnapshot(
         metrics: [],
       };
     } else {
-      const mapped = mapUsageResponse(spec, result.body);
-      if (!mapped) {
-        snapshot = {
-          ...base,
-          status: "schemaChanged",
-          planLabel: activeCreds.plan ?? null,
-          windows: [],
-          metrics: [],
-        };
-      } else {
-        snapshot = {
-          ...base,
-          status: "ok",
-          planLabel: mapped.planLabel ?? activeCreds.plan ?? null,
-          windows: mapped.windows,
-          metrics: mapped.metrics,
-        };
-      }
+      snapshot = {
+        ...base,
+        ...classifyUsageBody(spec, result.body, activeCreds.plan ?? null),
+      };
     }
   } catch {
     snapshot = {

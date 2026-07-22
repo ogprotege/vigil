@@ -41,13 +41,5 @@
       "scope": { "model": { "display_name": "Broken", "id": null }, "surface": null },
       "severity": "normal"
     }
-  ],
-  "extra_usage": {
-    "is_enabled": true,
-    "monthly_limit": 50,
-    "used_credits": 12.5,
-    "utilization": 25,
-    "currency": "USD",
-    "disabled_reason": null
-  }
+  ]
 }

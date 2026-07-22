@@ -5,7 +5,7 @@
       "id": "balance",
       "label": "Prepaid balance",
       "kind": "balance",
-      "value": 25.5,
+      "value": 10,
       "unit": "USD",
       "secondary": false
     }

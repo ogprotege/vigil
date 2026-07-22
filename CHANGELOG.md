@@ -4,6 +4,78 @@
 
 Anything that changes shipped behavior gets an entry here: `vigil-link` npm versions, TestFlight app builds, and protocol or registry changes that affect both. Provider-schema and local-state migration notes are recorded per release so an existing installation can be upgraded deliberately.
 
+## 0.13.0 (13) — TestFlight internal, 2026-07-22
+
+**Provider contracts now follow observed or published response shapes.** The
+previous fixtures often repeated the mapper's assumptions, so TypeScript and
+Swift could agree while both were wrong about the provider. This release
+audits all 14 registry entries and records an evidence class for every fixture.
+Only the Claude 429 and scoped-limit bodies are `live_sanitized`; every other
+fixture is labeled as a vendor example, community research, or synthetic case.
+
+Provider corrections:
+
+- **Claude:** extra-usage minor units now scale to major currency units. Active
+  `weekly_scoped` entries read `percent`, and fractional reset timestamps stay
+  compatible across TypeScript and Swift.
+- **ChatGPT / Codex:** each `additional_rate_limits` entry can fan into nested
+  primary and secondary model windows. IDs use `metered_feature`, labels use
+  `limit_name`, and durations determine session versus weekly lanes. Flex
+  credits and reset credits are mapped. The current production response shape
+  was rechecked through the poll gate without retaining account data.
+- **OpenRouter:** lifetime, daily, weekly, monthly, and BYOK usage are distinct.
+  Optional key spending limits no longer masquerade as an account balance.
+- **Moonshot global and China:** explicit response envelopes and required
+  balance outputs fail closed. Both contracts are vendor-documented and no
+  longer labeled experimental. The global fixture copies the vendor example;
+  the China debt case is synthetic. Neither is a Vigil production capture.
+- **MiniMax global and China:** `model_remains` is read at the response root,
+  with the older nested wrapper retained as a fallback. Status-3 lanes are
+  omitted, string percentages remain supported, and provider auth errors
+  inside HTTP 200 bodies become `authExpired`. Both providers are now visibly
+  experimental.
+- **GitHub Copilot:** gross, discount, and net quantities now retain their
+  documented meanings. Billable spend comes from `netAmount`.
+- **xAI:** signed cent-denominated prepaid balance is converted to positive USD
+  with the correct 100:1 scale. The vendor-documented endpoint is no longer
+  mislabeled experimental.
+- **Z.ai:** 5-hour and weekly token windows are selected by type, unit, and
+  duration. Millisecond resets parse correctly. Web-search quotas remain
+  scalar call metrics instead of being mislabeled token windows.
+- **Cursor:** the billing reset comes from the response root, supports current
+  individual and team shapes, and plan utilization can fall back to exact
+  used/limit ratios. On-demand cents and model lanes map separately.
+- **Kimi K3:** session counts under `limits[].detail` and weekly counts under
+  `usage` now compute exact utilization. Fractional ISO reset timestamps parse,
+  and zero limits fail closed.
+- **Moonshot global/China, DeepSeek, and OpenAI:** body envelopes and required
+  metric IDs now prevent explicit provider errors or renamed fields from
+  becoming a healthy zero.
+
+**Partial mapping is no longer Live.** Registry version 2 adds required-output
+contracts, body-error envelopes, ordered source fallbacks, selected/omitted
+array entries, root-relative fields, used/limit ratios, duration-derived IDs,
+and nested dynamic-window fan-out. A successful response becomes
+`schemaChanged` when a required window or metric disappears, or when an
+eligible dynamic entry maps incompletely. The classifier retains partial output
+for diagnosis, while Apple surfaces preserve the last successful snapshot.
+
+**Models means models.** The Models tab no longer falls back to primary plan
+windows and no longer accepts unrelated secondary caps such as Claude OAuth-app
+or Cowork limits. It shows only named/model-scoped lanes.
+
+**Release artifacts are deterministic.** Build 13 uses build-specific archive
+and export paths, and App Store Connect may not silently rewrite the build
+number during export. The signed `0.13.0 (13)` archive was version-checked,
+signature-verified, and uploaded successfully to App Store Connect on
+2026-07-22.
+
+Release validation passed from a clean CLI install: 240 CLI tests, 148
+VigilKit tests with only the two opt-in live probes skipped in the offline
+suite, 81 app tests, the iOS Simulator build, package dry-run, and dependency
+audit. The two live authorization probes then passed separately against the
+real Claude and Codex endpoints.
+
 ## 0.13.0 (12) — TestFlight internal, 2026-07-22
 
 **Claude limits display at all again.** The app showed a Claude account as

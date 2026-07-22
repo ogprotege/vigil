@@ -19,6 +19,14 @@ final class SpecParityTests: XCTestCase {
         let oauth: SpecOAuth?
         let poll: SpecPoll
         let responseFields: SpecResponseFields?
+        let responseEnvelope: SpecResponseEnvelope?
+        let requiredOutputs: SpecRequiredOutputs?
+        let recognizedEmpty: SpecRecognizedEmpty?
+        let exhaustiveCollections: [SpecExhaustiveCollection]?
+        let incompleteWhen: [SpecCondition]?
+        let requiredConditions: [SpecCondition]?
+        let requiredPaths: [String]?
+        let absentOrNullPaths: [String]?
         let planKey: String?
         let additionalWindows: SpecAdditional?
         let windows: [SpecWindow]
@@ -72,6 +80,7 @@ final class SpecParityTests: XCTestCase {
     private struct SpecAdditional: Decodable {
         let sourceKey: String
         let idKey: String
+        let idFormat: String?
         let secondary: Bool
         let filter: SpecAdditionalFilter?
         let resetFormat: String?
@@ -79,32 +88,120 @@ final class SpecParityTests: XCTestCase {
         let labelKey: String?
         let windowSeconds: Int?
         let fields: SpecWindowFields?
+        let requiredWhenPresent: Bool?
+        let conditions: [SpecCondition]?
+        let entryWindows: [SpecAdditionalEntryWindow]?
     }
 
     private struct SpecWindowFields: Decodable {
-        let utilization: String
+        let utilization: String?
         let resetsAt: String
+        let used: String?
+        let limit: String?
+    }
+
+    private struct SpecCondition: Decodable {
+        let key: String
+        let equals: String
+        let valueType: String?
+        let allowedNonMatches: [String]?
+    }
+
+    private struct SpecAdditionalEntryWindow: Decodable {
+        let sourceKey: String
+        let sourceContainer: String
+        let idSuffix: String
+        let idSuffixByWindowSeconds: [String: String]?
+        let labelSuffix: String?
+        let labelSuffixByWindowSeconds: [String: String]?
+        let resetFormat: String?
+        let windowSeconds: Int?
+        let secondary: Bool?
+        let fields: SpecWindowFields?
     }
 
     private struct SpecWindow: Decodable {
         let id: String
         let sourceKey: String
+        let sourceKeys: [String]?
+        let sourceContainer: String
         let resetFormat: String
         let windowSeconds: Int?
         let secondary: Bool
+        let conditions: [SpecCondition]?
+        let anyConditions: [SpecCondition]?
+        let identityAliases: [String]?
+        let omitWhen: [SpecCondition]?
+        let idByWindowSeconds: [String: String]?
+        let duration: SpecWindowDuration?
+        let label: String?
         let fields: SpecWindowFields?
+        let requiredWhenPresent: Bool?
+        let fallbackGroup: String?
+    }
+
+    private struct SpecWindowDuration: Decodable {
+        let unitKey: String
+        let numberKey: String
+        let unitSeconds: [String: Int]
+        let allowedSeconds: [Int]?
+        let minimumSeconds: Int?
+        let maximumSecondsExclusive: Int?
+    }
+
+    private struct SpecResponseEnvelope: Decodable {
+        let codeKey: String
+        let okCode: String
+        let codeValueType: String?
+        let successKey: String?
+        let successValue: String?
+        let successValueType: String?
+        let authCodes: [String]?
+    }
+
+    private struct SpecRequiredOutputs: Decodable {
+        let minimumWindows: Int?
+        let minimumPrimaryWindows: Int?
+        let windowIds: [String]?
+        let minimumMetrics: Int?
+        let metricIds: [String]?
+    }
+
+    private struct SpecRecognizedEmpty: Decodable {
+        let sourceKeys: [String]
+        let allEntriesMatch: [SpecCondition]
+    }
+
+    private struct SpecExhaustiveCollection: Decodable {
+        let sourceKeys: [String]
+        let identityKeys: [String]
+        let allowedIdentities: [String]
+        let uniqueIdentities: [String]?
+        let durationIdentities: [String]?
+        let duration: SpecWindowDuration?
     }
 
     private struct SpecMetric: Decodable {
         let id: String
         let label: String
         let sourceKey: String
+        let conditions: [SpecCondition]?
         let kind: String
         let unit: String?
         let unitKey: String?
+        let requires: [String]?
+        let requiresPresent: [String]?
+        let equalFields: [[String]]?
+        let presencePaths: [String]?
+        let requiresPositive: [String]?
+        let incompleteWhenAnyRequiredPresent: Bool?
+        let fallbackBlockedBy: [String]?
         let secondary: Bool
         let aggregate: String?
+        let aggregateUnitKey: String?
+        let aggregateExpectedUnit: String?
         let scale: Double?
+        let exponentKey: String?
     }
 
     private struct SpecMetricCollection: Decodable {
@@ -115,6 +212,14 @@ final class SpecParityTests: XCTestCase {
         let kind: String
         let unitKey: String?
         let secondary: Bool
+    }
+
+    private func conditionSignature(_ condition: FieldCondition) -> String {
+        "\(condition.key)|\(condition.equals)|\(condition.valueType ?? "")|\(condition.allowedNonMatches.joined(separator: ","))"
+    }
+
+    private func conditionSignature(_ condition: SpecCondition) -> String {
+        "\(condition.key)|\(condition.equals)|\(condition.valueType ?? "")|\((condition.allowedNonMatches ?? []).joined(separator: ","))"
     }
 
     private func assertMatches(_ swift: ProviderSpec, _ json: SpecProvider, file: StaticString = #filePath, line: UInt = #line) {
@@ -165,9 +270,58 @@ final class SpecParityTests: XCTestCase {
                 file: file, line: line
             )
         }
+        XCTAssertEqual(swift.responseEnvelope?.codeKey, json.responseEnvelope?.codeKey, file: file, line: line)
+        XCTAssertEqual(swift.responseEnvelope?.okCode, json.responseEnvelope?.okCode, file: file, line: line)
+        XCTAssertEqual(swift.responseEnvelope?.codeValueType, json.responseEnvelope?.codeValueType, file: file, line: line)
+        XCTAssertEqual(swift.responseEnvelope?.successKey, json.responseEnvelope?.successKey, file: file, line: line)
+        XCTAssertEqual(swift.responseEnvelope?.successValue, json.responseEnvelope.map { $0.successValue ?? "true" }, file: file, line: line)
+        XCTAssertEqual(swift.responseEnvelope?.successValueType, json.responseEnvelope?.successValueType, file: file, line: line)
+        XCTAssertEqual(swift.responseEnvelope?.authCodes, json.responseEnvelope.map { $0.authCodes ?? [] }, file: file, line: line)
+        XCTAssertEqual(swift.requiredOutputs?.minimumWindows, json.requiredOutputs?.minimumWindows, file: file, line: line)
+        XCTAssertEqual(swift.requiredOutputs?.minimumPrimaryWindows, json.requiredOutputs.map { $0.minimumPrimaryWindows ?? 0 }, file: file, line: line)
+        XCTAssertEqual(swift.requiredOutputs?.windowIDs, json.requiredOutputs.map { $0.windowIds ?? [] }, file: file, line: line)
+        XCTAssertEqual(swift.requiredOutputs?.minimumMetrics, json.requiredOutputs.map { $0.minimumMetrics ?? 0 }, file: file, line: line)
+        XCTAssertEqual(swift.requiredOutputs?.metricIDs, json.requiredOutputs.map { $0.metricIds ?? [] }, file: file, line: line)
+        XCTAssertEqual(swift.recognizedEmpty?.sourceKeys, json.recognizedEmpty?.sourceKeys, file: file, line: line)
+        XCTAssertEqual(
+            swift.recognizedEmpty?.allEntriesMatch.map(conditionSignature),
+            json.recognizedEmpty?.allEntriesMatch.map(conditionSignature),
+            file: file,
+            line: line
+        )
+        let jsonExhaustiveCollections = json.exhaustiveCollections ?? []
+        XCTAssertEqual(swift.exhaustiveCollections.count, jsonExhaustiveCollections.count, file: file, line: line)
+        for (got, want) in zip(swift.exhaustiveCollections, jsonExhaustiveCollections) {
+            XCTAssertEqual(got.sourceKeys, want.sourceKeys, file: file, line: line)
+            XCTAssertEqual(got.identityKeys, want.identityKeys, file: file, line: line)
+            XCTAssertEqual(got.allowedIdentities, want.allowedIdentities, file: file, line: line)
+            XCTAssertEqual(got.uniqueIdentities, want.uniqueIdentities ?? [], file: file, line: line)
+            XCTAssertEqual(got.durationIdentities, want.durationIdentities ?? [], file: file, line: line)
+            XCTAssertEqual(got.duration?.unitKey, want.duration?.unitKey, file: file, line: line)
+            XCTAssertEqual(got.duration?.numberKey, want.duration?.numberKey, file: file, line: line)
+            XCTAssertEqual(got.duration?.unitSeconds, want.duration?.unitSeconds, file: file, line: line)
+            XCTAssertEqual(got.duration?.allowedSeconds, want.duration.map { $0.allowedSeconds ?? [] }, file: file, line: line)
+            XCTAssertEqual(got.duration?.minimumSeconds, want.duration?.minimumSeconds, file: file, line: line)
+            XCTAssertEqual(got.duration?.maximumSecondsExclusive, want.duration?.maximumSecondsExclusive, file: file, line: line)
+        }
+        XCTAssertEqual(
+            swift.incompleteWhen.map(conditionSignature),
+            (json.incompleteWhen ?? []).map(conditionSignature),
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            swift.requiredConditions.map(conditionSignature),
+            (json.requiredConditions ?? []).map(conditionSignature),
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(swift.requiredPaths, json.requiredPaths ?? [], file: file, line: line)
+        XCTAssertEqual(swift.absentOrNullPaths, json.absentOrNullPaths ?? [], file: file, line: line)
         XCTAssertEqual(swift.planKey, json.planKey, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.sourceKey, json.additionalWindows?.sourceKey, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.idKey, json.additionalWindows?.idKey, file: file, line: line)
+        XCTAssertEqual(swift.additionalWindows?.idFormat, json.additionalWindows?.idFormat, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.secondary, json.additionalWindows?.secondary, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.filter?.key, json.additionalWindows?.filter?.key, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.filter?.equals, json.additionalWindows?.filter?.equals, file: file, line: line)
@@ -178,6 +332,29 @@ final class SpecParityTests: XCTestCase {
         XCTAssertEqual(swift.additionalWindows?.windowSeconds, json.additionalWindows?.windowSeconds, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.fields?.utilization, json.additionalWindows?.fields?.utilization, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.fields?.resetsAt, json.additionalWindows?.fields?.resetsAt, file: file, line: line)
+        XCTAssertEqual(swift.additionalWindows?.fields?.used, json.additionalWindows?.fields?.used, file: file, line: line)
+        XCTAssertEqual(swift.additionalWindows?.fields?.limit, json.additionalWindows?.fields?.limit, file: file, line: line)
+        XCTAssertEqual(swift.additionalWindows?.requiredWhenPresent, json.additionalWindows.map { $0.requiredWhenPresent ?? false }, file: file, line: line)
+        XCTAssertEqual(swift.additionalWindows?.conditions.map(conditionSignature), json.additionalWindows.map { ($0.conditions ?? []).map(conditionSignature) }, file: file, line: line)
+        let jsonEntryWindows = json.additionalWindows?.entryWindows ?? []
+        XCTAssertEqual(swift.additionalWindows?.entryWindows.count, json.additionalWindows.map { _ in jsonEntryWindows.count }, file: file, line: line)
+        if let swiftEntryWindows = swift.additionalWindows?.entryWindows {
+            for (got, want) in zip(swiftEntryWindows, jsonEntryWindows) {
+                XCTAssertEqual(got.sourceKey, want.sourceKey, file: file, line: line)
+                XCTAssertEqual(got.sourceContainer.rawValue, want.sourceContainer, file: file, line: line)
+                XCTAssertEqual(got.idSuffix, want.idSuffix, file: file, line: line)
+                XCTAssertEqual(got.idSuffixByWindowSeconds, Dictionary(uniqueKeysWithValues: (want.idSuffixByWindowSeconds ?? [:]).compactMap { key, value in Int(key).map { ($0, value) } }), file: file, line: line)
+                XCTAssertEqual(got.labelSuffix, want.labelSuffix, file: file, line: line)
+                XCTAssertEqual(got.labelSuffixByWindowSeconds, Dictionary(uniqueKeysWithValues: (want.labelSuffixByWindowSeconds ?? [:]).compactMap { key, value in Int(key).map { ($0, value) } }), file: file, line: line)
+                XCTAssertEqual(got.resetFormat.rawValue, want.resetFormat ?? "unixSeconds", file: file, line: line)
+                XCTAssertEqual(got.windowSeconds, want.windowSeconds, file: file, line: line)
+                XCTAssertEqual(got.secondary, want.secondary, file: file, line: line)
+                XCTAssertEqual(got.fields?.utilization, want.fields?.utilization, file: file, line: line)
+                XCTAssertEqual(got.fields?.resetsAt, want.fields?.resetsAt, file: file, line: line)
+                XCTAssertEqual(got.fields?.used, want.fields?.used, file: file, line: line)
+                XCTAssertEqual(got.fields?.limit, want.fields?.limit, file: file, line: line)
+            }
+        }
         // The Swift mirror carries oauth only for providers whose refresh
         // grant is verified; when present it must match the JSON.
         if let oauth = swift.oauth {
@@ -193,11 +370,29 @@ final class SpecParityTests: XCTestCase {
         for (got, want) in zip(swift.windows, json.windows) {
             XCTAssertEqual(got.id, want.id, file: file, line: line)
             XCTAssertEqual(got.sourceKey, want.sourceKey, file: file, line: line)
+            XCTAssertEqual(got.sourceKeys, want.sourceKeys ?? [], file: file, line: line)
+            XCTAssertEqual(got.sourceContainer.rawValue, want.sourceContainer, file: file, line: line)
             XCTAssertEqual(got.resetFormat.rawValue, want.resetFormat, file: file, line: line)
             XCTAssertEqual(got.windowSeconds, want.windowSeconds, file: file, line: line)
             XCTAssertEqual(got.secondary, want.secondary, file: file, line: line)
+            XCTAssertEqual(got.conditions.map(conditionSignature), (want.conditions ?? []).map(conditionSignature), file: file, line: line)
+            XCTAssertEqual(got.anyConditions.map(conditionSignature), (want.anyConditions ?? []).map(conditionSignature), file: file, line: line)
+            XCTAssertEqual(got.identityAliases, want.identityAliases ?? [], file: file, line: line)
+            XCTAssertEqual(got.omitWhen.map(conditionSignature), (want.omitWhen ?? []).map(conditionSignature), file: file, line: line)
+            XCTAssertEqual(got.idByWindowSeconds, Dictionary(uniqueKeysWithValues: (want.idByWindowSeconds ?? [:]).compactMap { key, value in Int(key).map { ($0, value) } }), file: file, line: line)
+            XCTAssertEqual(got.duration?.unitKey, want.duration?.unitKey, file: file, line: line)
+            XCTAssertEqual(got.duration?.numberKey, want.duration?.numberKey, file: file, line: line)
+            XCTAssertEqual(got.duration?.unitSeconds, want.duration?.unitSeconds, file: file, line: line)
+            XCTAssertEqual(got.duration?.allowedSeconds, want.duration.map { $0.allowedSeconds ?? [] }, file: file, line: line)
+            XCTAssertEqual(got.duration?.minimumSeconds, want.duration?.minimumSeconds, file: file, line: line)
+            XCTAssertEqual(got.duration?.maximumSecondsExclusive, want.duration?.maximumSecondsExclusive, file: file, line: line)
+            XCTAssertEqual(got.label, want.label, file: file, line: line)
             XCTAssertEqual(got.fields?.utilization, want.fields?.utilization, file: file, line: line)
             XCTAssertEqual(got.fields?.resetsAt, want.fields?.resetsAt, file: file, line: line)
+            XCTAssertEqual(got.fields?.used, want.fields?.used, file: file, line: line)
+            XCTAssertEqual(got.fields?.limit, want.fields?.limit, file: file, line: line)
+            XCTAssertEqual(got.requiredWhenPresent, want.requiredWhenPresent ?? true, file: file, line: line)
+            XCTAssertEqual(got.fallbackGroup, want.fallbackGroup, file: file, line: line)
         }
         let jsonMetrics = json.metricMappings ?? []
         XCTAssertEqual(swift.metricMappings.count, jsonMetrics.count, file: file, line: line)
@@ -205,12 +400,23 @@ final class SpecParityTests: XCTestCase {
             XCTAssertEqual(got.id, want.id, file: file, line: line)
             XCTAssertEqual(got.label, want.label, file: file, line: line)
             XCTAssertEqual(got.sourceKey, want.sourceKey, file: file, line: line)
+            XCTAssertEqual(got.conditions.map(conditionSignature), (want.conditions ?? []).map(conditionSignature), file: file, line: line)
             XCTAssertEqual(got.kind.rawValue, want.kind, file: file, line: line)
             XCTAssertEqual(got.unit, want.unit, file: file, line: line)
             XCTAssertEqual(got.unitKey, want.unitKey, file: file, line: line)
+            XCTAssertEqual(got.requires, want.requires ?? [], file: file, line: line)
+            XCTAssertEqual(got.requiresPresent, want.requiresPresent ?? [], file: file, line: line)
+            XCTAssertEqual(got.equalFields, want.equalFields ?? [], file: file, line: line)
+            XCTAssertEqual(got.presencePaths, want.presencePaths ?? [], file: file, line: line)
+            XCTAssertEqual(got.requiresPositive, want.requiresPositive ?? [], file: file, line: line)
+            XCTAssertEqual(got.incompleteWhenAnyRequiredPresent, want.incompleteWhenAnyRequiredPresent ?? false, file: file, line: line)
+            XCTAssertEqual(got.fallbackBlockedBy, want.fallbackBlockedBy ?? [], file: file, line: line)
+            XCTAssertEqual(got.aggregateUnitKey, want.aggregateUnitKey, file: file, line: line)
+            XCTAssertEqual(got.aggregateExpectedUnit, want.aggregateExpectedUnit, file: file, line: line)
             XCTAssertEqual(got.secondary, want.secondary, file: file, line: line)
             XCTAssertEqual(got.aggregate?.rawValue, want.aggregate, file: file, line: line)
             XCTAssertEqual(got.scale, want.scale, file: file, line: line)
+            XCTAssertEqual(got.exponentKey, want.exponentKey, file: file, line: line)
         }
         let jsonCollections = json.metricCollectionMappings ?? []
         XCTAssertEqual(swift.metricCollectionMappings.count, jsonCollections.count, file: file, line: line)
@@ -229,12 +435,31 @@ final class SpecParityTests: XCTestCase {
     func testRegistryMirrorsProvidersJson() throws {
         let data = try TestSupport.protocolFile("providers.json")
         let file = try JSONDecoder().decode(SpecFile.self, from: data)
-        XCTAssertEqual(file.version, 1)
+        XCTAssertEqual(file.version, 2)
         XCTAssertEqual(Set(file.providers.keys), Set(ProviderRegistry.all.map(\.id)))
 
         for swift in ProviderRegistry.all {
             assertMatches(swift, try XCTUnwrap(file.providers[swift.id]))
         }
+    }
+
+    /// Absolute-value tripwire for the GitHub premium-request billing schema.
+    /// Generic mirror parity alone would still pass if both copies regressed
+    /// to an API version whose response predates the mapped contract.
+    func testGitHubBillingAPIVersionIsCurrent() throws {
+        let data = try TestSupport.protocolFile("providers.json")
+        let file = try JSONDecoder().decode(SpecFile.self, from: data)
+        let expected = "2026-03-10"
+        let swift = try XCTUnwrap(ProviderRegistry.spec(for: "github"))
+
+        XCTAssertEqual(
+            try XCTUnwrap(file.providers["github"]).usage.headers["X-GitHub-Api-Version"],
+            expected
+        )
+        XCTAssertEqual(
+            swift.headers["X-GitHub-Api-Version"],
+            expected
+        )
     }
 
     /// Absolute-value tripwire, independent of providers.json: spec-parity

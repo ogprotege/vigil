@@ -1,0 +1,31 @@
+{
+  "code": 200,
+  "msg": "Operation successful",
+  "success": true,
+  "limits": [
+    {
+      "name": "TOKENS_LIMIT",
+      "unit": 3,
+      "number": 4,
+      "percentage": 23,
+      "nextResetTime": 1782724971179
+    },
+    {
+      "name": "TOKENS_LIMIT",
+      "unit": 4,
+      "number": 7,
+      "percentage": 8,
+      "nextResetTime": 1783305486997
+    },
+    {
+      "name": "TIME_LIMIT",
+      "unit": 5,
+      "number": 1,
+      "usage": 500,
+      "currentValue": 125,
+      "remaining": 375,
+      "percentage": 25,
+      "nextResetTime": 1785292686976
+    }
+  ]
+}

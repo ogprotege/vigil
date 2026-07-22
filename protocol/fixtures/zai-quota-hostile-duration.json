@@ -1,0 +1,38 @@
+{
+  "code": 200,
+  "msg": "Operation successful",
+  "success": true,
+  "data": {
+    "limits": [
+      {
+        "type": "TOKENS_LIMIT",
+        "unit": 3,
+        "number": 2501999792984,
+        "percentage": 99,
+        "nextResetTime": 1783305486997
+      },
+      {
+        "type": "TOKENS_LIMIT",
+        "unit": 4,
+        "number": 1,
+        "percentage": 98,
+        "nextResetTime": 1783305486997
+      },
+      {
+        "type": "TOKENS_LIMIT",
+        "unit": 5,
+        "number": 1,
+        "percentage": 97,
+        "nextResetTime": 1783305486997
+      },
+      {
+        "type": "TOKENS_LIMIT",
+        "unit": 3,
+        "number": 5,
+        "percentage": 17,
+        "nextResetTime": 1782724971179
+      }
+    ],
+    "level": "pro"
+  }
+}

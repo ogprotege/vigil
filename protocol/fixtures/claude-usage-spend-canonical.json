@@ -1,0 +1,19 @@
+{
+  "five_hour": { "utilization": 10, "resets_at": null },
+  "seven_day": null,
+  "seven_day_sonnet": null,
+  "seven_day_opus": null,
+  "spend": {
+    "enabled": true,
+    "used": { "amount_minor": 2330, "currency": "USD", "exponent": 3 },
+    "limit": { "amount_minor": 150000, "currency": "USD", "exponent": 3 },
+    "percent": 2
+  },
+  "extra_usage": {
+    "is_enabled": true,
+    "monthly_limit": 9999,
+    "used_credits": 9999,
+    "currency": "USD",
+    "decimal_places": 99
+  }
+}

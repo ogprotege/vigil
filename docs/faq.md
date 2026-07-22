@@ -14,7 +14,7 @@ Vigil never blends these into one number — the overall limit and the model-spe
 
 ### What does "percent left" mean, and why not "percent used"?
 
-Vigil leads with **percent left** because that's the number you act on ("I have 15% of my weekly Opus quota"). The card also shows percent used. Both come straight from the provider; Vigil doesn't estimate.
+Vigil leads with **percent left** because that's the number you act on ("I have 15% of my weekly Opus quota"). The card also shows percent used. Vigil uses the provider's percentage when supplied, or computes the exact used-to-limit ratio when the provider supplies counts. It does not estimate from local activity.
 
 ### How do the reset countdowns stay live if Vigil only polls every few minutes?
 
@@ -64,14 +64,14 @@ Refresh tokens rotate. If Vigil and Claude Code both refreshed the same token pa
 
 ## Do I need the terminal?
 
-No. Claude and ChatGPT/Codex both sign in right in the app (a browser approval and a short code), and every API-key provider is added by pasting a key (**Add account → Paste a provider key → <provider>**). The terminal (`npx vigil-link`) is only an optional shortcut if you'd rather reuse a Claude Code or Codex sign-in already on a computer.
+No. Claude and ChatGPT/Codex both sign in right in the app (a browser approval and a short code), and every other provider is added by pasting its requested key or session credential (**Add account → Paste a provider key → <provider>**). The terminal (`npx vigil-link`) is only an optional shortcut if you would rather reuse a Claude Code or Codex sign-in already on a computer.
 
 ## Per-provider notes
 
 - **OpenAI** needs a read-only **Admin** key, not a project (`sk-proj-...`) key — the billing endpoint rejects project keys.
 - **GitHub Copilot** needs a fine-grained token *and* your username; org-managed seats report empty usage.
 - **Moonshot** and **MiniMax** each have separate China providers — use the China variant for China-platform keys.
-- **xAI**, **Z.ai/GLM**, **Cursor**, and **Kimi K3** are marked **experimental**: their endpoints are undocumented and can drift, and Cursor's session cookie expires (re-paste when it does).
+- **MiniMax**, **MiniMax China**, **Z.ai/GLM**, **Cursor**, and **Kimi K3** are marked **experimental** because their usage endpoints are undocumented or community-researched without a Vigil production capture. Moonshot global/China and xAI use vendor-documented endpoints and are opt-in, but not experimental. Cursor's session cookie expires, so re-paste it when needed.
 - **Kimi K3** is the coding-plan usage view — session and weekly limits from a coding-plan key (`KIMI_CODE_API_KEY`), separate from the balance-only **Moonshot (Kimi)** provider.
 
 See the [provider spec](provider-spec.md) for verified endpoint facts and the researched backlog.

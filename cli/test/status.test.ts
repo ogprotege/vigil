@@ -123,9 +123,9 @@ describe("status", () => {
       },
       ["openrouter"]
     );
-    expect(report).toContain("Credits used");
+    expect(report).toContain("Usage (all time)");
     expect(report).toContain("12.5 USD");
-    expect(report).toContain("Credits remaining");
+    expect(report).toContain("Key limit remaining");
   });
 
   it("names the corrupt poll-state file and gives the recovery hint when deferred", async () => {

@@ -2,18 +2,34 @@
   "windows": [],
   "metrics": [
     {
+      "id": "credits_used",
+      "label": "AI credits consumed (month)",
+      "kind": "spend",
+      "value": 250,
+      "unit": "credits",
+      "secondary": false
+    },
+    {
       "id": "spend_month",
-      "label": "AI spend (month)",
+      "label": "Billable AI spend (month)",
       "kind": "spend",
       "value": 2,
       "unit": "USD",
       "secondary": false
     },
     {
-      "id": "credits_used",
-      "label": "Credits used (month)",
+      "id": "credits_billable",
+      "label": "Billable AI credits (month)",
       "kind": "spend",
       "value": 200,
+      "unit": "credits",
+      "secondary": true
+    },
+    {
+      "id": "credits_included",
+      "label": "Included AI credits (month)",
+      "kind": "spend",
+      "value": 50,
       "unit": "credits",
       "secondary": true
     }

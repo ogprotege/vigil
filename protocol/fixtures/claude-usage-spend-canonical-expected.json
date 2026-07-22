@@ -1,0 +1,10 @@
+{
+  "incomplete": false,
+  "windows": [
+    { "id": "session", "utilization": 10, "resetsAt": null, "windowSeconds": 18000, "secondary": false }
+  ],
+  "metrics": [
+    { "id": "extra_used", "label": "Extra usage (month)", "kind": "spend", "value": 2.33, "unit": "USD", "secondary": false },
+    { "id": "extra_limit", "label": "Extra usage limit", "kind": "limit", "value": 150, "unit": "USD", "secondary": true }
+  ]
+}
