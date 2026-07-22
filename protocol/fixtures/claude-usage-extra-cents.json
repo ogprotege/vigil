@@ -1,0 +1,12 @@
+{
+  "five_hour": { "utilization": 10, "resets_at": null },
+  "extra_usage": {
+    "is_enabled": true,
+    "monthly_limit": 5000,
+    "used_credits": 1250,
+    "utilization": 25,
+    "currency": "USD",
+    "decimal_places": 2,
+    "disabled_reason": null
+  }
+}

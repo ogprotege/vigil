@@ -44,11 +44,18 @@ struct AccountCardView: View {
                 }
 
                 footer(snapshot)
+            } else if let snapshot, snapshot.status == .ok {
+                StatusBannerView(
+                    icon: "infinity",
+                    tint: VigilPalette.signal,
+                    text: "This provider reports no finite usage limits."
+                )
+                footer(snapshot)
             } else if snapshot == nil {
                 waitingState
             }
-            // else: snapshot exists but empty — statusBanner already explains
-            // authExpired / network / schemaChanged; do not claim we're still waiting.
+            // Remaining empty snapshots are degraded; statusBanner explains
+            // authExpired / network / schemaChanged without claiming Live.
         }
         .vigilCard(padding: VigilSpacing.medium)
     }

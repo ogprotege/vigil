@@ -87,6 +87,40 @@ describe("fetchUsage against a fixture server", () => {
     expect(drift.status).toBe("schemaChanged");
   });
 
+  it("rejects literal and escaped-equivalent duplicate JSON keys", async () => {
+    const bodies = [
+      String.raw`{"five_hour":{"utilization":10,"utilization":20,"resets_at":"2026-07-22T17:00:00Z"},"seven_day":null,"seven_day_sonnet":null,"seven_day_opus":null}`,
+      String.raw`{"five_hour":{"utilization":10,"\u0075tilization":20,"resets_at":"2026-07-22T17:00:00Z"},"seven_day":null,"seven_day_sonnet":null,"seven_day_opus":null}`,
+    ];
+    let responseIndex = 0;
+    server = await startFixtureServer({
+      "/api/oauth/usage": (_req, res) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(bodies[responseIndex++]);
+      },
+    });
+
+    for (const _body of bodies) {
+      const result = await fetchUsage("claude", registry.providers.claude, claudeCreds, {
+        ...fixtureHttp(server.url),
+      });
+      expect(result.status).toBe("schemaChanged");
+    }
+  });
+
+  it("rejects malformed UTF-8 instead of replacement-decoding it", async () => {
+    server = await startFixtureServer({
+      "/api/oauth/usage": (_req, res) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(Buffer.from([0x7b, 0x22, 0x78, 0x22, 0x3a, 0xc3, 0x28, 0x7d]));
+      },
+    });
+    const result = await fetchUsage("claude", registry.providers.claude, claudeCreds, {
+      ...fixtureHttp(server.url),
+    });
+    expect(result.status).toBe("schemaChanged");
+  });
+
   it("retries transport failures with backoff, then succeeds", async () => {
     server = await startFixtureServer({
       "/api/oauth/usage": json(200, loadFixture("claude-usage-ok.json")),
@@ -173,5 +207,232 @@ describe("getSnapshot 401 -> refresh -> retry (minted creds only)", () => {
     const { snapshot } = await getSnapshot(registry, claudeCreds, fixtureHttp(server.url));
     expect(snapshot.status).toBe("authExpired");
     expect(server.requests.every((r) => r.path !== "/v1/oauth/token")).toBe(true);
+  });
+});
+
+describe("provider-body errors and completeness", () => {
+  it("downgrades one malformed static bucket even when another maps", async () => {
+    server = await startFixtureServer({
+      "/api/oauth/usage": json(200, {
+        five_hour: { utilization: "wrong", resets_at: "wrong" },
+        seven_day: { utilization: 12, resets_at: "2026-07-20T07:00:00Z" },
+      }),
+    });
+    const { snapshot } = await getSnapshot(registry, claudeCreds, fixtureHttp(server.url));
+    expect(snapshot.status).toBe("schemaChanged");
+    expect(snapshot.windows.map((window) => window.id)).toEqual(["weekly"]);
+  });
+
+  it("downgrades partial Claude window mapping and preserves the metric", async () => {
+    server = await startFixtureServer({
+      "/api/oauth/usage": json(200, {
+        five_hour: { utilization: "wrong", resets_at: "wrong" },
+        seven_day: { utilization: "wrong", resets_at: "wrong" },
+        extra_usage: { is_enabled: true, used_credits: 750, monthly_limit: 5000, currency: "USD" },
+      }),
+    });
+    const { snapshot } = await getSnapshot(registry, claudeCreds, fixtureHttp(server.url));
+    expect(snapshot.status).toBe("schemaChanged");
+    expect(snapshot.metrics.find((metric) => metric.id === "extra_used")?.value).toBe(7.5);
+  });
+
+  it("downgrades a malformed Codex dynamic lane even when the primary window maps", async () => {
+    server = await startFixtureServer({
+      "/backend-api/wham/usage": json(200, {
+        rate_limit: {
+          primary_window: { used_percent: 10, reset_at: 1784408400, limit_window_seconds: 18000 },
+        },
+        additional_rate_limits: [
+          {
+            limit_name: "Changed lane",
+            metered_feature: "changed_lane",
+            rate_limit: { primary_window: { another_percent: 5 } },
+          },
+        ],
+      }),
+    });
+    const credentials: Credentials = {
+      providerId: "codex",
+      accessToken: "codex-token",
+      accountId: "account-id",
+      source: "file",
+    };
+    const { snapshot } = await getSnapshot(registry, credentials, fixtureHttp(server.url));
+    expect(snapshot.status).toBe("schemaChanged");
+    expect(snapshot.windows.map((window) => window.id)).toEqual(["session"]);
+  });
+
+  it("downgrades present wrong-shaped and garbage-only Codex lane collections", async () => {
+    const credentials: Credentials = {
+      providerId: "codex",
+      accessToken: "codex-token",
+      accountId: "account-id",
+      source: "file",
+    };
+    const primary = {
+      rate_limit: {
+        primary_window: { used_percent: 10, reset_at: 1784408400, limit_window_seconds: 18000 },
+      },
+    };
+
+    for (const additional_rate_limits of ["changed-wrapper", [null, "garbage", 7]]) {
+      server = await startFixtureServer({
+        "/backend-api/wham/usage": json(200, { ...primary, additional_rate_limits }),
+      });
+      const { snapshot } = await getSnapshot(registry, credentials, fixtureHttp(server.url));
+      expect(snapshot.status).toBe("schemaChanged");
+      expect(snapshot.windows.map((window) => window.id)).toEqual(["session"]);
+      await server.close();
+      server = null;
+    }
+  });
+
+  it("keeps Claude Live when limits[] has no eligible weekly-scoped entry", async () => {
+    server = await startFixtureServer({
+      "/api/oauth/usage": json(200, {
+        five_hour: { utilization: 10, resets_at: null },
+        seven_day: null,
+        seven_day_sonnet: null,
+        seven_day_opus: null,
+        limits: [
+          { kind: "monthly_overage", is_active: true },
+          { kind: "weekly_scoped", is_active: false },
+        ],
+      }),
+    });
+    const { snapshot } = await getSnapshot(registry, claudeCreds, fixtureHttp(server.url));
+    expect(snapshot.status).toBe("ok");
+    expect(snapshot.windows.map((window) => window.id)).toEqual(["session"]);
+  });
+
+  it("keeps MiniMax all-unlimited responses Live but rejects unknown empty arrays", async () => {
+    server = await startFixtureServer({
+      "/v1/token_plan/remains": json(200, loadFixture("minimax-usage-unlimited.json")),
+    });
+    const credentials: Credentials = {
+      providerId: "minimax",
+      accessToken: "minimax-token",
+      source: "file",
+    };
+    const unlimited = await getSnapshot(
+      registry,
+      credentials,
+      { fixtureBaseUrls: { minimax: server.url } }
+    );
+    expect(unlimited.snapshot.status).toBe("ok");
+    expect(unlimited.snapshot.windows).toEqual([]);
+    await server.close();
+
+    server = await startFixtureServer({
+      "/v1/token_plan/remains": json(200, {
+        model_remains: [],
+        base_resp: { status_code: 0 },
+      }),
+    });
+    const unknown = await getSnapshot(
+      registry,
+      credentials,
+      { fixtureBaseUrls: { minimax: server.url } }
+    );
+    expect(unknown.snapshot.status).toBe("schemaChanged");
+  });
+
+  it("fails closed when Claude sends an invalid canonical money exponent", async () => {
+    server = await startFixtureServer({
+      "/api/oauth/usage": json(200, loadFixture("claude-usage-invalid-canonical-exponent.json")),
+    });
+    const { snapshot } = await getSnapshot(registry, claudeCreds, fixtureHttp(server.url));
+    expect(snapshot.status).toBe("schemaChanged");
+    expect(snapshot.metrics.find((metric) => metric.id === "extra_used")).toBeUndefined();
+  });
+
+  it("classifies MiniMax and Z.ai authentication errors carried in HTTP 200 bodies", async () => {
+    server = await startFixtureServer({
+      "/v1/token_plan/remains": json(200, {
+        base_resp: { status_code: 1004, status_msg: "login fail" },
+      }),
+      "/api/monitor/usage/quota/limit": json(200, {
+        code: 1001,
+        msg: "authentication required",
+        success: false,
+      }),
+    });
+    const miniMax = await getSnapshot(
+      registry,
+      { providerId: "minimax", accessToken: "bad", source: "file" },
+      { fixtureBaseUrls: { minimax: server.url } }
+    );
+    const zAI = await getSnapshot(
+      registry,
+      { providerId: "zai", accessToken: "bad", source: "file" },
+      { fixtureBaseUrls: { zai: server.url } }
+    );
+    expect(miniMax.snapshot.status).toBe("authExpired");
+    expect(zAI.snapshot.status).toBe("authExpired");
+  });
+
+  it("keeps a healthy metric-only provider live", async () => {
+    server = await startFixtureServer({
+      "/api/v1/key": json(200, loadFixture("openrouter-usage-unlimited.json")),
+    });
+    const { snapshot } = await getSnapshot(
+      registry,
+      { providerId: "openrouter", accessToken: "key", source: "file" },
+      fixtureHttp(server.url)
+    );
+    expect(snapshot.status).toBe("ok");
+    expect(snapshot.windows).toEqual([]);
+    expect(snapshot.metrics.map((metric) => metric.id)).toEqual([
+      "usage_lifetime",
+      "usage_daily",
+      "usage_weekly",
+      "usage_monthly",
+      "byok_usage_lifetime",
+      "byok_usage_daily",
+      "byok_usage_weekly",
+      "byok_usage_monthly",
+    ]);
+  });
+
+  it("downgrades missing required Z.ai windows and OpenRouter usage periods", async () => {
+    server = await startFixtureServer({
+      "/api/monitor/usage/quota/limit": json(200, {
+        code: 200,
+        success: true,
+        data: {
+          limits: [
+            {
+              type: "TOKENS_LIMIT",
+              unit: 3,
+              number: 5,
+              percentage: 17,
+              nextResetTime: 1782724971179,
+            },
+          ],
+        },
+      }),
+      "/api/v1/key": json(200, {
+        data: { usage: 3.75, usage_monthly: 3.5 },
+      }),
+    });
+
+    const zAI = await getSnapshot(
+      registry,
+      { providerId: "zai", accessToken: "key", source: "file" },
+      { fixtureBaseUrls: { zai: server.url } }
+    );
+    expect(zAI.snapshot.status).toBe("schemaChanged");
+    expect(zAI.snapshot.windows.map((window) => window.id)).toEqual(["session"]);
+
+    const openRouter = await getSnapshot(
+      registry,
+      { providerId: "openrouter", accessToken: "key", source: "file" },
+      fixtureHttp(server.url)
+    );
+    expect(openRouter.snapshot.status).toBe("schemaChanged");
+    expect(openRouter.snapshot.metrics.map((metric) => metric.id)).toEqual([
+      "usage_lifetime",
+      "usage_monthly",
+    ]);
   });
 });

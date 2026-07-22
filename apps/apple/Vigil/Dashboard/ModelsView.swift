@@ -1,12 +1,60 @@
 import SwiftUI
 import VigilKit
 
-/// Every per-model / special limit each provider surfaces, gathered across all
-/// accounts into one scannable list — the model-specific caps (Claude Opus and
-/// Sonnet weekly, model-scoped limits, Codex per-model lanes, MiniMax video)
-/// plus coding-plan session/weekly windows when a provider has no separate
-/// model lanes — pulled out of the account cards and shown on their own,
-/// tightest first.
+enum ModelsEmptyState: Equatable {
+    case noAccounts
+    case noPerModelCaps
+    case waitingForData
+
+    static func resolve(
+        accounts: [AccountRef],
+        snapshots: [String: ProviderSnapshot]
+    ) -> ModelsEmptyState {
+        guard !accounts.isEmpty else { return .noAccounts }
+
+        let everyAccountIsHealthyWithoutModelCaps = accounts.allSatisfy { account in
+            guard let snapshot = snapshots[account.key],
+                  snapshot.status == .ok,
+                  !snapshot.windows.contains(where: UsagePresentation.isModelWindow)
+            else {
+                return false
+            }
+            // A successful empty snapshot is valid only when the provider
+            // contract explicitly recognizes an unmetered/unlimited response.
+            // It still means there are no model caps to list here.
+            return true
+        }
+
+        return everyAccountIsHealthyWithoutModelCaps ? .noPerModelCaps : .waitingForData
+    }
+
+    var title: String {
+        switch self {
+        case .noAccounts:
+            return "No model-specific limits yet"
+        case .noPerModelCaps:
+            return "No per-model caps from these providers"
+        case .waitingForData:
+            return "Waiting for limit data"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .noAccounts:
+            return "Sign in with Claude or Codex. Providers without model-specific caps keep their plan limits on Home."
+        case .noPerModelCaps:
+            return "Your connected providers report plan-wide limits, balances, spend, or no finite quota, but no model-specific caps. Open Home for those details."
+        case .waitingForData:
+            return "Pull to refresh on Home after adding an account. If verification failed, open Connections → add the account again."
+        }
+    }
+}
+
+/// Every genuine per-model limit each provider surfaces, gathered across all
+/// accounts into one scannable list — Claude Opus and Sonnet weekly caps,
+/// model-scoped limits, Codex per-model lanes, and MiniMax video
+/// pulled out of the account cards and shown on their own, tightest first.
 struct ModelsView: View {
     @Environment(AppModel.self) private var model
 
@@ -14,14 +62,8 @@ struct ModelsView: View {
         UsagePresentation.modelLimits(accounts: model.accounts, snapshots: model.snapshots)
     }
 
-    private var metricOnlyAccountCount: Int {
-        model.accounts.reduce(0) { count, account in
-            guard let snapshot = model.snapshots[account.key] else { return count }
-            if snapshot.windows.isEmpty && !snapshot.metrics.isEmpty {
-                return count + 1
-            }
-            return count
-        }
+    private var emptyStateContent: ModelsEmptyState {
+        ModelsEmptyState.resolve(accounts: model.accounts, snapshots: model.snapshots)
     }
 
     var body: some View {
@@ -74,7 +116,7 @@ struct ModelsView: View {
                 .foregroundStyle(VigilPalette.ink)
             Text(
                 candidates.isEmpty
-                    ? "Model-specific and coding-plan limits appear here once a connected provider reports them."
+                    ? "Model-specific limits appear here once a connected provider reports them."
                     : "\(candidates.count) model limit\(candidates.count == 1 ? "" : "s") across your accounts, tightest first."
             )
             .font(.subheadline)
@@ -104,23 +146,11 @@ struct ModelsView: View {
     }
 
     private var emptyTitle: String {
-        if !model.hasAccounts {
-            return "No model-specific limits yet"
-        }
-        if metricOnlyAccountCount > 0 {
-            return "No per-model caps from these providers"
-        }
-        return "Waiting for limit data"
+        emptyStateContent.title
     }
 
     private var emptyDetail: String {
-        if !model.hasAccounts {
-            return "Sign in with Claude or Codex, or add a coding-plan key (Kimi K3, MiniMax). Balance-only providers like OpenRouter and DeepSeek show spend on Home instead."
-        }
-        if metricOnlyAccountCount > 0 {
-            return "Your linked accounts report balances or spend, not model windows. Open Home for those values. Claude, Codex, Kimi K3, and MiniMax fill this list once their usage check succeeds."
-        }
-        return "Pull to refresh on Home after adding an account. If verification failed, open Connections → add the account again."
+        emptyStateContent.detail
     }
 
     /// Disambiguate the model row's owner. When more than one account of the

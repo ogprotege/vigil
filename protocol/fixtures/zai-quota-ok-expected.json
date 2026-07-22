@@ -3,17 +3,24 @@
   "windows": [
     {
       "id": "session",
-      "utilization": 37.5,
-      "resetsAt": null,
-      "windowSeconds": null,
+      "label": "Token usage (session)",
+      "utilization": 17,
+      "resetsAt": "2026-06-29T09:22:51Z",
+      "windowSeconds": 18000,
       "secondary": false
     },
     {
-      "id": "monthly",
-      "utilization": 12,
-      "resetsAt": null,
-      "windowSeconds": null,
-      "secondary": true
+      "id": "weekly",
+      "label": "Token usage (week)",
+      "utilization": 3,
+      "resetsAt": "2026-07-06T02:38:06Z",
+      "windowSeconds": 604800,
+      "secondary": false
     }
+  ],
+  "metrics": [
+    { "id": "websearch_used", "label": "Web searches used", "kind": "spend", "value": 0, "unit": "calls", "secondary": true },
+    { "id": "websearch_limit", "label": "Web search limit", "kind": "limit", "value": 1000, "unit": "calls", "secondary": true },
+    { "id": "websearch_remaining", "label": "Web searches remaining", "kind": "remaining", "value": 1000, "unit": "calls", "secondary": true }
   ]
 }

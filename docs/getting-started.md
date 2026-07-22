@@ -2,7 +2,7 @@
 
 Vigil shows your AI usage, limits, spend, and balances on your iPhone (and Mac). This guide takes you from nothing installed to a working dashboard, and covers every provider you can add.
 
-You do **not** need to be a developer, and you do **not** need a computer. Claude, ChatGPT/Codex, and every API-key provider are all set up entirely on the phone. (If you'd rather reuse a sign-in already on a computer, you still can — it's optional.)
+You do **not** need to be a developer, and you do **not** need a computer. Claude, ChatGPT/Codex, and every manually entered provider credential can be set up entirely on the phone. If you would rather reuse a sign-in already on a computer, you still can; it is optional.
 
 ---
 
@@ -21,7 +21,7 @@ Open Vigil and tap **Add account**. Almost everything can be done right on the p
 3. Approve access. Claude shows you a short **code**; copy it.
 4. Come back to Vigil and paste the code, then tap **Finish signing in**.
 
-Vigil exchanges the code for its own token that **renews itself automatically** — you won't have to sign in again. No computer, no terminal.
+Vigil exchanges the code for its own token. It renews automatically while the refresh credential remains valid. No computer, no terminal.
 
 ### Sign in with ChatGPT / Codex (on phone, no computer)
 
@@ -30,13 +30,13 @@ Vigil exchanges the code for its own token that **renews itself automatically** 
 3. Sign in and enter the code when asked.
 4. That's it — Vigil detects the approval automatically and finishes signing in with its own renewable token. No computer, no `codex login`.
 
-### Add an API-key provider (on phone, no computer)
+### Add another provider (on phone, no computer)
 
-Every API-key provider — OpenRouter, DeepSeek, Moonshot, MiniMax, OpenAI, GitHub Copilot, xAI, Z.ai, Cursor, Kimi K3 — is added entirely on the phone:
+OpenRouter, DeepSeek, Moonshot, MiniMax, OpenAI, GitHub Copilot, xAI, Z.ai, Cursor, and Kimi K3 are added entirely on the phone. Most use API keys. Cursor uses a browser session cookie.
 
 1. Tap **Add account**, then find the **Paste a provider key** section.
 2. Pick the provider. Vigil asks only for the field(s) it needs and shows a hint for where to find them (see the table below).
-3. Paste the key and save.
+3. Paste the requested key or session credential, add any requested account identifier, and save.
 
 ### Already signed in on a computer? (optional)
 
@@ -68,7 +68,7 @@ npx vigil-link doctor   # what credentials Vigil can find, and where it looked
 
 ## Where to get each provider's key
 
-Claude and ChatGPT/Codex sign in right on the phone (**Add account → Sign in with Claude** / **Sign in with Codex**); reusing a sign-in already on a computer is optional. Every other provider is an API key you paste on the phone (**Add account → Paste a provider key**) or set as an environment variable before running `vigil-link`.
+Claude and ChatGPT/Codex sign in right on the phone (**Add account → Sign in with Claude** / **Sign in with Codex**); reusing a sign-in already on a computer is optional. Every other provider uses a key or session credential that you paste on the phone (**Add account → Paste a provider key**) or set as an environment variable before running `vigil-link`.
 
 | Provider | Where to get it |
 |---|---|
@@ -77,15 +77,15 @@ Claude and ChatGPT/Codex sign in right on the phone (**Add account → Sign in w
 | **OpenRouter** | An OpenRouter API key. Env var: `OPENROUTER_API_KEY`. |
 | **DeepSeek** | A DeepSeek API key. Env var: `DEEPSEEK_API_KEY`. |
 | **Moonshot (Kimi)** | `sk-...` key from **platform.kimi.ai → Console → API Keys**. China-platform keys use the Moonshot China provider. Env var: `MOONSHOT_API_KEY`. |
-| **Moonshot (Kimi) China** | Key from **platform.moonshot.cn → Console → API Keys**. Env var: `MOONSHOT_CN_API_KEY`. |
-| **MiniMax Coding Plan** | `sk-cp-...` key from **platform.minimax.io → User Center → Interface Key**. China keys use the MiniMax China provider. Env var: `MINIMAX_CODING_API_KEY`. |
-| **MiniMax Coding Plan China** | Key from **platform.minimaxi.com → User Center → Interface Key**. Env var: `MINIMAX_CN_CODING_API_KEY`. |
+| **Moonshot (Kimi) China** | Key from **platform.kimi.com → Console → API Keys** (formerly `platform.moonshot.cn`). Env var: `MOONSHOT_CN_API_KEY`. |
+| **MiniMax Coding Plan** *(experimental)* | `sk-cp-...` key from **platform.minimax.io → User Center → Interface Key**. China keys use the MiniMax China provider. Env var: `MINIMAX_CODING_API_KEY`. |
+| **MiniMax Coding Plan China** *(experimental)* | Key from **platform.minimaxi.com → User Center → Interface Key**. Env var: `MINIMAX_CN_CODING_API_KEY`. |
 | **OpenAI API** | A read-only **Admin** key from **platform.openai.com → Settings → Organization → Admin keys**. Regular `sk-proj-...` project keys are rejected by the billing endpoint. Env var: `OPENAI_ADMIN_KEY`. |
 | **GitHub Copilot** | A fine-grained token (**Settings → Developer settings**, with *Account → Plan (read)* permission) plus your GitHub username. Org-managed Copilot seats report empty usage. Env vars: `GITHUB_BILLING_TOKEN` + `GITHUB_BILLING_USER`. |
-| **xAI API** *(experimental)* | A **Management Key** from **console.x.ai → Settings → Management Keys**, plus your team ID (from console URLs). Env vars: `XAI_MANAGEMENT_KEY` + `XAI_TEAM_ID`. |
+| **xAI API** | A **Management Key** from **console.x.ai → Settings → Management Keys**, plus your team ID (from console URLs). Env vars: `XAI_MANAGEMENT_KEY` + `XAI_TEAM_ID`. |
 | **Z.ai / GLM Coding Plan** *(experimental)* | A GLM Coding Plan API key from **z.ai → Manage API Key**. Env var: `ZAI_API_KEY`. |
 | **Cursor** *(experimental)* | While signed in at cursor.com, open **DevTools → Application → Cookies** and copy the `WorkosCursorSessionToken` value. It expires; re-paste when it does. Env var: `CURSOR_SESSION_TOKEN`. |
-| **Kimi K3 (coding plan)** *(experimental)* | Your Kimi **coding-plan** API key from **platform.kimi.ai** — separate from the Moonshot balance key above; this one reports session and weekly coding-plan limits. Env var: `KIMI_CODE_API_KEY`. |
+| **Kimi K3 (coding plan)** *(experimental)* | Your Kimi **coding-plan** API key from **kimi.com/code/console**. It is separate from the Moonshot balance key above and reports session and weekly coding-plan limits. Env var: `KIMI_CODE_API_KEY`. |
 
 To link several providers from the terminal in one QR session, set the env vars and pass `--provider`:
 

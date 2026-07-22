@@ -29,7 +29,7 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-There is no Vigil server. The phone talks directly to provider endpoints, and credentials are provisioned on the phone itself: Claude through on-device "Sign in with Claude" OAuth (VigilKit `ClaudeAuth`), Codex through OpenAI's device-code sign-in (VigilKit `CodexAuth`), and each API-key provider by pasting a key. Reusing a Claude Code / Codex sign-in that already exists on a computer — via the `npx vigil-link` `vigil1` QR / paste handoff — is an optional convenience lane, not the primary path.
+There is no Vigil server. The phone talks directly to provider endpoints, and credentials are provisioned on the phone itself: Claude through on-device "Sign in with Claude" OAuth (VigilKit `ClaudeAuth`), Codex through OpenAI's device-code sign-in (VigilKit `CodexAuth`), and other providers by pasting the requested API key or session credential. Reusing a Claude Code / Codex sign-in that already exists on a computer through the `npx vigil-link` `vigil1` QR or paste handoff is an optional convenience lane, not the primary path.
 
 ## The three reliability mechanisms
 

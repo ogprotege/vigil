@@ -1,6 +1,7 @@
 import type { ProviderId, ProviderSpec, QueryParamSpec } from "./spec/registry.js";
 import type { Credentials, SnapshotStatus } from "./providers/types.js";
 import { redactedMessage } from "./util/redact.js";
+import { jsonHasUniqueObjectKeys } from "./util/json-integrity.js";
 
 export interface FetchUsageResult {
   status: SnapshotStatus;
@@ -169,21 +170,28 @@ export async function fetchUsage(
     if (!response.ok) {
       return { status: "network", httpStatus: response.status };
     }
-    // Read the body as text first, so a transport failure *while streaming*
+    // Read the bytes first, so a transport failure *while streaming*
     // stays a transport failure. `response.json()` collapses both cases into
     // one throw, and reporting a dropped socket or a fired timeout as
     // schemaChanged tells the user their provider changed its format and sends
     // them looking for a CLI update. It also skipped the retry loop that an
     // identical header-time failure would have used.
-    let text: string;
+    let bytes: ArrayBuffer;
     try {
-      text = await response.text();
+      bytes = await response.arrayBuffer();
     } catch (err) {
       lastError = err;
       if (attempt < retries) await sleep(retryDelayMs * 2 ** attempt);
       continue;
     }
     try {
+      // Response.text() replaces malformed UTF-8 with U+FFFD. Foundation's
+      // JSON parser rejects those bytes, so replacement decoding could make
+      // the CLI report Live for a body the app correctly rejects.
+      const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      if (!jsonHasUniqueObjectKeys(text)) {
+        return { status: "schemaChanged", httpStatus: response.status };
+      }
       const body: unknown = JSON.parse(text);
       return { status: "ok", httpStatus: response.status, body };
     } catch {

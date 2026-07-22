@@ -1,0 +1,13 @@
+{
+  "five_hour": { "utilization": 10, "resets_at": null },
+  "spend": {
+    "enabled": true,
+    "used": { "amount_minor": 12345, "currency": "USD", "exponent": 19 }
+  },
+  "extra_usage": {
+    "is_enabled": true,
+    "used_credits": 9999,
+    "currency": "USD",
+    "decimal_places": 2
+  }
+}

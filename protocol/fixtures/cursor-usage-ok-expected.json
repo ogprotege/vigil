@@ -3,10 +3,26 @@
   "windows": [
     {
       "id": "plan",
-      "utilization": 83,
-      "resetsAt": "2026-07-20T07:00:00Z",
+      "utilization": 45,
+      "resetsAt": "2026-05-11T00:00:00Z",
       "windowSeconds": null,
       "secondary": false
+    },
+    {
+      "id": "plan_auto",
+      "label": "Auto-selected models",
+      "utilization": 40,
+      "resetsAt": "2026-05-11T00:00:00Z",
+      "windowSeconds": null,
+      "secondary": true
+    },
+    {
+      "id": "plan_api",
+      "label": "API models",
+      "utilization": 50,
+      "resetsAt": "2026-05-11T00:00:00Z",
+      "windowSeconds": null,
+      "secondary": true
     }
   ],
   "metrics": [
@@ -15,6 +31,14 @@
       "label": "On-demand spend",
       "kind": "spend",
       "value": 43.5,
+      "unit": "USD",
+      "secondary": true
+    },
+    {
+      "id": "limit_ondemand",
+      "label": "On-demand limit",
+      "kind": "limit",
+      "value": 100,
       "unit": "USD",
       "secondary": true
     }

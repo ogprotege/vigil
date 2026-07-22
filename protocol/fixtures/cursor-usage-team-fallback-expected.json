@@ -1,0 +1,10 @@
+{
+  "planLabel": "team",
+  "windows": [
+    { "id": "plan", "utilization": 30, "resetsAt": "2026-05-11T00:00:00Z", "windowSeconds": null, "secondary": false }
+  ],
+  "metrics": [
+    { "id": "spend_ondemand", "label": "On-demand spend", "kind": "spend", "value": 20, "unit": "USD", "secondary": true },
+    { "id": "limit_ondemand", "label": "On-demand limit", "kind": "limit", "value": 100, "unit": "USD", "secondary": true }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "planLabel": "pro",
+  "windows": [
+    {
+      "id": "session",
+      "label": "Token usage (session)",
+      "utilization": 17,
+      "resetsAt": "2026-06-29T09:22:51Z",
+      "windowSeconds": 18000,
+      "secondary": false
+    }
+  ]
+}

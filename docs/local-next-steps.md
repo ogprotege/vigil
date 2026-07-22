@@ -6,7 +6,7 @@
 > [mac-checklist.md](mac-checklist.md) (on-device validation walk) and
 > [release.md](release.md) (cutting TestFlight builds).
 
-## Where things stand (2026-07-18)
+## Where things stand (2026-07-22)
 
 | Phase | Outcome |
 |---|---|
@@ -15,27 +15,27 @@
 | Phase 2 · Swift core on the Mac | ✅ `swift test` green; project generation validated |
 | Phase 3 · M4 app | ✅ built, adversarially reviewed, in TestFlight |
 | Phase 4 · M5 widgets, M6 notifications/background/icon, M7 menu bar | ✅ built (menu bar ships with the macOS build from source) |
-| M8 · TestFlight | ✅ build 0.9.0 (1) in internal testing — process captured in [release.md](release.md) |
+| M8 · TestFlight | ✅ build 0.13.0 (13) uploaded successfully on 2026-07-22 and processing for the Internal group — process captured in [release.md](release.md) |
 | Reliability remediation | ✅ cross-process leases, CLI poll gate/timeouts, persistence alerts, account identity fix, future-link bound |
-| Provider expansion | ✅ 13-provider registry shipped — the six stable opt-in gateways (OpenRouter, DeepSeek, Moonshot/CN, MiniMax/CN, OpenAI, GitHub) and three experimental (xAI, Z.ai, Cursor) alongside default Claude and Codex; live release validation still required |
+| Provider expansion | ✅ 14-provider registry shipped. Claude and Codex use on-device sign-in. Vendor-documented opt-in providers and five experimental providers (MiniMax/CN, Z.ai, Cursor, Kimi K3) carry explicit fixture provenance and required-output drift checks. Live validation remains provider-specific. |
 
 ## What actually remains
 
-1. **The on-device walk** — [mac-checklist.md](mac-checklist.md) §M4 steps
-   5–11 through §M7 step 17: install from TestFlight, then verify the on-phone
-   **Sign in with Claude** and **Sign in with Codex** flows against a real
-   account (browser / device-code approval → on-device mint → live verify with
-   real percentages); the `npx vigil-link` + scan computer handoff is an
-   optional secondary path. Then kill/relaunch, airplane mode, widget ledger
-   verification in Console.app, the 79→81% debug notification, overnight
-   background refresh, menu bar freshness.
+1. **The remaining on-device walk** — Claude and Codex on-device sign-in were
+   completed against real accounts on 2026-07-22. Repeat both sign-ins on
+   build 13 to validate the corrected provider contracts, then continue
+   [mac-checklist.md](mac-checklist.md) with persistence, airplane mode, widget
+   ledger verification in Console.app, the 79→81% debug notification,
+   overnight background refresh, and menu-bar freshness. The `npx vigil-link`
+   QR handoff remains an optional secondary path.
 2. **External TestFlight / App Store** — screenshots, listing copy, Beta App
    Review ([release.md](release.md) § Not yet wired).
-3. **Provider release validation:** run every opt-in provider against dedicated
-   test keys — the six stable gateways (OpenRouter, DeepSeek, Moonshot with its
-   China region, MiniMax with its China region, OpenAI, GitHub) and the three
-   experimental ones (xAI, Z.ai, Cursor) — confirm scalar rendering on every
-   intended surface, and record the result in the support matrix.
+3. **Provider release validation:** run each opt-in provider against a dedicated
+   test credential when available. Confirm rendering on every intended surface
+   and promote a fixture to `live_sanitized` only after preserving a sanitized
+   production body in the provenance manifest. The experimental set is
+   MiniMax/CN, Z.ai, Cursor, and Kimi K3. Moonshot global/China and xAI are
+   vendor-documented.
 4. **Release-only validation:** keep the dedicated iOS and macOS app
    reliability suite green, then complete the device-only Keychain, camera,
    background-task, notification, and WidgetKit checks before each release.

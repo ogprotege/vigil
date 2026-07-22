@@ -89,6 +89,29 @@ public enum UsageClient {
         }
     }
 
+    static func mappingIsComplete(_ mapped: UsageMapper.Mapped, spec: ProviderSpec) -> Bool {
+        if mapped.incomplete { return false }
+        let declaresWindows = !spec.windows.isEmpty || spec.additionalWindows != nil
+        let minimumWindows = mapped.recognizedEmpty
+            ? 0
+            : spec.requiredOutputs?.minimumWindows ?? (declaresWindows ? 1 : 0)
+        if mapped.windows.count < minimumWindows { return false }
+        if !mapped.recognizedEmpty,
+           mapped.windows.filter({ !$0.secondary }).count
+            < (spec.requiredOutputs?.minimumPrimaryWindows ?? 0) { return false }
+        if mapped.metrics.count < (spec.requiredOutputs?.minimumMetrics ?? 0) { return false }
+        let windowIDs = Set(mapped.windows.map(\.id))
+        if !mapped.recognizedEmpty,
+           spec.requiredOutputs?.windowIDs.contains(where: { !windowIDs.contains($0) }) == true {
+            return false
+        }
+        let metricIDs = Set(mapped.metrics.map(\.id))
+        if spec.requiredOutputs?.metricIDs.contains(where: { !metricIDs.contains($0) }) == true {
+            return false
+        }
+        return true
+    }
+
     /// Classifies an HTTP result per the shared error taxonomy:
     /// 401/403 -> authExpired, 429 -> rateLimited, other non-2xx -> network,
     /// unparseable 2xx -> schemaChanged.
@@ -99,8 +122,34 @@ public enum UsageClient {
         case 429:
             return Outcome(status: .rateLimited, planLabel: nil, windows: [])
         case 200...299:
+            if let envelopeStatus = UsageMapper.envelopeStatus(spec: spec, body: data) {
+                return Outcome(status: envelopeStatus, planLabel: nil, windows: [])
+            }
             guard let mapped = UsageMapper.map(spec: spec, body: data) else {
                 return Outcome(status: .schemaChanged, planLabel: nil, windows: [])
+            }
+            // Drift detection: a provider that DECLARES quota windows but maps
+            // none of them has changed shape, even though something else
+            // (a balance metric) still mapped.
+            //
+            // This is the hole that let Claude ship broken for weeks. Its
+            // `resets_at` gained microsecond precision, the ISO parser returned
+            // nil, and every window was discarded — but `extra_usage` has no
+            // timestamp, so one metric survived, `map` returned non-nil, and
+            // the app reported a confident "Live" next to a single dollar
+            // figure. Partial mapping masked total quota failure.
+            //
+            // Metric-only providers (OpenRouter, DeepSeek, …) declare no
+            // windows, so the check does not apply to them.
+            if !mappingIsComplete(mapped, spec: spec) {
+                // Keep whatever did map — honest degradation, same as any other
+                // non-ok status — but never call this "Live".
+                return Outcome(
+                    status: .schemaChanged,
+                    planLabel: mapped.planLabel,
+                    windows: mapped.windows,
+                    metrics: mapped.metrics
+                )
             }
             return Outcome(
                 status: .ok,

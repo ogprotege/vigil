@@ -1,6 +1,13 @@
 {
   "windows": [],
   "metrics": [
-    { "id": "usage", "label": "Credits used", "kind": "spend", "value": 3.75, "unit": "USD", "secondary": false }
+    { "id": "usage_lifetime", "label": "Usage (all time)", "kind": "spend", "value": 3.75, "unit": "USD", "secondary": true },
+    { "id": "usage_daily", "label": "Usage (day)", "kind": "spend", "value": 0, "unit": "USD", "secondary": true },
+    { "id": "usage_weekly", "label": "Usage (week)", "kind": "spend", "value": 1.25, "unit": "USD", "secondary": true },
+    { "id": "usage_monthly", "label": "Usage (month)", "kind": "spend", "value": 3.5, "unit": "USD", "secondary": false },
+    { "id": "byok_usage_lifetime", "label": "BYOK usage (all time)", "kind": "spend", "value": 0, "unit": "USD", "secondary": true },
+    { "id": "byok_usage_daily", "label": "BYOK usage (day)", "kind": "spend", "value": 0, "unit": "USD", "secondary": true },
+    { "id": "byok_usage_weekly", "label": "BYOK usage (week)", "kind": "spend", "value": 0, "unit": "USD", "secondary": true },
+    { "id": "byok_usage_monthly", "label": "BYOK usage (month)", "kind": "spend", "value": 0, "unit": "USD", "secondary": true }
   ]
 }

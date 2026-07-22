@@ -1,0 +1,341 @@
+{
+  "version": 1,
+  "evidenceClasses": {
+    "live_sanitized": "Captured from a production response and sanitized before commit.",
+    "vendor_example": "Copied from, or mechanically reduced from, a vendor-published example.",
+    "community_research": "Based on an independently maintained client or other public implementation evidence.",
+    "synthetic_derived": "Hand-authored to exercise a schema inferred from another evidence source. It is not a production capture."
+  },
+  "sources": {
+    "claude-foundation": {
+      "url": "https://github.com/ogprotege/vigil/commit/771a546842b57de82fea4341986929f4cdb54894",
+      "checkedOn": "2026-07-22",
+      "notes": "Repository history for the original Claude contract and the captured 429 body. It does not prove that every original success fixture is a production capture."
+    },
+    "claude-scoped-live": {
+      "url": "https://github.com/ogprotege/vigil/commit/e04ef74b6052f6b07e47f84735f5a5590c646de8",
+      "checkedOn": "2026-07-22",
+      "notes": "Commit records the live 2026-07-21 limits array capture, sanitization, and percent-field correction."
+    },
+    "claude-money-client": {
+      "url": "https://github.com/tontinton/maki/blob/18c563913d91969fea7527ca18a31a06af6095eb/maki-providers/src/providers/anthropic/mod.rs",
+      "checkedOn": "2026-07-22",
+      "notes": "Independent shipping client that decodes Claude extra-usage and spend amounts as minor currency units with decimal-place metadata."
+    },
+    "codex-upstream-model": {
+      "url": "https://github.com/openai/codex/blob/e370d23691fbdaa12a2bf017d7e6bc101cca9b5f/codex-rs/codex-backend-openapi-models/src/models/rate_limit_status_payload.rs",
+      "checkedOn": "2026-07-22",
+      "notes": "OpenAI Codex source model for primary, secondary, additional, credit, and spend-control fields."
+    },
+    "cursor-community-client": {
+      "url": "https://github.com/steipete/CodexBar/blob/cc8da27cec92029a6435bfee4a703a719290234e/Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift",
+      "checkedOn": "2026-07-22",
+      "notes": "Shipping community client that documents current individual and team usage response paths."
+    },
+    "deepseek-docs": {
+      "url": "https://api-docs.deepseek.com/api/get-user-balance/",
+      "checkedOn": "2026-07-22",
+      "notes": "Official balance endpoint contract."
+    },
+    "github-docs": {
+      "url": "https://docs.github.com/en/rest/billing/usage?apiVersion=2026-03-10",
+      "checkedOn": "2026-07-22",
+      "notes": "Official enhanced billing usage contract and gross, discount, and net quantity semantics."
+    },
+    "kimi-community-client": {
+      "url": "https://github.com/steipete/CodexBar/blob/cc8da27cec92029a6435bfee4a703a719290234e/docs/kimi.md",
+      "checkedOn": "2026-07-22",
+      "notes": "Shipping community client documentation for the undocumented Kimi coding-plan response."
+    },
+    "minimax-community-client": {
+      "url": "https://github.com/junhoyeo/tokscale/blob/0d620fbe331c3e54c45e277320e655d6978755eb/crates/tokscale-cli/src/commands/usage/minimax_tokenplan.rs",
+      "checkedOn": "2026-07-22",
+      "notes": "Shipping community client showing root-level model_remains, status fields, and millisecond resets."
+    },
+    "minimax-official-cli-types": {
+      "url": "https://github.com/MiniMax-AI/cli/blob/3615170a2e26ec6003c4550cd1324b55ec8ad677/src/types/api.ts",
+      "checkedOn": "2026-07-22",
+      "notes": "MiniMax's CLI type declaration documents status 1 as limited, 2 as exhausted, and 3 as unlimited; Vigil omits status-3 phantom quota lanes."
+    },
+    "moonshot-global-docs": {
+      "url": "https://platform.kimi.ai/docs/api/balance",
+      "checkedOn": "2026-07-22",
+      "notes": "Official global balance endpoint and required available, voucher, cash, code, scode, and status fields."
+    },
+    "moonshot-cn-docs": {
+      "url": "https://platform.kimi.com/docs/api/balance",
+      "checkedOn": "2026-07-22",
+      "notes": "Official China balance endpoint and required CNY available, voucher, cash, code, scode, and status fields."
+    },
+    "openai-costs-docs": {
+      "url": "https://platform.openai.com/docs/api-reference/usage/costs",
+      "checkedOn": "2026-07-22",
+      "notes": "Official organization costs response contract."
+    },
+    "openrouter-docs": {
+      "url": "https://openrouter.ai/docs/api_reference/limits",
+      "checkedOn": "2026-07-22",
+      "notes": "Official key usage and limits response contract."
+    },
+    "xai-docs": {
+      "url": "https://docs.x.ai/developers/rest-api-reference/management/billing",
+      "checkedOn": "2026-07-22",
+      "notes": "Official prepaid balance contract, including signed cent-denominated values."
+    },
+    "zai-community-client": {
+      "url": "https://github.com/robinebers/openusage/blob/9d2bf09f10e21f769494a525a9d65c84d7aeb1df/Sources/OpenUsage/Providers/ZAI/ZAIUsageMapper.swift",
+      "checkedOn": "2026-07-22",
+      "notes": "Shipping community client showing quota classification and millisecond reset semantics."
+    }
+  },
+  "fixtures": [
+    {
+      "input": "claude-429.json",
+      "expected": null,
+      "evidenceClass": "live_sanitized",
+      "sourceIds": ["claude-foundation"],
+      "verifiedOn": "2026-07-18",
+      "notes": "Sanitized production 429 body used to test status classification."
+    },
+    {
+      "input": "claude-usage-null-resets.json",
+      "expected": "claude-usage-null-resets-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["claude-foundation", "claude-money-client"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored null and optional-field boundary case."
+    },
+    {
+      "input": "claude-usage-extra-cents.json",
+      "expected": "claude-usage-extra-cents-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["claude-money-client"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored denomination regression using the observed minor-unit extra-usage contract."
+    },
+    {
+      "input": "claude-usage-spend-canonical.json",
+      "expected": "claude-usage-spend-canonical-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["claude-money-client"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored canonical spend-object case with explicit exponent metadata and a conflicting legacy fallback whose malformed exponent must be ignored after canonical success."
+    },
+    {
+      "input": "claude-usage-invalid-canonical-exponent.json",
+      "expected": "claude-usage-invalid-canonical-exponent-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["claude-money-client"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored hostile denomination case: invalid canonical exponent and conflicting legacy value must mark mapping incomplete instead of reporting Live."
+    },
+    {
+      "input": "claude-usage-ok.json",
+      "expected": "claude-usage-ok-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["claude-foundation"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Original success contract fixture. Repository history does not establish it as a sanitized production body."
+    },
+    {
+      "input": "claude-usage-scoped-limits.json",
+      "expected": "claude-usage-scoped-limits-expected.json",
+      "evidenceClass": "live_sanitized",
+      "sourceIds": ["claude-scoped-live"],
+      "verifiedOn": "2026-07-21",
+      "notes": "Sanitized live limits array. Distinctive values were changed while keys, nesting, nullability, and timestamp precision were retained."
+    },
+    {
+      "input": "codex-usage-hostile.json",
+      "expected": "codex-usage-hostile-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["codex-upstream-model"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored hostile-value and sanitization case."
+    },
+    {
+      "input": "codex-usage-ok.json",
+      "expected": "codex-usage-ok-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["codex-upstream-model"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Modeled success response. Live endpoint validation exists at provider level, but this file has no capture provenance."
+    },
+    {
+      "input": "codex-usage-secondary-null.json",
+      "expected": "codex-usage-secondary-null-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["codex-upstream-model"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored optional secondary-window case."
+    },
+    {
+      "input": "cursor-usage-ok.json",
+      "expected": "cursor-usage-ok-expected.json",
+      "evidenceClass": "community_research",
+      "sourceIds": ["cursor-community-client"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Sanitized modeled response based on an independent client, not a Vigil live capture."
+    },
+    {
+      "input": "cursor-usage-team-fallback.json",
+      "expected": "cursor-usage-team-fallback-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["cursor-community-client"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored team-account case proving personal spend cannot be paired with a shared team limit."
+    },
+    {
+      "input": "deepseek-balance-ok.json",
+      "expected": "deepseek-balance-ok-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["deepseek-docs"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored multi-currency response using the documented schema."
+    },
+    {
+      "input": "deepseek-balance-single.json",
+      "expected": "deepseek-balance-single-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["deepseek-docs"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored numeric-value variant of the documented schema."
+    },
+    {
+      "input": "deepseek-balance-unicode.json",
+      "expected": "deepseek-balance-unicode-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["deepseek-docs"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored Unicode and whitespace sanitization case."
+    },
+    {
+      "input": "github-billing-ok.json",
+      "expected": "github-billing-ok-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["github-docs"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored monthly aggregate using documented billing fields."
+    },
+    {
+      "input": "github-billing-renamed-field.json",
+      "expected": "github-billing-renamed-field-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["github-docs"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored partial-shape drift case."
+    },
+    {
+      "input": "kimi_code-usage-ok.json",
+      "expected": "kimi_code-usage-ok-expected.json",
+      "evidenceClass": "community_research",
+      "sourceIds": ["kimi-community-client"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Modeled from a shipping independent client because the provider endpoint is undocumented."
+    },
+    {
+      "input": "minimax-usage-ok.json",
+      "expected": "minimax-usage-ok-expected.json",
+      "evidenceClass": "community_research",
+      "sourceIds": ["minimax-community-client", "minimax-official-cli-types"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Modeled global-region response based on current independent client code."
+    },
+    {
+      "input": "minimax-usage-unlimited.json",
+      "expected": "minimax-usage-unlimited-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["minimax-official-cli-types"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored all-status-3 unlimited response proving a valid no-finite-window state remains Live without a fake quota bar."
+    },
+    {
+      "input": "minimax_cn-usage-exhausted.json",
+      "expected": "minimax_cn-usage-exhausted-expected.json",
+      "evidenceClass": "community_research",
+      "sourceIds": ["minimax-community-client", "minimax-official-cli-types"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored exhausted-quota variant of the researched China-region contract."
+    },
+    {
+      "input": "moonshot-balance-ok.json",
+      "expected": "moonshot-balance-ok-expected.json",
+      "evidenceClass": "vendor_example",
+      "sourceIds": ["moonshot-global-docs"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Copied from the official global balance response example. It is vendor documentation, not a Vigil production capture."
+    },
+    {
+      "input": "moonshot_cn-balance-debt.json",
+      "expected": "moonshot_cn-balance-debt-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["moonshot-cn-docs"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored China-region negative-balance boundary case."
+    },
+    {
+      "input": "openai-costs-empty.json",
+      "expected": "openai-costs-empty-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["openai-costs-docs"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored empty-page response using the documented organization costs schema."
+    },
+    {
+      "input": "openai-costs-ok.json",
+      "expected": "openai-costs-ok-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["openai-costs-docs"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored multi-bucket organization costs response."
+    },
+    {
+      "input": "openrouter-usage-ok.json",
+      "expected": "openrouter-usage-ok-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["openrouter-docs"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored limited-key response using the documented schema, including all-time, daily, weekly, and monthly BYOK counters."
+    },
+    {
+      "input": "openrouter-usage-unlimited.json",
+      "expected": "openrouter-usage-unlimited-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["openrouter-docs"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored null-limit variant using the documented schema."
+    },
+    {
+      "input": "xai-balance-ok.json",
+      "expected": "xai-balance-ok-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["xai-docs"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored prepaid balance response using the vendor-documented signed-cent contract."
+    },
+    {
+      "input": "zai-quota-ok.json",
+      "expected": "zai-quota-ok-expected.json",
+      "evidenceClass": "community_research",
+      "sourceIds": ["zai-community-client"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Modeled from a shipping independent client because the provider endpoint is undocumented."
+    },
+    {
+      "input": "zai-quota-hostile-duration.json",
+      "expected": "zai-quota-hostile-duration-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["zai-community-client"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored hostile boundary case proving duration products above JavaScript's safe-integer range are rejected identically by both mappers."
+    },
+    {
+      "input": "zai-quota-root-name-duration.json",
+      "expected": "zai-quota-root-name-duration-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["zai-community-client"],
+      "verifiedOn": "2026-07-22",
+      "notes": "Hand-authored compatibility case for the documented root wrapper, name identity field, and duration-based session/weekly classification."
+    }
+  ]
+}

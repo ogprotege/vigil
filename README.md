@@ -21,7 +21,7 @@ Claude and ChatGPT/Codex subscription windows (including per-model caps), plus o
 
 Vigil is an on-device monitor for your AI subscription and API limits. It reads your usage **directly from each provider** — Claude's 5-hour and weekly windows, ChatGPT/Codex's session and weekly windows, the special per-model caps each platform enforces (Opus, Sonnet, and newer model-scoped weekly limits; Codex's per-model lanes), plus overage credits and gateway balances — and shows it on your iPhone with live reset countdowns.
 
-There is **no Vigil server and no account**. Your credentials move from your computer to your phone once, over a QR code, and live only in your device's Keychain. Nothing phones home.
+There is **no Vigil server and no account**. Claude and Codex credentials are minted on the phone. Other provider credentials are pasted directly into the app. An optional QR flow can import an existing computer sign-in. Credentials live only in your device's Keychain. Nothing phones home.
 
 The great desktop token monitors already exist (see [Acknowledgments](#acknowledgments)). Vigil is the piece that was missing: the same trustworthy monitoring, **on your phone**, with the reset times and model-specific limits surfaced clearly.
 
@@ -43,18 +43,18 @@ You don't need to be a developer to use Vigil.
 
 1. **Install the app.** Vigil is on TestFlight (internal testing today; public beta next). Home-screen and lock-screen widgets are included.
 2. **Add an account — on the phone.** Open Vigil → **Add account**:
-   - **Sign in with Claude.** Tap it, approve access in the browser that opens, and paste back the code Claude shows you. Vigil gets its own token that renews itself. No computer.
+   - **Sign in with Claude.** Tap it, approve access in the browser that opens, and paste back the code Claude shows you. Vigil gets its own token and renews it while the refresh credential remains valid. No computer.
    - **Sign in with Codex.** Tap it, open the sign-in page, and enter the short code Vigil shows you. Vigil detects the approval and finishes — its own renewable token, no computer, no `codex login`.
-   - **Add an API-key provider.** Under **Paste a provider key**, tap the provider (OpenRouter, DeepSeek, OpenAI, GitHub Copilot, …) and paste its key. Vigil tells you exactly which field it needs.
+   - **Add another provider.** Under **Paste a provider key**, tap the provider (OpenRouter, DeepSeek, OpenAI, GitHub Copilot, Cursor, …) and paste the requested key or session credential. Vigil tells you exactly which field it needs.
    - **Reuse a computer sign-in (optional).** If you already run Claude Code or Codex on a machine, `npx vigil-link` hands those sign-ins to your phone by QR.
 3. **Read your dashboard.** **Home** opens on a period picker — Day, Week, Month, Year, Life. The hero under it shows the tightest limit left across every account for that range, with any spend Vigil has actually observed noted alongside it. Below that, one stacked list gives each provider the windows matching that period — session bars on Day, weekly bars on Week — with percent left, a live reset countdown, and when it was last updated. Per-model caps — Fable weekly, Opus weekly, Codex's lanes — live on the **Models** tab. Tap refresh and Vigil tells you what it really did: fetched, deferred by the 5-minute poll floor (with the next safe time), or failed.
 
-Want the full walkthrough, including where to get each provider's API key? See **[docs/getting-started.md](docs/getting-started.md)**.
+Want the full walkthrough, including where to get each provider credential and account identifier? See **[docs/getting-started.md](docs/getting-started.md)**.
 
 Just want to see your usage in the terminal, no install?
 
 ```sh
-npx vigil-link status   # your real usage with reset countdowns, right now
+npx vigil-link status   # fetches when the poll gate permits; otherwise reports the next safe time
 npx vigil-link doctor   # check what credentials Vigil can find
 ```
 
@@ -67,31 +67,31 @@ npx vigil-link doctor   # check what credentials Vigil can find
 - **Threshold notifications** at 80% and 95% of a window.
 - **Biometric app lock** (Face ID / Touch ID) for the app.
 - **macOS menu bar** readout (`C 42% left · X 71% left`) — build from source today.
-- **Honest states**: stale, cooling down, re-link needed, provider changed, offline — never a silently wrong number.
+- **Honest states**: stale, cooling down, re-link needed, provider changed, offline. Detected schema drift is not labeled Live; semantic changes still require live verification.
 - **On-device only**: credentials in the Keychain, no server, no analytics.
 
 ## Provider support
 
-Fourteen providers ship in the registry. Claude and ChatGPT/Codex are enabled by default; the rest are opt-in and add themselves when you provide a key.
+Fourteen providers ship in the registry. Claude and ChatGPT/Codex are enabled by default; the rest are opt-in and activate when you provide the requested key, account identifier, or session credential.
 
 | Provider | Type | What you see | How to connect |
 |---|---|---|---|
 | **Claude** | default | Session, weekly, Sonnet, Opus + model-scoped weekly caps; overage credits | **Sign in on the phone** (browser OAuth), or hand over a Claude Code sign-in from a computer |
-| **ChatGPT / Codex** | default | Session, weekly, and per-model additional windows | **Sign in on the phone** (device-code flow), or hand over a Codex CLI sign-in from a computer |
-| OpenRouter | opt-in | Spend, credit limit, remaining credits | `OPENROUTER_API_KEY` |
+| **ChatGPT / Codex** | default | Session, weekly, per-model lanes, Flex credits, and reset credits | **Sign in on the phone** (device-code flow), or hand over a Codex CLI sign-in from a computer |
+| OpenRouter | opt-in | All-time, daily, weekly, monthly, and BYOK usage; optional key limit and remaining amount | `OPENROUTER_API_KEY` |
 | DeepSeek | opt-in | Balance by currency | `DEEPSEEK_API_KEY` |
 | Moonshot (Kimi) | opt-in | Balance | `MOONSHOT_API_KEY` |
 | Moonshot (Kimi) China | opt-in | Balance | `MOONSHOT_CN_API_KEY` |
 | Kimi K3 (coding plan) | opt-in · experimental | Session + weekly coding-plan windows | `KIMI_CODE_API_KEY` |
-| MiniMax Coding Plan | opt-in | Session + weekly windows (general and video models) | `MINIMAX_CODING_API_KEY` |
-| MiniMax Coding Plan China | opt-in | Session + weekly windows (general and video models) | `MINIMAX_CN_CODING_API_KEY` |
+| MiniMax Coding Plan | opt-in · experimental | Session + weekly windows (general and video models) | `MINIMAX_CODING_API_KEY` |
+| MiniMax Coding Plan China | opt-in · experimental | Session + weekly windows (general and video models) | `MINIMAX_CN_CODING_API_KEY` |
 | OpenAI API | opt-in | Month-to-date spend | `OPENAI_ADMIN_KEY` (Admin key) |
-| GitHub Copilot | opt-in | AI-credit spend | `GITHUB_BILLING_TOKEN` + `GITHUB_BILLING_USER` |
-| xAI API | opt-in · experimental | Prepaid balance | `XAI_MANAGEMENT_KEY` + `XAI_TEAM_ID` |
-| Z.ai / GLM Coding Plan | opt-in · experimental | Session + monthly windows | `ZAI_API_KEY` |
-| Cursor | opt-in · experimental | Plan usage + on-demand spend | `CURSOR_SESSION_TOKEN` (web session cookie) |
+| GitHub Copilot | opt-in | Credits consumed, billable and included credits, and billable spend | `GITHUB_BILLING_TOKEN` + `GITHUB_BILLING_USER` |
+| xAI API | opt-in | Prepaid balance | `XAI_MANAGEMENT_KEY` + `XAI_TEAM_ID` |
+| Z.ai / GLM Coding Plan | opt-in · experimental | 5-hour and weekly token windows; web-search counters | `ZAI_API_KEY` |
+| Cursor | opt-in · experimental | Plan and model-lane usage; on-demand spend and limit | `CURSOR_SESSION_TOKEN` (web session cookie) |
 
-"Experimental" marks a community-proven but undocumented endpoint; it's labeled everywhere it appears. CI does not call production provider APIs — opt-in providers are validated with sanitized fixtures, not vendor-certified. Full activation notes and the researched backlog live in the [support matrix](docs/provider-spec.md#support-and-stability-matrix).
+"Experimental" marks an endpoint that lacks both a stable vendor contract and a Vigil production capture. Its mapping may come from community clients or repository research, and it is labeled everywhere it appears. CI validates deterministic mapping against committed fixtures. [Fixture provenance](protocol/fixture-provenance.json) distinguishes live-sanitized captures, vendor examples, community research, and synthetic cases. Most opt-in fixtures are not Vigil production captures. Full activation notes and the researched backlog live in the [support matrix](docs/provider-spec.md#support-and-stability-matrix).
 
 The CLI never persists credentials or usage values. It does persist poll timestamps and 429 counters under your cache directory to prevent accidental rapid polling ([ADR-0004](docs/decisions/0004-stateless-cli.md)).
 
@@ -103,7 +103,7 @@ The CLI never persists credentials or usage values. It does persist poll timesta
 
 **Are my tokens safe?** They only ever travel between your own devices and the providers you turn on, and they live in your device Keychain. There's no Vigil server. The QR code does contain your credentials, so show it only somewhere private. See [docs/threat-model.md](docs/threat-model.md).
 
-**Do I have to use the terminal?** No. Claude and ChatGPT/Codex both sign in right in the app (a browser approval and a short code), and every API-key provider is added by pasting a key (**Add account → Paste a provider key → <provider>**). The terminal (`npx vigil-link`) is only an optional shortcut for reusing a Claude Code or Codex sign-in already on a computer.
+**Do I have to use the terminal?** No. Claude and ChatGPT/Codex both sign in right in the app (a browser approval and a short code), and every other provider is added by pasting its requested key or session credential (**Add account → Paste a provider key → <provider>**). The terminal (`npx vigil-link`) is only an optional shortcut for reusing a Claude Code or Codex sign-in already on a computer.
 
 More answers — per-provider quirks, freshness details, and setup edge cases — are in **[docs/faq.md](docs/faq.md)**. Hitting a specific problem? See **[docs/troubleshooting.md](docs/troubleshooting.md)**.
 
@@ -123,7 +123,7 @@ More answers — per-provider quirks, freshness details, and setup edge cases �
 └────────────────────────────────────────┘        └──────────────────────────────────────┘
 ```
 
-There is no Vigil server. The phone talks directly to provider endpoints with credentials handed off from your computer. See [docs/architecture.md](docs/architecture.md) for the reliability mechanisms and [docs/qr-protocol.md](docs/qr-protocol.md) for the `vigil1` handoff format.
+There is no Vigil server. The phone talks directly to provider endpoints with credentials minted or entered on-device, or optionally handed off from a computer. See [docs/architecture.md](docs/architecture.md) for the reliability mechanisms and [docs/qr-protocol.md](docs/qr-protocol.md) for the `vigil1` handoff format.
 
 **Cross-language lockstep:** [`protocol/providers.json`](protocol/providers.json) is the machine-readable contract for endpoints, headers, poll policy, discovery metadata, and response mappings. TypeScript and Swift consume the contract differently, and the Swift runtime hand-mirrors its constants. Adding a provider also requires credential discovery or OAuth work, fixture coverage, Swift parity constants, UI review, and documentation. See the [provider contribution guide](docs/provider-contribution.md).
 
