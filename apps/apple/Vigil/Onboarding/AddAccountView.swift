@@ -188,7 +188,7 @@ struct AddAccountView: View {
                         Spacer()
                         VigilStatusPill(text: "Renewing", color: VigilPalette.inkMuted)
                     }
-                    Text("Approve access in your browser and paste the code back — Vigil gets its own token that renews itself.")
+                    Text("Approve access in your browser and paste the code back. Vigil refreshes its own token while the provider permits it.")
                         .font(.caption)
                         .foregroundStyle(VigilPalette.inkMuted)
                 }
@@ -221,7 +221,7 @@ struct AddAccountView: View {
                         Spacer()
                         VigilStatusPill(text: "Renewing", color: VigilPalette.inkMuted)
                     }
-                    Text("Open ChatGPT's sign-in, enter the code Vigil shows you, and you're done — Vigil keeps its own token that renews itself.")
+                    Text("Open ChatGPT's sign-in and enter the code Vigil shows you. Vigil refreshes its own token while the provider permits it.")
                         .font(.caption)
                         .foregroundStyle(VigilPalette.inkMuted)
                 }

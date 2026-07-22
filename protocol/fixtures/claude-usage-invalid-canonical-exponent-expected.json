@@ -1,0 +1,7 @@
+{
+  "windows": [
+    { "id": "session", "utilization": 10, "resetsAt": null, "windowSeconds": 18000, "secondary": false }
+  ],
+  "metrics": [],
+  "incomplete": true
+}

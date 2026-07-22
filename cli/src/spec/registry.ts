@@ -9,16 +9,80 @@ import { fileURLToPath } from "node:url";
  */
 export type ProviderId = string;
 
+export type WindowSourceContainer = "object" | "array";
+
 export interface WindowSpec {
   id: string;
   sourceKey: string;
+  /** Exact provider container at sourceKey/sourceKeys. A changed object/array
+   * wrapper is schema drift, never a singleton compatibility guess. */
+  sourceContainer: WindowSourceContainer;
+  /** Ordered fallbacks for APIs that have shipped more than one wrapper
+   * shape. The first path that resolves wins. */
+  sourceKeys?: string[];
   resetFormat: "iso8601" | "unixSeconds" | "unixMillis";
   windowSeconds?: number;
   secondary: boolean;
+  /** Keep the resolved bucket only when every predicate matches. Numeric and
+   * boolean response values are compared using their JSON string form. */
+  conditions?: FieldConditionSpec[];
+  /** Keep a bucket when at least one predicate matches. This composes with
+   * `conditions` and supports APIs that renamed an identity field while
+   * retaining the same value. */
+  anyConditions?: FieldConditionSpec[];
+  /** Alias keys that identify the same entry. When more than one is present,
+   * their scalar values must agree. */
+  identityAliases?: string[];
+  /** Suppress a bucket when every predicate matches. Missing fields do not
+   * suppress it, which matters for optional entitlement flags. */
+  omitWhen?: FieldConditionSpec[];
+  /** Some APIs move a sole weekly limit into their primary slot. Prefer the
+   * response's explicit duration over the slot name when it is available. */
+  idByWindowSeconds?: Record<string, string>;
+  /** Derive the actual window duration from a provider `(unit, number)` pair
+   * and optionally use a duration range to select an array entry. */
+  duration?: WindowDurationSpec;
+  /** Optional provider-facing label for the window. */
+  label?: string;
   /** Per-window override of the provider's responseFields (e.g. MiniMax
    * exposes the session and weekly numbers under different keys of one
    * bucket). */
-  fields?: { utilization: string; resetsAt: string };
+  fields?: WindowFieldsSpec;
+  /** A present bucket whose candidate value is absent/null is drift unless
+   * this is false. Cursor uses false for ordered and optional subfields. */
+  requiredWhenPresent?: boolean;
+  /** Ordered candidates sharing a group stop after the first successful map. */
+  fallbackGroup?: string;
+}
+
+export interface WindowDurationSpec {
+  unitKey: string;
+  numberKey: string;
+  unitSeconds: Record<string, number>;
+  /** When supplied, only these exact derived durations are eligible. */
+  allowedSeconds?: number[];
+  minimumSeconds?: number;
+  maximumSecondsExclusive?: number;
+}
+
+export interface FieldConditionSpec {
+  key: string;
+  equals: string;
+  /** Optional JSON scalar type. Used when stringifying values would make an
+   * invalid provider value look equivalent to the observed contract. */
+  valueType?: "boolean" | "number" | "string";
+  /** Explicit, well-formed values that mean this entry is ineligible. Any
+   * other non-match is schema drift. */
+  allowedNonMatches?: string[];
+}
+
+export interface WindowFieldsSpec {
+  /** Direct 0-100 percentage. Omit when `used` + `limit` are supplied. */
+  utilization?: string;
+  resetsAt: string;
+  /** Absolute used and limit values, converted to used / limit * 100. */
+  used?: string;
+  limit?: string;
 }
 
 export interface PollSpec {
@@ -88,6 +152,9 @@ export interface AdditionalWindowsSpec {
   sourceKey: string;
   /** Dot-path (within each entry) to the string used as the window id. */
   idKey: string;
+  /** Observed machine-id grammar. Codex metered_feature is an ASCII slug;
+   * rejecting arbitrary Unicode also keeps JS and Swift identity equal. */
+  idFormat?: "asciiSlug";
   secondary: boolean;
   /** Keep only entries whose `key` string-equals `equals` (e.g. Claude's
    * limits[] carries many kinds; take just `weekly_scoped`). */
@@ -102,7 +169,70 @@ export interface AdditionalWindowsSpec {
   /** Static duration for these windows, in seconds. */
   windowSeconds?: number;
   /** Per-entry override of the provider's responseFields. */
-  fields?: { utilization: string; resetsAt: string };
+  fields?: WindowFieldsSpec;
+  /** Treat a present non-array source and eligible entries that map no child
+   * windows as drift. Unfiltered non-empty arrays must contain at least one
+   * mappable object; a filtered array may legitimately have zero matches. */
+  requiredWhenPresent?: boolean;
+  conditions?: FieldConditionSpec[];
+  /** One array entry can carry multiple nested quota windows. OpenAI Codex,
+   * for example, nests primary and secondary windows under one model lane. */
+  entryWindows?: AdditionalEntryWindowSpec[];
+}
+
+export interface AdditionalEntryWindowSpec {
+  sourceKey: string;
+  sourceContainer: WindowSourceContainer;
+  idSuffix: string;
+  idSuffixByWindowSeconds?: Record<string, string>;
+  labelSuffix?: string;
+  labelSuffixByWindowSeconds?: Record<string, string>;
+  resetFormat?: "iso8601" | "unixSeconds" | "unixMillis";
+  windowSeconds?: number;
+  secondary?: boolean;
+  fields?: WindowFieldsSpec;
+}
+
+export interface ResponseEnvelopeSpec {
+  /** Provider-defined status code carried inside an HTTP 2xx body. */
+  codeKey: string;
+  okCode: string;
+  codeValueType?: "boolean" | "number" | "string";
+  /** Optional redundant success flag, also carried in the body. */
+  successKey?: string;
+  successValue?: string;
+  successValueType?: "boolean" | "number" | "string";
+  /** Codes that mean the credential is invalid or expired. */
+  authCodes?: string[];
+}
+
+export interface RequiredOutputsSpec {
+  minimumWindows?: number;
+  minimumPrimaryWindows?: number;
+  windowIds?: string[];
+  minimumMetrics?: number;
+  metricIds?: string[];
+}
+
+/** A provider response that legitimately yields no finite quota windows.
+ * The first non-empty array found at sourceKeys is recognized only when every
+ * entry is an object matching every condition. This keeps an explicit
+ * unlimited state distinct from an unknown or malformed empty payload. */
+export interface RecognizedEmptySpec {
+  sourceKeys: string[];
+  allEntriesMatch: FieldConditionSpec[];
+}
+
+/** An exhaustive provider array. Every entry identity must be known; wrapper
+ * fallbacks are mutually exclusive; selected identities may constrain the
+ * complete set of supported quota durations. */
+export interface ExhaustiveCollectionSpec {
+  sourceKeys: string[];
+  identityKeys: string[];
+  allowedIdentities: string[];
+  uniqueIdentities?: string[];
+  durationIdentities?: string[];
+  duration?: WindowDurationSpec;
 }
 
 export type UsageMetricKind = "balance" | "spend" | "limit" | "remaining";
@@ -113,16 +243,43 @@ export interface MetricMappingSpec {
   /** With aggregate, path segments ending in [] flat-map arrays
    * (data[].results[].amount.value collects every matching leaf). */
   sourceKey: string;
+  conditions?: FieldConditionSpec[];
   kind: UsageMetricKind;
   unit?: string;
   /** Dot-path to a unit/currency string in the response; overrides `unit`
    * when it resolves (e.g. Claude extra_usage.currency). */
   unitKey?: string;
+  /** Every listed path must resolve to a finite number before this candidate
+   * mapping is eligible. Duplicate ids can then express correlated fallbacks
+   * without pairing values from different response scopes. */
+  requires?: string[];
+  /** Non-numeric family members that must be present (for example currency
+   * metadata paired with minor-unit amounts). */
+  requiresPresent?: string[];
+  /** Every path in each inner group must resolve to the same scalar value. */
+  equalFields?: string[][];
+  /** Parent/family paths whose presence makes this leaf contract required. */
+  presencePaths?: string[];
+  /** Every listed path must resolve to a finite number greater than zero. */
+  requiresPositive?: string[];
+  /** If any required member is present but the complete numeric family is
+   * not, mark the response incomplete instead of silently omitting it. */
+  incompleteWhenAnyRequiredPresent?: boolean;
+  /** Ordered fallback candidates are ineligible when any canonical-family
+   * member is present, even if that canonical member is malformed. */
+  fallbackBlockedBy?: string[];
   secondary: boolean;
   /** "sum" adds every value the sourceKey resolves to (billing buckets). */
   aggregate?: "sum";
+  /** Aggregate sibling units aligned with sourceKey leaves. */
+  aggregateUnitKey?: string;
+  aggregateExpectedUnit?: string;
   /** Multiplier applied after resolution (0.01 converts cents to dollars). */
   scale?: number;
+  /** Dot-path to a non-negative minor-unit exponent. When valid, the mapper
+   * divides by 10^exponent; `scale` remains the fallback for older payloads
+   * that omit the metadata. */
+  exponentKey?: string;
 }
 
 export interface MetricCollectionMappingSpec {
@@ -139,8 +296,8 @@ export interface ProviderSpec {
   displayName: string;
   /** Omitted means enabled. Opt-in providers set this to false. */
   defaultEnabled?: boolean;
-  /** Community-proven but undocumented endpoint: surfaced in UI and docs so
-   * nobody mistakes it for a vendor-supported integration. */
+  /** No stable vendor contract or Vigil production capture: surfaced in UI
+   * and docs so nobody mistakes research-derived mapping for live proof. */
   experimental?: boolean;
   auth: string;
   usage: UsageRequestSpec;
@@ -149,6 +306,20 @@ export interface ProviderSpec {
   discovery: DiscoverySpec;
   manualEntryHint?: string;
   responseFields?: ResponseFieldsSpec;
+  responseEnvelope?: ResponseEnvelopeSpec;
+  requiredOutputs?: RequiredOutputsSpec;
+  recognizedEmpty?: RecognizedEmptySpec;
+  exhaustiveCollections?: ExhaustiveCollectionSpec[];
+  /** Successful HTTP bodies matching any condition are intentionally
+   * incomplete. Used for pagination flags we cannot safely follow yet. */
+  incompleteWhen?: FieldConditionSpec[];
+  /** Every condition must match for a successful body to be complete. */
+  requiredConditions?: FieldConditionSpec[];
+  /** Paths whose keys must exist in a successful body. Explicit null is
+   * allowed; absence means the provider contract changed. */
+  requiredPaths?: string[];
+  /** Paths that must be absent or explicit null in a complete response. */
+  absentOrNullPaths?: string[];
   planKey?: string;
   additionalWindows?: AdditionalWindowsSpec;
   metricMappings?: MetricMappingSpec[];
@@ -161,6 +332,8 @@ export interface Registry {
   version: number;
   providers: Record<ProviderId, ProviderSpec>;
 }
+
+export const SUPPORTED_REGISTRY_VERSION = 2;
 
 export function providerIds(registry: Registry, includeOptIn = false): ProviderId[] {
   return Object.entries(registry.providers)
@@ -182,8 +355,8 @@ function specPath(): string {
   throw new Error("providers.json not found (looked in package dist/ and repo protocol/)");
 }
 
-export function loadRegistry(): Registry {
-  const parsed = JSON.parse(readFileSync(specPath(), "utf8")) as Registry;
+export function parseRegistry(raw: string): Registry {
+  const parsed = JSON.parse(raw) as Registry;
   if (
     parsed === null ||
     typeof parsed !== "object" ||
@@ -193,5 +366,14 @@ export function loadRegistry(): Registry {
   ) {
     throw new Error("providers.json has an invalid registry shape");
   }
+  if (parsed.version !== SUPPORTED_REGISTRY_VERSION) {
+    throw new Error(
+      `providers.json registry version ${parsed.version} is unsupported; expected ${SUPPORTED_REGISTRY_VERSION}`
+    );
+  }
   return parsed;
+}
+
+export function loadRegistry(): Registry {
+  return parseRegistry(readFileSync(specPath(), "utf8"));
 }

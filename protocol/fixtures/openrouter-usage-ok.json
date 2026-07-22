@@ -2,7 +2,15 @@
   "data": {
     "label": "vigil-test",
     "usage": 12.5,
+    "usage_daily": 0.5,
+    "usage_weekly": 4.25,
+    "usage_monthly": 9.75,
+    "byok_usage": 3.5,
+    "byok_usage_daily": 0.25,
+    "byok_usage_weekly": 1.5,
+    "byok_usage_monthly": 2.75,
     "limit": 50,
+    "limit_reset": "monthly",
     "is_free_tier": false,
     "limit_remaining": 37.5,
     "rate_limit": {

@@ -3,6 +3,11 @@
   "windows": [
     { "id": "session", "utilization": 71.5, "resetsAt": "2026-07-18T21:00:00Z", "windowSeconds": 18000, "secondary": false },
     { "id": "weekly", "utilization": 32, "resetsAt": "2026-07-20T07:00:00Z", "windowSeconds": 604800, "secondary": false },
-    { "id": "gpt-5-codex-spark", "utilization": 12, "resetsAt": "2026-07-20T07:00:00Z", "windowSeconds": 604800, "secondary": true }
+    { "id": "codex_bengalfox_session", "label": "GPT-5.3-Codex-Spark · 5 hours", "utilization": 12, "resetsAt": "2026-07-18T21:00:00Z", "windowSeconds": 18000, "secondary": true },
+    { "id": "codex_bengalfox_weekly", "label": "GPT-5.3-Codex-Spark · Weekly", "utilization": 20, "resetsAt": "2026-07-20T07:00:00Z", "windowSeconds": 604800, "secondary": true }
+  ],
+  "metrics": [
+    { "id": "credits_balance", "label": "Flex credits", "kind": "balance", "value": 81.16351, "unit": "credits", "secondary": false },
+    { "id": "reset_credits", "label": "Reset credits available", "kind": "remaining", "value": 2, "unit": "resets", "secondary": true }
   ]
 }

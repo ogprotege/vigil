@@ -147,7 +147,7 @@ async function gatherOne(scan: ProviderScan, opts: WizardOptions): Promise<Crede
       const choice = await opts.prompts.choose(
         `How should Vigil connect to ${scan.spec.displayName}?`,
         [
-          "Browser sign-in (recommended) — Vigil gets its own token that renews itself",
+          "Browser sign-in (recommended). Vigil refreshes its token while the provider permits",
           `Copy the ${scan.spec.displayName} sign-in — no browser, but it can't renew and will expire`,
         ],
         0

@@ -1,5 +1,11 @@
 {
-  "total": {
-    "val": 25.5
-  }
+  "changes": [
+    {
+      "changeOrigin": "PURCHASE",
+      "topupStatus": "SUCCEEDED",
+      "amount": { "val": "-1000" },
+      "createTime": "2025-02-24T15:28:02.308840Z"
+    }
+  ],
+  "total": { "val": "-1000" }
 }

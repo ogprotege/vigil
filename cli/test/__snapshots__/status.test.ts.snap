@@ -27,9 +27,12 @@ exports[`status > renders both providers' windows (golden) 1`] = `
   Weekly (Opus)     24%  █████░░░░░░░░░░░░░░░  resets in 3d 10h
 
 ChatGPT / Codex (pro)
-  Session             72%  ██████████████░░░░░░  resets in 59m
-  Weekly              32%  ██████░░░░░░░░░░░░░░  resets in 1d 10h
-  gpt-5-codex-spark   12%  ██░░░░░░░░░░░░░░░░░░  resets in 1d 10h"
+  Session                         72%  ██████████████░░░░░░  resets in 59m
+  Weekly                          32%  ██████░░░░░░░░░░░░░░  resets in 1d 10h
+  GPT-5.3-Codex-Spark · 5 hours   12%  ██░░░░░░░░░░░░░░░░░░  resets in 59m
+  GPT-5.3-Codex-Spark · Weekly    20%  ████░░░░░░░░░░░░░░░░  resets in 1d 10h
+  Flex credits             81.164 credits
+  Reset credits available  2 resets"
 `;
 
 exports[`status > reports honest states for missing creds and rate limiting 1`] = `

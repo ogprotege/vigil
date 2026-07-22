@@ -34,22 +34,24 @@ Fourteen providers ship in the registry. Claude and ChatGPT/Codex are enabled by
 
 | Provider | Data | Activation | Default |
 |---|---|---|---|
-| Claude | Session and weekly usage windows | Claude Code credentials or a Vigil-owned browser OAuth token | Yes |
-| ChatGPT / Codex | Session, weekly, and additional windows | Codex CLI credentials | Yes |
-| OpenRouter | Spend, credit limit, and remaining credits | `OPENROUTER_API_KEY` | No |
+| Claude | Session, weekly, model-scoped windows, and extra-usage spend | Claude Code credentials or a Vigil-owned browser OAuth token | Yes |
+| ChatGPT / Codex | Session, weekly, per-model lanes, and credits | Codex CLI credentials | Yes |
+| OpenRouter | Lifetime/day/week/month and BYOK usage; optional key limit | `OPENROUTER_API_KEY` | No |
 | DeepSeek | Balance by currency | `DEEPSEEK_API_KEY` | No |
 | Moonshot (Kimi) | Balance | `MOONSHOT_API_KEY` | No |
 | Moonshot (Kimi) China | Balance | `MOONSHOT_CN_API_KEY` | No |
 | Kimi K3 (coding plan) *(experimental)* | Session and weekly coding-plan windows | `KIMI_CODE_API_KEY` | No |
-| MiniMax Coding Plan | Session and weekly windows | `MINIMAX_CODING_API_KEY` | No |
-| MiniMax Coding Plan China | Session and weekly windows | `MINIMAX_CN_CODING_API_KEY` | No |
+| MiniMax Coding Plan *(experimental)* | General/video session and weekly windows | `MINIMAX_CODING_API_KEY` | No |
+| MiniMax Coding Plan China *(experimental)* | General/video session and weekly windows | `MINIMAX_CN_CODING_API_KEY` | No |
 | OpenAI API | Month-to-date spend | `OPENAI_ADMIN_KEY` (Admin key) | No |
-| GitHub Copilot | AI-credit spend | `GITHUB_BILLING_TOKEN` + `GITHUB_BILLING_USER` | No |
-| xAI API *(experimental)* | Prepaid balance | `XAI_MANAGEMENT_KEY` + `XAI_TEAM_ID` | No |
-| Z.ai / GLM Coding Plan *(experimental)* | Session and monthly windows | `ZAI_API_KEY` | No |
-| Cursor *(experimental)* | Plan usage and on-demand spend | `CURSOR_SESSION_TOKEN` | No |
+| GitHub Copilot | AI-credit quantities and billable spend | `GITHUB_BILLING_TOKEN` + `GITHUB_BILLING_USER` | No |
+| xAI API | Prepaid balance | `XAI_MANAGEMENT_KEY` + `XAI_TEAM_ID` | No |
+| Z.ai / GLM Coding Plan *(experimental)* | 5-hour and weekly token windows; web-search counters | `ZAI_API_KEY` | No |
+| Cursor *(experimental)* | Plan/model usage and on-demand spend | `CURSOR_SESSION_TOKEN` | No |
 
-**xAI, Z.ai, Cursor, and Kimi K3 are experimental** — their endpoints are undocumented and can drift.
+**MiniMax, Z.ai, Cursor, and Kimi K3 are experimental** because
+their usage contracts are undocumented or community-researched without a
+Vigil production capture. xAI uses a vendor-documented management endpoint.
 
 For example, OpenRouter and DeepSeek activate like this:
 
@@ -61,7 +63,9 @@ OPENROUTER_API_KEY='...' DEEPSEEK_API_KEY='...' \
   npx vigil-link --provider claude,codex,openrouter,deepseek
 ```
 
-Claude and Codex use undocumented consumer usage endpoints and can change without notice. OpenRouter and DeepSeek use documented endpoints, but this release validates them with sanitized fixtures rather than live CI credentials.
+Claude and Codex use undocumented consumer usage endpoints and can change
+without notice. OpenRouter and DeepSeek use documented endpoints. Their
+committed fixtures are vendor-derived synthetic cases, not live CI captures.
 
 ## Commands
 

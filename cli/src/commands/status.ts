@@ -200,8 +200,8 @@ export async function statusReport(deps: StatusDeps, providers: ProviderId[]): P
         poll,
       });
       const spec = deps.registry.providers[creds.providerId];
-      // Experimental = community-proven but undocumented endpoint; the label
-      // keeps that visible in every report.
+      // Experimental = no stable vendor contract or Vigil production capture;
+      // the label keeps that visible in every report.
       const displayName =
         (spec?.displayName ?? creds.providerId) + (spec?.experimental ? " (experimental)" : "");
       const rendered = renderSnapshot(snapshot, displayName, now());
