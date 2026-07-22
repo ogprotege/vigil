@@ -4,6 +4,44 @@
 
 Anything that changes shipped behavior gets an entry here: `vigil-link` npm versions, TestFlight app builds, and protocol or registry changes that affect both. Provider-schema and local-state migration notes are recorded per release so an existing installation can be upgraded deliberately.
 
+## 0.13.0 (12) — TestFlight internal, 2026-07-22
+
+**Claude limits display at all again.** The app showed a Claude account as
+"Live" with nothing but "Extra usage (month) $0" — no 5-hour, no weekly, no
+per-model — while `vigil-link status` showed all of them. Two independent bugs,
+both found by running the app's own code path against the live endpoint instead
+of against fixtures:
+
+- **Every Claude window was being discarded on parse.** Claude returns
+  `resets_at` with MICROSECOND precision (`2026-07-22T02:09:59.392525+00:00`).
+  `ISO8601DateFormatter` without `.withFractionalSeconds` returns nil for that,
+  so `readBucket`'s reset guard failed and dropped every window. `extra_usage`
+  is a metric with no timestamp, so it survived — which is exactly why the one
+  thing on screen was the extra-usage number. The CLI was immune because
+  JavaScript's `new Date()` parses fractional seconds natively. The parser fix
+  shipped in build 11's changelog but build 11 was never uploaded; this is the
+  first build that actually carries it.
+- **Per-model caps never mapped.** `additionalWindows` read utilization via
+  `responseFields.utilization`, but live `limits[]` entries carry **`percent`**.
+  Every model-scoped window was dropped. The committed fixture asserted the
+  non-existent `utilization` shape, so both mappers agreed about an API neither
+  had ever seen — parity green, feature dead. The fixture is now the response
+  captured live on 2026-07-21.
+
+Verified against the live endpoint with both a Claude Code token and a freshly
+minted one: session, weekly, and `Fable` (model-scoped) all map. A minted token
+returns exactly the same body as a copied one — worth recording, because
+ADR-0005 claimed mint was "verified end-to-end" on the strength of a 200 status
+without ever checking that the body contained windows.
+
+**The Models tab shows models only.** It fell back to an account's primary
+session/weekly windows whenever that account had no per-model lanes, so a Codex
+account rendered "Weekly limit" under "Per-model caps" — Home's data, on the
+wrong screen, labelled as something it is not. Accounts with no per-model caps
+now contribute nothing there and the existing empty state explains why.
+
+This build also carries everything in (11), which was never uploaded.
+
 ## 0.13.0 (11) — TestFlight internal, 2026-07-21
 
 Full-codebase audit: 233 agents across 14 dimensions, every finding

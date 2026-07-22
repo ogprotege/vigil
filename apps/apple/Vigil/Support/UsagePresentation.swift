@@ -137,19 +137,17 @@ enum UsagePresentation {
         accounts
             .compactMap { account -> [LimitCandidate]? in
                 guard let snapshot = snapshots[account.key] else { return nil }
+                // ONLY genuine per-model / special windows. This used to fall
+                // back to an account's primary session/weekly windows so the
+                // tab was never empty for a coding plan — but that put Home's
+                // data on Models under a "Per-model caps" heading, so a Codex
+                // account with no model lanes rendered "Weekly limit" here as
+                // if it were a model. An honest empty state beats a wrong row;
+                // ModelsView already explains when a provider has no per-model
+                // caps.
                 let special = snapshot.windows.filter(isSpecialWindow)
-                let windows: [UsageWindow]
-                if !special.isEmpty {
-                    windows = special
-                } else if !snapshot.windows.isEmpty {
-                    // Coding-plan providers often expose only session + weekly
-                    // as primary windows — still a plan quota the Models tab
-                    // should surface, labeled with the account name.
-                    windows = snapshot.windows
-                } else {
-                    return nil
-                }
-                return windows.map {
+                guard !special.isEmpty else { return nil }
+                return special.map {
                     LimitCandidate(account: account, snapshot: snapshot, window: $0)
                 }
             }
