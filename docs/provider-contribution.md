@@ -1,81 +1,118 @@
 # Provider contribution guide
 
-A provider is complete only when Vigil can obtain credentials safely, map real responses honestly, render the result, and fail without affecting other providers. Editing `protocol/providers.json` is one part of that work.
+A provider is complete only when Vigil can accept its credential safely, map supported responses honestly, render meaningful output, and fail without contaminating other accounts. Editing `protocol/providers.json` is one part of the work.
 
 ## 1. Establish a supportable source
 
 Record these facts before writing code:
 
-- What value does the provider expose: reset window, spend, limit, remaining credit, or balance?
+- What meaningful value does the provider expose: reset window, spend, limit, remaining credit, or balance?
 - Is the endpoint documented and intended for the user's account type?
 - Which credential is required, and what authority does it grant?
-- Can the credential be scoped to read-only usage?
-- Does the provider permit local third-party clients?
-- What are the published rate limits and `Retry-After` rules?
-- Can a refresh token rotate, and which client owns it?
-- What evidence supports the response shape: a sanitized Vigil capture, a vendor example, or community research?
+- Can the credential be limited to read-only usage or billing access?
+- Does the provider permit a local third-party client?
+- What rate limit or `Retry-After` behavior is published or observed?
+- Can a refresh credential rotate, and which client owns it?
+- What supports the response shape: sanitized Vigil capture, vendor example, community research, or a synthetic derivation?
 
-Do not derive a fake utilization percentage from unrelated values. If the provider reports only a balance, map a `balance` metric.
+Do not derive a utilization percentage from unrelated values. If the provider exposes only a balance, map a balance metric.
 
-Mark a provider opt-in with `"defaultEnabled": false` until it has real-account validation, fixtures, UI review, and clear activation instructions.
+New providers should remain opt-in until they have real-account validation, fixtures, phone UI review, and clear activation instructions.
+
+Use `experimental: true` when the endpoint lacks both a stable vendor contract and a sanitized Vigil production capture.
 
 ## 2. Extend the registry
 
-Add the provider under `protocol/providers.json`.
+Add the provider to `protocol/providers.json`.
 
-Required policy usually includes:
+Typical policy includes:
 
 - stable lowercase provider ID;
-- display name and default-enabled state;
-- request method, URL, and header templates;
-- poll floor, jitter, and 429 backoff;
-- discovery metadata;
+- display name;
+- experimental state when required;
+- request method, URL, query, and header templates;
+- poll floor, jitter, and rate-limit backoff;
 - manual-entry guidance;
-- window and/or metric mappings;
+- static and dynamic window mappings;
+- scalar or collection metric mappings;
+- response-envelope rules;
+- required-output and structural contracts;
 - capabilities.
 
-Never put a credential, private client secret, real account ID, or production response in the registry.
+Never place a credential, private client secret, real account ID, or unsanitized production body in the registry.
 
-## 3. Implement credential activation
+`protocol/providers.json` is canonical in intent. The app ships Swift constants, so the same runtime fields must be reflected in `ProviderRegistry`.
 
-The CLI routes discovery by `discovery.adapter`.
+## 3. Implement phone activation
 
-- Reuse `environment` for a user-supplied API key.
-- Add a discovery adapter when credentials live in a provider-owned file or Keychain item.
-- Add an OAuth mint adapter only for a public-client flow that has been verified.
-- For an OAuth provider, also add an on-device sign-in implementation in VigilKit (pure request/response construction with no UI, unit-tested, minting its own token pair with source `"mint"`) alongside any CLI mint adapter, so the phone can provision the credential without a computer — this is the primary path (see `ClaudeAuth`/`CodexAuth`).
-- Do not refresh credentials copied from another client if refresh-token rotation could invalidate that client.
+Every provider must have an iPhone setup path.
 
-Credential discovery must isolate failures. A broken provider must not stop the remaining `status`, `doctor`, or link report.
+### Pasted credentials
 
-## 4. Implement response mapping
+Use the generic manual-entry flow when the provider accepts an API key, management key, session cookie, or similar credential.
 
-Use the generic mapping fields when possible:
+Specify:
 
-- `windows` plus `responseFields` for reset-based utilization;
-- exact `sourceContainer` plus `sourceKeys`, typed `conditions`, and `omitWhen` for compatible wrappers and selected array entries;
-- per-window `fields.used` and `fields.limit` when the provider supplies counts instead of a percentage;
-- `metricMappings` with `presencePaths`, paired requirements, equality checks, and denomination metadata for fixed scalar paths;
+- the exact field label;
+- where the user obtains it;
+- whether a second account identifier is required;
+- whether the credential is broad or can be read-only;
+- whether it expires;
+- whether regional hosts require different credentials.
+
+Do not save the account until required fields are present and the Keychain write succeeds.
+
+### OAuth or device authorization
+
+Add a VigilKit authentication adapter when a provider needs a public-client flow.
+
+Keep request and response construction UI-free and unit-testable. The app target owns browser presentation, user instructions, pending state, cancellation, and error copy.
+
+Mint a credential owned by Vigil. Mark it with source `mint`. Refresh only that credential.
+
+Never rotate a token pair pasted from another client. Refresh-token rotation can invalidate the owning client.
+
+Do not embed a confidential client secret in the app.
+
+## 4. Implement request and response mapping
+
+Prefer registry-driven mapping:
+
+- `windows` for known reset-based buckets;
+- `sourceContainer`, ordered `sourceKeys`, typed `conditions`, and `omitWhen` for bounded alternatives;
+- per-window `fields.used` and `fields.limit` when the provider supplies counts;
+- `additionalWindows` for provider-defined dynamic collections;
+- `additionalWindows.entryWindows` when one record contains nested primary and secondary windows;
+- `metricMappings` for fixed scalar balances, spend, limits, or remaining amounts;
 - `metricCollectionMappings` for arrays such as balances by currency;
-- `additionalWindows.entryWindows` for provider-defined collections where one entry fans into nested windows;
-- `responseEnvelope` for provider errors carried inside HTTP 2xx bodies;
+- `responseEnvelope` for failures carried inside HTTP 2xx;
 - `requiredPaths`, `absentOrNullPaths`, and `requiredConditions` for body-level contracts;
-- `exhaustiveCollections` when every array identity and duration must be understood;
-- `requiredOutputs`, including primary-window minimums, and `requiredWhenPresent` so partial mapping cannot masquerade as Live.
+- `exhaustiveCollections` when every array identity or duration must be understood;
+- `requiredOutputs` and `requiredWhenPresent` so partial output cannot become Live.
 
-Direct percentages outside 0 through 100 are invalid. Ratio windows require a nonnegative used value and a positive limit. If a provider can legitimately exceed its cap, document whether the UI caps that ratio at 100. Never silently clamp an impossible direct percentage.
+Direct percentages outside 0 through 100 are invalid. Ratio windows require nonnegative used values and a positive limit. Document any legitimate over-limit behavior.
 
-The raw-body gate rejects malformed UTF-8, duplicate semantic object keys, leading `U+FEFF` inside strings, non-finite decoded numbers, lone surrogates, and excessive depth or size. Add mirrored TypeScript and Swift tests for any parser edge case a provider exposes.
+Use root-relative field paths when a nested bucket shares a response-root reset or billing date.
 
-If the schema needs provider-specific code, keep it small and document why generic mapping cannot express it. Unknown fields must be ignored. Invalid values must be skipped. A successful response that fails the provider's required-output contract must become `schemaChanged`, even when an unrelated window or metric still maps. Retain partial output at the classifier boundary for diagnosis; Apple surfaces must preserve the last successful snapshot instead of labeling the partial response Live.
+Money requires explicit denomination handling. Use a validated exponent or scale. Never infer dollars from an unlabeled integer. Never combine currencies.
 
-Keep TypeScript and Swift behavior equal:
+Raw-body validation rejects malformed UTF-8, duplicate semantic keys, non-finite decoded numbers, lone surrogates, and excessive depth or size. Add tests for any parser boundary exposed by the provider.
 
-- TypeScript mapping and normalized types under `cli/src/providers/`;
-- Swift models and mapping under `packages/VigilKit/Sources/VigilKit/`;
-- Swift `ProviderRegistry` constants, which hand-mirror the JSON for runtime independence.
+If generic mapping cannot express a required shape, add the smallest Swift adapter and document why. Unknown fields can be ignored only when the contract does not declare the collection or family exhaustive.
 
-## 5. Add fixtures and provenance
+A successful response that fails required outputs becomes `schemaChanged`, even when another value maps. Partial output can remain diagnostic. The app must preserve the last successful snapshot rather than label the partial response Live.
+
+## 5. Mirror the Swift registry
+
+Update `packages/VigilKit/Sources/VigilKit/Providers/ProviderSpec.swift`.
+
+Then update `SpecParityTests` decoding and assertions if the contract gained a new runtime field.
+
+The parity test must compare every field that changes request behavior, mapping, required outputs, product labeling, or manual-entry guidance.
+
+A JSON-only provider edit is incomplete because the shipped app does not load the repository JSON at runtime.
+
+## 6. Add fixtures and provenance
 
 Add fixture pairs under `protocol/fixtures/`:
 
@@ -84,104 +121,111 @@ provider-case.json
 provider-case-expected.json
 ```
 
-Target at least two cases for a provider that will be called supported. Cover:
+Cover the contract, not only the happy path:
 
-- a normal response;
-- optional or `null` fields;
-- string-encoded decimal values if applicable;
-- multiple currencies or secondary windows if applicable;
-- malformed data that should be skipped;
-- the case where nothing valid maps and `schemaChanged` is expected.
-- partial mapping where a required ID or eligible dynamic entry disappears.
-- wrong object/array wrappers, duplicate identities, malformed typed flags, and incomplete correlated families.
-- mixed-currency aggregate leaves and denomination mismatches when money is summed.
+- normal response;
+- optional and null fields;
+- string decimal values when supported;
+- multiple currencies or secondary windows;
+- malformed present values;
+- wrong object or array wrappers;
+- missing required IDs or metrics;
+- incomplete eligible dynamic entries;
+- unknown or duplicate exhaustive identities;
+- incomplete correlated money families;
+- a response that must become `schemaChanged`.
 
-Expected files are hand-authored normalized outputs. Do not generate expected data with the mapper being tested.
+Expected files are hand-authored normalized outputs. Never generate them with the mapper under test.
 
-Remove tokens, email addresses, account IDs, request IDs, and distinctive production amounts from fixtures.
+Sanitize tokens, emails, account IDs, request IDs, and distinctive production values.
 
-Add every input and expected pair to [fixture-provenance.json](../protocol/fixture-provenance.json). Choose the narrowest evidence class that is true:
+List each input and expected file in [fixture-provenance.json](../protocol/fixture-provenance.json). Choose the narrowest true evidence class:
 
-- `live_sanitized`: captured by Vigil from production, then sanitized. Record the observation date and a durable repository evidence link.
-- `vendor_example`: copied from, or mechanically reduced from, a vendor-published example. Link the exact page or source revision.
-- `community_research`: based on a maintained independent client. Pin the source revision, not a moving branch URL.
-- `synthetic_derived`: hand-authored from another evidence source to test a boundary or inferred contract.
+- `live_sanitized`: production body captured by Vigil and sanitized before commit;
+- `vendor_example`: vendor-published response example;
+- `community_research`: maintained independent client at a pinned revision;
+- `synthetic_derived`: hand-authored case derived from another source.
 
-Do not call a fixture live because an authorization request succeeded, an endpoint returned 200, or both mappers agree. Live provenance requires the response body itself. If a real body cannot be committed safely, keep the fixture modeled and record the provider-level live check separately.
+A successful authorization request or HTTP 200 does not prove the body shape. Mapper parity does not create upstream evidence.
 
-The expected file is a normalization oracle, not upstream evidence. Hand-author it from the product contract and review it separately from the mapper.
+If a production body cannot be committed safely, leave the fixture modeled and record the live check separately without overstating provenance.
 
-## 6. Review every surface
+## 7. Review every iOS surface
 
-Check more than the core mapper:
+Check:
 
-- CLI `status` labels and scalar formatting;
-- `doctor` activation guidance;
-- QR and paste payload size;
-- on-device OAuth sign-in view + flow (ClaudeAuth/CodexAuth-style) for OAuth providers;
-- Apple manual-entry hint and required fields;
-- dashboard rendering for windows and metrics;
-- menu-bar fallback for providers without a session window;
-- widget behavior for providers without `session` and `weekly`;
-- account identity and multi-account collision behavior;
-- storage-error and authentication-error copy.
+- Add account picker, form labels, hints, validation, and experimental badge;
+- Keychain write, update, migration, and deletion behavior;
+- Home window and metric presentation;
+- Models inclusion rules;
+- Connections status, plan label, and freshness;
+- threshold notifications;
+- widget behavior for providers without percentage windows;
+- multi-account identity and collision behavior;
+- authentication, network, provider-drift, and storage-error copy.
 
-If a surface cannot represent the provider yet, document that limitation instead of showing an empty success state.
+Do not fill Models with an ordinary plan-wide row when no model-specific lane exists.
 
-## 7. Update documentation
+If a provider exposes only metrics, ensure percentage-only widgets fail honestly rather than inventing a gauge.
+
+## 8. Update documentation
 
 Update:
 
-- [provider-spec.md](provider-spec.md), including the support matrix and official reference;
-- [troubleshooting.md](troubleshooting.md);
-- [threat-model.md](threat-model.md) when a credential introduces new authority;
-- [../README.md](../README.md) if the provider is user-facing;
-- [../CHANGELOG.md](../CHANGELOG.md).
+- [Provider registry and support](provider-spec.md);
+- [Getting started](getting-started.md);
+- [Troubleshooting](troubleshooting.md);
+- [Threat model](threat-model.md) when credential authority changes;
+- [README](../README.md);
+- [Changelog](../CHANGELOG.md).
 
-State the endpoint's documentation status and the fixture evidence class separately. Link the corresponding provenance entry. Never use "fixture-covered" as a synonym for live-validated.
+State endpoint stability and fixture provenance separately. Do not use "fixture-covered" as a synonym for live-validated.
 
-## 8. Run the complete gate
+## 9. Run the complete gate
 
 ```sh
-cd cli
-npm run typecheck
-npm run build
-npm test
-npm pack --dry-run
-
-cd ..
 swift test --package-path packages/VigilKit
 
 cd apps/apple
 xcodegen generate
+
 xcodebuild -project Vigil.xcodeproj -scheme Vigil \
   -destination 'generic/platform=iOS Simulator' \
   build CODE_SIGNING_ALLOWED=NO
+
+DEVICE_UDID=$(xcrun simctl list devices available \
+  | awk -F '[()]' '/^[[:space:]]+iPhone/ { print $2; exit }')
+test -n "$DEVICE_UDID"
+echo "Testing on simulator: $DEVICE_UDID"
+
 xcodebuild -project Vigil.xcodeproj -scheme Vigil \
-  -destination 'platform=macOS' \
+  -destination "platform=iOS Simulator,id=$DEVICE_UDID" \
   test CODE_SIGNING_ALLOWED=NO
 ```
 
-Then run explicit live checks with a test account:
+Then test the provider on a physical phone with an account you own:
 
-```sh
-npx vigil-link doctor --provider <id> --live
-npx vigil-link status --provider <id>
-```
+1. Add the credential through the intended onboarding path.
+2. Confirm the first accepted snapshot contains every required output.
+3. Confirm Home, Models, Connections, and widgets behave correctly.
+4. Confirm one provider failure does not stop other accounts.
+5. Confirm rate limiting and expired authentication produce the right state.
+6. Remove the account and confirm credential and observation cleanup.
 
-Do not place live credentials in test output, issue trackers, screenshots, shell history, or committed fixtures.
+Never place a live credential in test output, shell history, screenshots, issue trackers, or committed fixtures.
 
 ## Definition of done
 
 A provider is ready when:
 
-- authentication and activation are documented;
-- one provider failure cannot abort another;
-- requests obey the provider's poll policy and timeout;
-- both language implementations produce the same normalized result;
-- fixtures cover normal, optional, and malformed data;
-- relevant Apple and terminal surfaces render a meaningful value;
-- no credential or production account data entered the repository;
-- every committed fixture and expected output has a validated provenance entry;
-- any live-validation claim identifies the captured body that supports it;
-- the support matrix states the actual stability level.
+- phone activation is implemented and documented;
+- request policy obeys the provider poll floor and timeout;
+- the Swift registry mirror matches `protocol/providers.json`;
+- mapping handles normal, optional, malformed, and partial responses;
+- required outputs prevent false-Live partial mapping;
+- fixtures and expected outputs pass;
+- every fixture has honest provenance;
+- Home, Models, Connections, notifications, and widgets were reviewed;
+- credentials and production account data stayed out of the repository;
+- endpoint stability and experimental state are accurate;
+- physical-device validation was completed when the release claims live support.

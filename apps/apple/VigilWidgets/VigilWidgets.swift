@@ -280,7 +280,7 @@ struct CircularUsageView: View {
         case "deepseek": return "D"
         case .some(let id):
             // New providers fall back to the first letter of their registry
-            // display name, matching the menu bar title convention.
+            // display name for a stable compact identity.
             guard let first = ProviderRegistry.spec(for: id)?.displayName.first else {
                 return "V"
             }

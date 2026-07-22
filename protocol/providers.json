@@ -3,7 +3,6 @@
   "providers": {
     "claude": {
       "displayName": "Claude",
-      "defaultEnabled": true,
       "auth": "oauth_bearer",
       "usage": {
         "method": "GET",
@@ -24,7 +23,6 @@
           "user:profile",
           "user:inference"
         ],
-        "loopbackPort": 54545,
         "manualRedirectUri": "https://console.anthropic.com/oauth/code/callback"
       },
       "poll": {
@@ -33,17 +31,7 @@
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
       },
-      "discovery": {
-        "adapter": "claude",
-        "file": {
-          "path": "~/.claude/.credentials.json",
-          "jsonPath": "claudeAiOauth"
-        },
-        "macosKeychain": {
-          "service": "Claude Code-credentials"
-        }
-      },
-      "manualEntryHint": "Paste a Claude access token, or on Mac use Import from this Mac (~/.claude/.credentials.json). Manual tokens do not auto-renew.",
+      "manualEntryHint": "Paste a Claude access token here. Manual tokens do not auto-renew; choose Sign in with Claude for a renewing account.",
       "responseFields": {
         "utilization": "utilization",
         "resetsAt": "resets_at"
@@ -250,7 +238,6 @@
     },
     "codex": {
       "displayName": "ChatGPT / Codex",
-      "defaultEnabled": true,
       "auth": "oauth_bearer",
       "usage": {
         "method": "GET",
@@ -274,7 +261,6 @@
           "api.connectors.read",
           "api.connectors.invoke"
         ],
-        "loopbackPort": 1455,
         "manualRedirectUri": "https://auth.openai.com/deviceauth/callback",
         "deviceCodeUrl": "https://auth.openai.com/api/accounts/deviceauth/usercode",
         "deviceTokenUrl": "https://auth.openai.com/api/accounts/deviceauth/token"
@@ -285,14 +271,7 @@
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
       },
-      "discovery": {
-        "adapter": "codex",
-        "file": {
-          "path": "~/.codex/auth.json",
-          "jsonPath": "tokens"
-        }
-      },
-      "manualEntryHint": "Paste tokens.access_token and tokens.account_id from ~/.codex/auth.json, or on Mac use Import from this Mac. Manual tokens do not auto-renew.",
+      "manualEntryHint": "Paste a Codex access token and account ID here. Manual tokens do not auto-renew; choose Sign in with Codex for a renewing account.",
       "responseFields": {
         "utilization": "used_percent",
         "resetsAt": "reset_at",
@@ -405,7 +384,6 @@
     },
     "openrouter": {
       "displayName": "OpenRouter",
-      "defaultEnabled": false,
       "auth": "api_key_bearer",
       "usage": {
         "method": "GET",
@@ -421,12 +399,6 @@
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
-      },
-      "discovery": {
-        "adapter": "environment",
-        "environment": {
-          "accessToken": "OPENROUTER_API_KEY"
-        }
       },
       "manualEntryHint": "Create or copy an OpenRouter API key from openrouter.ai → Keys and paste it here.",
       "metricMappings": [
@@ -536,7 +508,6 @@
     },
     "deepseek": {
       "displayName": "DeepSeek",
-      "defaultEnabled": false,
       "auth": "api_key_bearer",
       "usage": {
         "method": "GET",
@@ -552,12 +523,6 @@
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
-      },
-      "discovery": {
-        "adapter": "environment",
-        "environment": {
-          "accessToken": "DEEPSEEK_API_KEY"
-        }
       },
       "manualEntryHint": "Create or copy a DeepSeek API key from platform.deepseek.com → API Keys and paste it here.",
       "metricCollectionMappings": [
@@ -581,7 +546,6 @@
     },
     "moonshot": {
       "displayName": "Moonshot (Kimi)",
-      "defaultEnabled": false,
       "experimental": false,
       "auth": "api_key_bearer",
       "usage": {
@@ -598,12 +562,6 @@
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
-      },
-      "discovery": {
-        "adapter": "environment",
-        "environment": {
-          "accessToken": "MOONSHOT_API_KEY"
-        }
       },
       "manualEntryHint": "Paste your Moonshot open-platform API key (sk-...) from platform.kimi.ai -> Console -> API Keys. China-platform keys need the Moonshot China provider.",
       "responseEnvelope": {
@@ -654,7 +612,6 @@
     },
     "moonshot_cn": {
       "displayName": "Moonshot (Kimi) China",
-      "defaultEnabled": false,
       "experimental": false,
       "auth": "api_key_bearer",
       "usage": {
@@ -671,12 +628,6 @@
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
-      },
-      "discovery": {
-        "adapter": "environment",
-        "environment": {
-          "accessToken": "MOONSHOT_CN_API_KEY"
-        }
       },
       "manualEntryHint": "Paste your Moonshot China open-platform API key from platform.kimi.com (formerly platform.moonshot.cn) -> Console -> API Keys.",
       "responseEnvelope": {
@@ -727,7 +678,6 @@
     },
     "minimax": {
       "displayName": "MiniMax Coding Plan",
-      "defaultEnabled": false,
       "experimental": true,
       "auth": "api_key_bearer",
       "usage": {
@@ -744,12 +694,6 @@
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
-      },
-      "discovery": {
-        "adapter": "environment",
-        "environment": {
-          "accessToken": "MINIMAX_CODING_API_KEY"
-        }
       },
       "manualEntryHint": "Paste your MiniMax Coding Plan API key (sk-cp-...) from platform.minimax.io -> User Center -> Interface Key. China keys need the MiniMax China provider.",
       "responseFields": {
@@ -847,7 +791,6 @@
     },
     "minimax_cn": {
       "displayName": "MiniMax Coding Plan China",
-      "defaultEnabled": false,
       "experimental": true,
       "auth": "api_key_bearer",
       "usage": {
@@ -864,12 +807,6 @@
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
-      },
-      "discovery": {
-        "adapter": "environment",
-        "environment": {
-          "accessToken": "MINIMAX_CN_CODING_API_KEY"
-        }
       },
       "manualEntryHint": "Paste your MiniMax China Coding Plan API key from platform.minimaxi.com -> User Center -> Interface Key.",
       "responseFields": {
@@ -967,7 +904,6 @@
     },
     "openai": {
       "displayName": "OpenAI API",
-      "defaultEnabled": false,
       "auth": "api_key_bearer",
       "usage": {
         "method": "GET",
@@ -994,12 +930,6 @@
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
-      },
-      "discovery": {
-        "adapter": "environment",
-        "environment": {
-          "accessToken": "OPENAI_ADMIN_KEY"
-        }
       },
       "manualEntryHint": "Create a read-only Admin API key at platform.openai.com -> Settings -> Organization -> Admin keys and paste it. Regular project keys (sk-proj-...) are rejected by the billing endpoint.",
       "metricMappings": [
@@ -1033,7 +963,6 @@
     },
     "github": {
       "displayName": "GitHub Copilot",
-      "defaultEnabled": false,
       "auth": "api_key_bearer",
       "usage": {
         "method": "GET",
@@ -1058,13 +987,6 @@
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
-      },
-      "discovery": {
-        "adapter": "environment",
-        "environment": {
-          "accessToken": "GITHUB_BILLING_TOKEN",
-          "accountId": "GITHUB_BILLING_USER"
-        }
       },
       "manualEntryHint": "Create a fine-grained token at github.com -> Settings -> Developer settings with Account -> Plan (read) permission, and enter it together with your GitHub username. Org-managed Copilot seats report empty usage.",
       "metricMappings": [
@@ -1116,7 +1038,6 @@
     },
     "xai": {
       "displayName": "xAI API",
-      "defaultEnabled": false,
       "auth": "api_key_bearer",
       "usage": {
         "method": "GET",
@@ -1132,13 +1053,6 @@
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
-      },
-      "discovery": {
-        "adapter": "environment",
-        "environment": {
-          "accessToken": "XAI_MANAGEMENT_KEY",
-          "accountId": "XAI_TEAM_ID"
-        }
       },
       "manualEntryHint": "Create a Management Key with billing read access at console.x.ai -> Settings -> Management Keys and enter it with your team ID (visible in console URLs).",
       "metricMappings": [
@@ -1163,7 +1077,6 @@
     },
     "zai": {
       "displayName": "Z.ai Coding Plan",
-      "defaultEnabled": false,
       "experimental": true,
       "auth": "api_key_bearer",
       "usage": {
@@ -1180,12 +1093,6 @@
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
-      },
-      "discovery": {
-        "adapter": "environment",
-        "environment": {
-          "accessToken": "ZAI_API_KEY"
-        }
       },
       "manualEntryHint": "Paste your GLM Coding Plan API key from z.ai -> Manage API Key. Experimental: the quota endpoint is undocumented and its schema may drift.",
       "planKey": "data.level",
@@ -1456,7 +1363,6 @@
     },
     "cursor": {
       "displayName": "Cursor",
-      "defaultEnabled": false,
       "experimental": true,
       "auth": "web_session_cookie",
       "usage": {
@@ -1474,12 +1380,6 @@
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
-      },
-      "discovery": {
-        "adapter": "environment",
-        "environment": {
-          "accessToken": "CURSOR_SESSION_TOKEN"
-        }
       },
       "manualEntryHint": "On cursor.com while signed in, open DevTools -> Application -> Cookies, copy the WorkosCursorSessionToken value, and paste it here. Experimental: undocumented web API; re-paste when the session expires.",
       "planKey": "membershipType",
@@ -1725,7 +1625,6 @@
     },
     "kimi_code": {
       "displayName": "Kimi K3",
-      "defaultEnabled": false,
       "experimental": true,
       "auth": "api_key_bearer",
       "usage": {
@@ -1742,12 +1641,6 @@
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
-      },
-      "discovery": {
-        "adapter": "environment",
-        "environment": {
-          "accessToken": "KIMI_CODE_API_KEY"
-        }
       },
       "manualEntryHint": "Paste your Kimi Code API key (sk-kimi-...) from kimi.com/code/console. This coding-plan key is separate from a Moonshot open-platform key.",
       "planKey": "user.membership.level",

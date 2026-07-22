@@ -65,4 +65,15 @@ final class DemoDataTests: XCTestCase {
             "a spend/balance provider proves the account-metrics row renders in the shot"
         )
     }
+
+    func testSeedIncludesAProviderWithWindowsAndMetrics() {
+        let seed = DemoData.seed(now: Date(timeIntervalSince1970: 1_784_500_000))
+        let mixed = seed.snapshots.values.first {
+            !$0.windows.isEmpty && !$0.metrics.isEmpty
+        }
+        XCTAssertNotNil(
+            mixed,
+            "a mixed Claude-style snapshot proves Home must render metrics below quota bars"
+        )
+    }
 }

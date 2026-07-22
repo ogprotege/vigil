@@ -259,9 +259,16 @@ struct ProviderHomeRow: View {
                         StackedLimitBar(window: window)
                     }
                 }
-            } else if let snapshot, !snapshot.metrics.isEmpty {
+            }
+
+            if let snapshot, !snapshot.metrics.isEmpty {
+                if !displayWindows.isEmpty {
+                    Divider().overlay(VigilPalette.ink.opacity(0.08))
+                }
                 metricsStrip(snapshot.metrics)
-            } else if snapshot == nil {
+            }
+
+            if snapshot == nil {
                 Text("Waiting for first check")
                     .font(.caption)
                     .foregroundStyle(VigilPalette.inkMuted)

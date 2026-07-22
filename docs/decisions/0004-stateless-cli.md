@@ -1,6 +1,10 @@
 # ADR-0004: The CLI is credential-stateless
 
-**Status:** accepted, amended 2026-07-18
+> **Status: superseded (2026-07-21).** Vigil is iOS-only and phone-native; the
+> `vigil-link` CLI and the `vigil1` QR protocol were removed. Kept for the
+> historical rationale.
+
+**Previous status:** accepted, amended 2026-07-18
 
 ## Decision
 

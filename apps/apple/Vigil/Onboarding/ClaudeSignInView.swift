@@ -4,7 +4,7 @@ import VigilKit
 /// On-phone "Sign in with Claude" — no computer required. Opens Claude's OAuth
 /// consent in the browser, the user pastes back the code Claude shows, and the
 /// app exchanges it for a Vigil-owned (mintable, refreshable) token pair. This
-/// is the mobile twin of the CLI's browser mint (ADR-0005), using Claude's
+/// implements the browser mint described by ADR-0005, using Claude's
 /// out-of-band redirect instead of a desktop loopback server.
 struct ClaudeSignInView: View {
     let onComplete: (Credentials) -> Void

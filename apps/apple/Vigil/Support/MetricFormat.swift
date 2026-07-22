@@ -1,9 +1,9 @@
 import SwiftUI
 import VigilKit
 
-/// Scalar metric formatting shared by the Dashboard's UsageMetricRow and the
-/// macOS menu bar, so both surfaces state amounts identically. Values remain
-/// amounts, never invented percentages (see WindowRows.swift).
+/// Scalar metric formatting shared by dashboard surfaces, so every row states
+/// amounts identically. Values remain amounts, never invented percentages
+/// (see WindowRows.swift).
 enum MetricFormat {
     static func value(_ metric: UsageMetric, locale: Locale = .current) -> String {
         if let unit = metric.unit, unit.count == 3 {

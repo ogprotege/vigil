@@ -475,10 +475,9 @@ public struct MetricCollectionMapping: Sendable, Equatable {
     }
 }
 
-/// The provider's oauth block the app needs at runtime: the refresh grant AND
-/// (for on-device sign-in) the authorization-code mint. The desktop-only
-/// loopback port is deliberately not mirrored — iOS uses the out-of-band
-/// `manualRedirectUri`.
+/// The provider's OAuth block contains only the endpoints the iOS app needs:
+/// refresh plus the on-device authorization-code or device-code flow. Retired
+/// desktop discovery and loopback metadata are not part of the registry.
 public struct OAuthEndpoint: Sendable, Equatable {
     public let authorizeUrl: URL
     public let tokenUrl: URL
@@ -693,7 +692,7 @@ public enum ProviderRegistry {
             MetricMapping(id: "extra_used", label: "Extra usage (month)", sourceKey: "extra_usage.used_credits", kind: .spend, unit: "USD", secondary: false, conditions: [FieldCondition(key: "extra_usage.is_enabled", equals: "true", valueType: "boolean", allowedNonMatches: ["false"])], unitKey: "extra_usage.currency", requires: ["extra_usage.used_credits", "extra_usage.monthly_limit"], requiresPresent: ["extra_usage.currency"], presencePaths: ["extra_usage"], incompleteWhenAnyRequiredPresent: true, fallbackBlockedBy: ["spend"], scale: 0.01, exponentKey: "extra_usage.decimal_places"),
             MetricMapping(id: "extra_limit", label: "Extra usage limit", sourceKey: "extra_usage.monthly_limit", kind: .limit, unit: "USD", secondary: true, conditions: [FieldCondition(key: "extra_usage.is_enabled", equals: "true", valueType: "boolean", allowedNonMatches: ["false"])], unitKey: "extra_usage.currency", requires: ["extra_usage.used_credits", "extra_usage.monthly_limit"], requiresPresent: ["extra_usage.currency"], presencePaths: ["extra_usage"], incompleteWhenAnyRequiredPresent: true, fallbackBlockedBy: ["spend"], scale: 0.01, exponentKey: "extra_usage.decimal_places"),
         ],
-        manualEntryHint: "Paste a Claude access token, or on Mac use Import from this Mac (~/.claude/.credentials.json). Manual tokens do not auto-renew.",
+        manualEntryHint: "Paste a Claude access token here. Manual tokens do not auto-renew; choose Sign in with Claude for a renewing account.",
         oauth: OAuthEndpoint(
             authorizeUrl: URL(string: "https://claude.ai/oauth/authorize")!,
             tokenUrl: URL(string: "https://platform.claude.com/v1/oauth/token")!,
@@ -767,7 +766,7 @@ public enum ProviderRegistry {
             ], presencePaths: ["credits"]),
             MetricMapping(id: "reset_credits", label: "Reset credits available", sourceKey: "rate_limit_reset_credits.available_count", kind: .remaining, unit: "resets", secondary: true, presencePaths: ["rate_limit_reset_credits"]),
         ],
-        manualEntryHint: "Paste tokens.access_token and tokens.account_id from ~/.codex/auth.json, or on Mac use Import from this Mac. Manual tokens do not auto-renew.",
+        manualEntryHint: "Paste a Codex access token and account ID here. Manual tokens do not auto-renew; choose Sign in with Codex for a renewing account.",
         oauth: OAuthEndpoint(
             authorizeUrl: URL(string: "https://auth.openai.com/oauth/authorize")!,
             tokenUrl: URL(string: "https://auth.openai.com/oauth/token")!,

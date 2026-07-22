@@ -7,8 +7,7 @@ on:
 
 jobs:
   vigilkit:
-    # macOS runners are free on public repos but billed at 10x minutes on
-    # private ones — see docs/mac-checklist.md notes.
+    # Apple builds require a macOS runner.
     # macos-15+: current XcodeGen emits project format 77, which needs
     # Xcode >= 16 to open (macos-14 tops out at 15.4).
     runs-on: macos-15
@@ -24,7 +23,7 @@ jobs:
         run: swift --version
       - name: VigilKit tests
         run: swift test --package-path packages/VigilKit
-      # M4: compile-check the app targets on every push.
+      # Compile-check the app targets on every push.
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate Xcode project
@@ -36,11 +35,15 @@ jobs:
           -destination 'generic/platform=iOS Simulator'
           build CODE_SIGNING_ALLOWED=NO
         working-directory: apps/apple
-      - name: Test app and build menu bar target (macOS)
-        run: >
-          xcodebuild -project Vigil.xcodeproj -scheme Vigil
-          -destination 'platform=macOS'
-          test CODE_SIGNING_ALLOWED=NO
+      - name: Test app (iOS Simulator)
+        run: |
+          DEVICE_UDID=$(xcrun simctl list devices available \
+            | awk -F '[()]' '/^[[:space:]]+iPhone/ { print $2; exit }')
+          test -n "$DEVICE_UDID"
+          echo "Testing on simulator: $DEVICE_UDID"
+          xcodebuild -project Vigil.xcodeproj -scheme Vigil \
+            -destination "platform=iOS Simulator,id=$DEVICE_UDID" \
+            test CODE_SIGNING_ALLOWED=NO
         working-directory: apps/apple
       - name: Validate property lists and entitlements
         run: |

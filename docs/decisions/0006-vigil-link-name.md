@@ -1,6 +1,10 @@
 # ADR-0006: npm package name "vigil-link"
 
-**Status:** accepted
+> **Status: superseded (2026-07-21).** Vigil is iOS-only and phone-native; the
+> `vigil-link` CLI and the `vigil1` QR protocol were removed. Kept for the
+> historical rationale.
+
+**Previous status:** accepted
 
 ## Decision
 

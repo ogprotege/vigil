@@ -4,9 +4,9 @@ import XCTest
 
 /// Opt-in probes against the REAL provider auth endpoints.
 ///
-/// These are the only proof that phone-native sign-in works, and after the CLI
-/// is removed they guard the only path to a Claude or Codex account. They hit
-/// the network, so they never run in CI: set VIGIL_LIVE_AUTH=1 to run them.
+/// These are the network-side proof that phone-native sign-in request shapes
+/// remain accepted by the providers. They hit the network, so they never run
+/// in CI: set VIGIL_LIVE_AUTH=1 to run them.
 ///
 ///     VIGIL_LIVE_AUTH=1 swift test --package-path packages/VigilKit \
 ///       --filter LiveAuthVerificationTests

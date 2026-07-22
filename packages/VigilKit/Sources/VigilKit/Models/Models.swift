@@ -1,12 +1,12 @@
 import Foundation
 
 /// One rate-limit window of one account, normalized across providers.
-/// Mirrors the shape defined in docs/architecture.md and cli/src/providers/types.ts.
+/// The shared provider fixtures pin this normalized shape.
 public struct UsageWindow: Codable, Equatable, Sendable {
     public let id: String
     /// Human display name for a provider-scoped window (e.g. a model name),
     /// present only when the response carries one; nil for static windows whose
-    /// name is derived from the id at the UI layer. Mirrors cli UsageWindow.label.
+    /// name is derived from the id at the UI layer.
     public let label: String?
     /// Percent used, clamped to 0...100.
     public let utilization: Double

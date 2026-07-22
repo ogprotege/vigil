@@ -29,6 +29,78 @@ final class AppModelReliabilityTests: XCTestCase {
         XCTAssertEqual(AppModel.accountKey(for: before), AppModel.accountKey(for: after))
     }
 
+    func testAppHostedTestsDoNotUseSystemNotificationCenter() {
+        XCTAssertFalse(
+            NotificationManager.canUseSystemNotifications,
+            "App-hosted tests must never present the notification permission UI"
+        )
+    }
+
+    func testDeliveredPendingNotificationsAreAcknowledged() async throws {
+        let directory = try makeTemporaryDirectory()
+        let notifications = RecordingNotificationManager()
+        let model = AppModel(
+            vault: InMemoryCredentialsStore(),
+            directory: directory,
+            notifications: notifications
+        )
+        let account = AccountRef(
+            key: "claude:pending-success",
+            providerId: "claude",
+            label: nil,
+            plan: nil
+        )
+        let events = [
+            ThresholdEvent(windowId: "session", threshold: 80, utilization: 82),
+            ThresholdEvent(windowId: "weekly", threshold: 95, utilization: 96),
+        ]
+        try model.pendingEvents.append(events, accountKey: account.key)
+
+        await model.drainPendingEvents(for: account)
+
+        let deliveredEvents = await notifications.deliveredEvents()
+        XCTAssertEqual(deliveredEvents, events)
+        XCTAssertTrue(try model.pendingEvents.load(accountKey: account.key).isEmpty)
+        XCTAssertNil(model.storageErrorMessage)
+    }
+
+    func testFailedPendingNotificationsRemainQueuedForRetry() async throws {
+        let directory = try makeTemporaryDirectory()
+        let failed = ThresholdEvent(
+            windowId: "weekly",
+            threshold: 95,
+            utilization: 96
+        )
+        let notifications = RecordingNotificationManager(failedEvents: [failed])
+        let model = AppModel(
+            vault: InMemoryCredentialsStore(),
+            directory: directory,
+            notifications: notifications
+        )
+        let account = AccountRef(
+            key: "claude:pending-failure",
+            providerId: "claude",
+            label: nil,
+            plan: nil
+        )
+        let delivered = ThresholdEvent(
+            windowId: "session",
+            threshold: 80,
+            utilization: 82
+        )
+        try model.pendingEvents.append([delivered, failed], accountKey: account.key)
+
+        await model.drainPendingEvents(for: account)
+
+        let deliveredEvents = await notifications.deliveredEvents()
+        XCTAssertEqual(deliveredEvents, [delivered, failed])
+        XCTAssertEqual(try model.pendingEvents.load(accountKey: account.key), [failed])
+        XCTAssertEqual(
+            model.storageErrorMessage,
+            "Vigil couldn't schedule 1 notification for Claude. They remain queued for retry."
+        )
+    }
+
     func testFailedAccountIndexWriteRollsBackNewKeychainItem() async throws {
         let parent = try makeTemporaryDirectory()
         let notADirectory = parent.appendingPathComponent("blocked-storage")
@@ -44,40 +116,6 @@ final class AppModelReliabilityTests: XCTestCase {
             )
             XCTFail("Expected account-index persistence to fail")
         } catch {
-            XCTAssertTrue(try vault.allKeys().isEmpty)
-            XCTAssertTrue(model.accounts.isEmpty)
-        }
-    }
-
-    func testFutureDatedLinkIsRejectedBeforeCredentialsAreSaved() async throws {
-        let directory = try makeTemporaryDirectory()
-        let vault = InMemoryCredentialsStore()
-        let model = AppModel(vault: vault, directory: directory)
-        let now = Date(timeIntervalSince1970: 2_000_000_000)
-        let future = Int(now.timeIntervalSince1970)
-            + AppModel.maximumFutureLinkSkewSeconds
-            + 1
-        let json = """
-        {
-          "v": 1,
-          "iat": \(future),
-          "accounts": [{
-            "p": "claude",
-            "label": "Claude",
-            "c": { "at": "secret" }
-          }]
-        }
-        """
-        let payload = try JSONDecoder().decode(LinkPayload.self, from: Data(json.utf8))
-
-        do {
-            try await model.addAccounts(
-                from: payload,
-                allowUnverified: true,
-                now: now
-            )
-            XCTFail("Expected a future-dated payload to be rejected")
-        } catch AppModel.LinkError.futureDated {
             XCTAssertTrue(try vault.allKeys().isEmpty)
             XCTAssertTrue(model.accounts.isEmpty)
         }
@@ -242,9 +280,11 @@ final class AppModelReliabilityTests: XCTestCase {
         let indexURL = directory.appendingPathComponent("account-index.json")
         let corrupt = Data("not-json".utf8)
         try corrupt.write(to: indexURL)
+        let notifications = RecordingNotificationManager()
         let model = AppModel(
             vault: InMemoryCredentialsStore(),
-            directory: directory
+            directory: directory,
+            notifications: notifications
         )
 
         XCTAssertTrue(model.accountIndexUsable)
@@ -265,6 +305,8 @@ final class AppModelReliabilityTests: XCTestCase {
             allowUnverified: true
         )
         XCTAssertEqual(model.accounts.count, 1)
+        let authorizationRequests = await notifications.authorizationRequestCount()
+        XCTAssertEqual(authorizationRequests, 1)
     }
 
     func testUnrecoverableCorruptIndexBlocksMutationAndPreservesFile() async throws {
@@ -632,6 +674,33 @@ final class AppModelReliabilityTests: XCTestCase {
             try? FileManager.default.removeItem(at: url)
         }
         return url
+    }
+}
+
+private actor RecordingNotificationManager: NotificationManaging {
+    private var authorizationRequests = 0
+    private var delivered: [ThresholdEvent] = []
+    private let failedEvents: [ThresholdEvent]
+
+    init(failedEvents: [ThresholdEvent] = []) {
+        self.failedEvents = failedEvents
+    }
+
+    func requestAuthorizationIfNeeded() async {
+        authorizationRequests += 1
+    }
+
+    func deliver(events: [ThresholdEvent], account: AccountRef) async -> [ThresholdEvent] {
+        delivered.append(contentsOf: events)
+        return events.filter { failedEvents.contains($0) }
+    }
+
+    func authorizationRequestCount() -> Int {
+        authorizationRequests
+    }
+
+    func deliveredEvents() -> [ThresholdEvent] {
+        delivered
     }
 }
 

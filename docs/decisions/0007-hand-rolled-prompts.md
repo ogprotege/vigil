@@ -1,6 +1,10 @@
 # ADR-0007: hand-rolled CLI prompts, no interactive-prompt dependency
 
-**Status:** accepted
+> **Status: superseded (2026-07-21).** Vigil is iOS-only and phone-native; the
+> `vigil-link` CLI and the `vigil1` QR protocol were removed. Kept for the
+> historical rationale.
+
+**Previous status:** accepted
 
 ## Decision
 

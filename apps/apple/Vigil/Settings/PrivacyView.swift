@@ -34,11 +34,6 @@ struct PrivacyView: View {
                             text: "The app sends credentials and usage requests only to providers you activate."
                         )
                         privacyPoint(
-                            symbol: "qrcode",
-                            title: "Short-lived pairing",
-                            text: "Vigil Link holds credentials only while producing the plaintext QR or paste code. Codes expire after 10 minutes."
-                        )
-                        privacyPoint(
                             symbol: "trash",
                             title: "Visible deletion",
                             text: "Removing an account deletes its Keychain item and local usage metadata. Vigil reports any failed deletion."
@@ -53,11 +48,9 @@ struct PrivacyView: View {
             }
         }
         .navigationTitle("Privacy")
-        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(VigilPalette.canvas.opacity(0.96), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
-        #endif
     }
 
     private func privacyPoint(

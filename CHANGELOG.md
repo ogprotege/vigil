@@ -2,7 +2,46 @@
 
 ## Versioning
 
-Anything that changes shipped behavior gets an entry here: `vigil-link` npm versions, TestFlight app builds, and protocol or registry changes that affect both. Provider-schema and local-state migration notes are recorded per release so an existing installation can be upgraded deliberately.
+Anything that changes shipped behavior gets an entry here: TestFlight app builds, provider contracts, registry changes, and local-state migrations. Historical command-line releases remain below as project history.
+
+## 0.14.0 (15) — TestFlight internal, 2026-07-22
+
+**Vigil is now an iOS-only, phone-native product.** The macOS app target,
+menu-bar UI, computer credential import, QR scanner and paste surfaces, custom
+credential URL scheme, camera permission, and TypeScript command-line package
+were removed. Every account is now provisioned on the iPhone: Claude through
+Vigil's PKCE sign-in, Codex through device authorization, and other providers
+through manual credential entry.
+
+**The security boundary is smaller.** No app surface reads another program's
+credential files or Keychain items. The app no longer accepts plaintext
+credential handoff payloads. Apple targets require no camera permission or
+custom URL scheme. The already-published `vigil-link@0.2.0` artifact remains
+installable until the package owner completes the authenticated npm deprecation
+step in the release runbook. Historical release entries and ADR rationale
+remain for auditability.
+
+**One implementation now owns provider behavior.** The provider JSON contract,
+Swift `ProviderRegistry` mirror, deterministic fixtures, expected normalized
+outputs, and fixture provenance remain. Swift parity and fixture tests replace
+the former cross-language parity gate. `VigilKit` retains a macOS package
+platform only so package tests can execute on macOS CI hosts; no macOS Vigil
+application ships.
+
+**Documentation now matches the product.** Setup, architecture, privacy,
+security, troubleshooting, provider contribution, release, and repository
+guidance describe only the iOS app and widgets. ADR-0003, ADR-0004, ADR-0006,
+and ADR-0007 are marked superseded. ADR-0005 is amended around phone-native
+mint ownership.
+
+**Provider hardening from build 13 is preserved.** Required-output contracts,
+fixture provenance, strict partial-mapping detection, corrected Claude
+fractional timestamps and model percentages, Codex nested model lanes, honest
+experimental labels, and Models-only genuine model lanes remain in build 15.
+
+The release gate consists of VigilKit tests, an iOS Simulator build, the iOS app
+test target, property-list and entitlement checks, archive version assertions,
+signature verification, and an on-device phone-native sign-in walk.
 
 ## 0.13.0 (13) — TestFlight internal, 2026-07-22
 
@@ -114,7 +153,7 @@ now contribute nothing there and the existing empty state explains why.
 
 This build also carries everything in (11), which was never uploaded.
 
-## 0.13.0 (11) — TestFlight internal, 2026-07-21
+## 0.13.0 (11) — unreleased internal candidate, 2026-07-21
 
 Full-codebase audit: 233 agents across 14 dimensions, every finding
 adversarially verified. 31 survived; all are fixed here.

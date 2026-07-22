@@ -1,6 +1,10 @@
 # ADR-0003: v1 QR payloads are compressed plaintext with guardrails
 
-**Status:** accepted (amended 2026-07-19: future-skew rejection is normative)
+> **Status: superseded (2026-07-21).** Vigil is iOS-only and phone-native; the
+> `vigil-link` CLI and the `vigil1` QR protocol were removed. Kept for the
+> historical rationale.
+
+**Previous status:** accepted (amended 2026-07-19: future-skew rejection is normative)
 
 ## Decision
 

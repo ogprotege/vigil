@@ -1,106 +1,96 @@
-# Getting started with Vigil
+# Getting started
 
-Vigil shows your AI usage, limits, spend, and balances on your iPhone (and Mac). This guide takes you from nothing installed to a working dashboard, and covers every provider you can add.
+Vigil runs on iOS 17 or later. Every account is set up on the phone. You do not need a computer or terminal.
 
-You do **not** need to be a developer, and you do **not** need a computer. Claude, ChatGPT/Codex, and every manually entered provider credential can be set up entirely on the phone. If you would rather reuse a sign-in already on a computer, you still can; it is optional.
+## 1. Install Vigil
 
----
+Install the current TestFlight build. Vigil includes Home Screen and Lock Screen widgets.
 
-## 1. Install the app
+## 2. Add an account
 
-Vigil is on **TestFlight** (internal testing today; public beta next). Install it like any TestFlight app. Home-screen and lock-screen widgets are included.
+Open Vigil and tap **Add account**.
 
-## 2. Add your first account
+### Sign in with Claude
 
-Open Vigil and tap **Add account**. Almost everything can be done right on the phone.
+1. Tap **Sign in with Claude**.
+2. Tap **Open Claude sign-in**.
+3. Approve access in the browser.
+4. Copy the code Claude displays.
+5. Return to Vigil, paste the code, and tap **Finish signing in**.
 
-### Sign in with Claude (on phone, no computer)
+Vigil exchanges the code for its own access and refresh credentials. It can refresh only the credential pair it minted.
 
-1. Tap **Add account → Sign in with Claude**.
-2. Tap **Open Claude sign-in** — your browser opens Claude's approval page.
-3. Approve access. Claude shows you a short **code**; copy it.
-4. Come back to Vigil and paste the code, then tap **Finish signing in**.
+### Sign in with ChatGPT / Codex
 
-Vigil exchanges the code for its own token. It renews automatically while the refresh credential remains valid. No computer, no terminal.
+1. Tap **Sign in with Codex**.
+2. Note the short code Vigil displays.
+3. Tap **Open sign-in page**.
+4. Sign in and enter the code.
+5. Return to Vigil. The app detects approval and finishes automatically.
 
-### Sign in with ChatGPT / Codex (on phone, no computer)
+OpenAI may require device-code authorization to be enabled under ChatGPT **Settings → Security**.
 
-1. Tap **Add account → Sign in with Codex**.
-2. Vigil shows you a short **code**. Tap **Open sign-in page** — ChatGPT's approval page opens.
-3. Sign in and enter the code when asked.
-4. That's it — Vigil detects the approval automatically and finishes signing in with its own renewable token. No computer, no `codex login`.
+### Add another provider
 
-### Add another provider (on phone, no computer)
+1. Under **Paste a provider key**, choose the provider.
+2. Read the field-specific guidance.
+3. Paste the requested credential and any required account identifier.
+4. Save the account.
 
-OpenRouter, DeepSeek, Moonshot, MiniMax, OpenAI, GitHub Copilot, xAI, Z.ai, Cursor, and Kimi K3 are added entirely on the phone. Most use API keys. Cursor uses a browser session cookie.
+Vigil stores the credential in Keychain. It does not upload it to a Vigil service.
 
-1. Tap **Add account**, then find the **Paste a provider key** section.
-2. Pick the provider. Vigil asks only for the field(s) it needs and shows a hint for where to find them (see the table below).
-3. Paste the requested key or session credential, add any requested account identifier, and save.
+## 3. Read the dashboard
 
-### Already signed in on a computer? (optional)
+- **Home** has the period picker: Day, Week, Month, Year, and Life.
+- The hero shows the tightest applicable limit across linked accounts.
+- Provider cards lead with plan-wide windows for the selected period and may include a compact subset of model or special lanes. Every bar includes percent left, reset time, and freshness.
+- **Models** is the complete model-only list. It shows genuine model-specific or model-associated quota lanes and does not repeat ordinary session or weekly plan limits.
+- Balance and spend values appear only when the provider returns them.
 
-If you'd rather reuse the **Claude Code** or **Codex** sign-ins already on a computer, you can hand them to your phone with a QR. This is entirely optional — both can be set up on the phone directly (above).
+Countdowns tick locally. A moving countdown does not mean the app made another provider request.
 
-1. On your computer, run `npx vigil-link` (needs [Node.js 20+](https://nodejs.org); `npx` downloads it, nothing to install permanently). It scans your machine, lets you pick accounts, and shows a QR.
-2. On your iPhone, tap **Add account → Scan code** and point the camera at it. (On a Mac without a camera, use `npx vigil-link --json --yes` and **Paste code**.)
+Refresh outcomes are explicit:
 
-> The QR code contains your credentials — show it only somewhere private, don't screenshot or screen-share it, and clear your terminal scrollback afterward.
+- **Fetched** means the provider returned a response that satisfied its contract.
+- **Deferred** means the account is still inside its poll floor.
+- **Cooling down** means the provider returned a rate limit.
+- **Provider changed** means a successful response no longer mapped completely enough to trust.
+- **Re-link needed** means the provider rejected the credential.
 
-## 3. Read your dashboard
+## Provider credentials
 
-- **Home** opens on a period picker — **Day / Week / Month / Year / Life**. The hero beneath it names the tightest limit left across every account *for that range*, so switching periods changes which limit is in front of you.
-- Under the hero, one stacked list gives each provider the windows that match the chosen period, with percent left, a live reset countdown, and how long ago it was updated. Pick **Week** to see weekly limits, **Day** for session limits.
-- **Per-model caps** — Claude's Fable/Opus weekly lanes, Codex's per-model lanes, MiniMax's video quota — live on the **Models** tab, tightest first.
-- If any account reports a balance or spend, Vigil shows how much it changed across the readings it took in the selected range. It only ever reports what a poll actually returned, never an estimate.
-- Countdowns tick locally between fetches. If data is old or a provider changed something, the row says so instead of showing a stale number. Tapping refresh tells you what happened: fetched, deferred by the 5-minute poll floor (with the next safe time), or failed.
-
-## Prefer the terminal?
-
-```sh
-npx vigil-link status   # your usage with reset countdowns, printed now
-npx vigil-link doctor   # what credentials Vigil can find, and where it looked
-```
-
-`status` and `doctor` never display or transmit credentials; they only read local sign-ins and (for `status`) fetch usage.
-
----
-
-## Where to get each provider's key
-
-Claude and ChatGPT/Codex sign in right on the phone (**Add account → Sign in with Claude** / **Sign in with Codex**); reusing a sign-in already on a computer is optional. Every other provider uses a key or session credential that you paste on the phone (**Add account → Paste a provider key**) or set as an environment variable before running `vigil-link`.
-
-| Provider | Where to get it |
+| Provider | Credential and source |
 |---|---|
-| **Claude** | **On the phone:** Add account → Sign in with Claude (browser approval + paste the code). Or hand over an existing Claude Code sign-in from a computer. |
-| **ChatGPT / Codex** | **On the phone:** Add account → Sign in with Codex (open the page, enter the code Vigil shows). Or hand over an existing Codex CLI sign-in from a computer. |
-| **OpenRouter** | An OpenRouter API key. Env var: `OPENROUTER_API_KEY`. |
-| **DeepSeek** | A DeepSeek API key. Env var: `DEEPSEEK_API_KEY`. |
-| **Moonshot (Kimi)** | `sk-...` key from **platform.kimi.ai → Console → API Keys**. China-platform keys use the Moonshot China provider. Env var: `MOONSHOT_API_KEY`. |
-| **Moonshot (Kimi) China** | Key from **platform.kimi.com → Console → API Keys** (formerly `platform.moonshot.cn`). Env var: `MOONSHOT_CN_API_KEY`. |
-| **MiniMax Coding Plan** *(experimental)* | `sk-cp-...` key from **platform.minimax.io → User Center → Interface Key**. China keys use the MiniMax China provider. Env var: `MINIMAX_CODING_API_KEY`. |
-| **MiniMax Coding Plan China** *(experimental)* | Key from **platform.minimaxi.com → User Center → Interface Key**. Env var: `MINIMAX_CN_CODING_API_KEY`. |
-| **OpenAI API** | A read-only **Admin** key from **platform.openai.com → Settings → Organization → Admin keys**. Regular `sk-proj-...` project keys are rejected by the billing endpoint. Env var: `OPENAI_ADMIN_KEY`. |
-| **GitHub Copilot** | A fine-grained token (**Settings → Developer settings**, with *Account → Plan (read)* permission) plus your GitHub username. Org-managed Copilot seats report empty usage. Env vars: `GITHUB_BILLING_TOKEN` + `GITHUB_BILLING_USER`. |
-| **xAI API** | A **Management Key** from **console.x.ai → Settings → Management Keys**, plus your team ID (from console URLs). Env vars: `XAI_MANAGEMENT_KEY` + `XAI_TEAM_ID`. |
-| **Z.ai / GLM Coding Plan** *(experimental)* | A GLM Coding Plan API key from **z.ai → Manage API Key**. Env var: `ZAI_API_KEY`. |
-| **Cursor** *(experimental)* | While signed in at cursor.com, open **DevTools → Application → Cookies** and copy the `WorkosCursorSessionToken` value. It expires; re-paste when it does. Env var: `CURSOR_SESSION_TOKEN`. |
-| **Kimi K3 (coding plan)** *(experimental)* | Your Kimi **coding-plan** API key from **kimi.com/code/console**. It is separate from the Moonshot balance key above and reports session and weekly coding-plan limits. Env var: `KIMI_CODE_API_KEY`. |
+| **Claude** | Use **Sign in with Claude**. Manual access-token entry exists for recovery, but pasted tokens do not auto-renew. |
+| **ChatGPT / Codex** | Use **Sign in with Codex**. Manual entry requires both an access token and account ID, and does not auto-renew. |
+| **OpenRouter** | Create an API key at **openrouter.ai → Keys**. |
+| **DeepSeek** | Create an API key at **platform.deepseek.com → API Keys**. |
+| **Moonshot (Kimi)** | Create a global-platform key at **platform.kimi.ai → Console → API Keys**. |
+| **Moonshot (Kimi) China** | Create a China-platform key at **platform.kimi.com → Console → API Keys**. |
+| **MiniMax Coding Plan** *(experimental)* | Create a global coding-plan key at **platform.minimax.io → User Center → Interface Key**. |
+| **MiniMax Coding Plan China** *(experimental)* | Create a China coding-plan key at **platform.minimaxi.com → User Center → Interface Key**. |
+| **OpenAI API** | Create a read-only organization **Admin key** at **platform.openai.com → Settings → Organization → Admin keys**. Project keys are rejected by the costs endpoint. |
+| **GitHub Copilot** | Create a fine-grained token with **Account → Plan (read)** and enter your GitHub username. Organization-managed seats can report empty per-user usage. |
+| **xAI API** | Create a Management Key with billing-read access at **console.x.ai → Settings → Management Keys** and enter the team ID shown in console URLs. |
+| **Z.ai / GLM Coding Plan** *(experimental)* | Copy a GLM Coding Plan key from **z.ai → Manage API Key**. |
+| **Cursor** *(experimental)* | While signed in at cursor.com, copy the `WorkosCursorSessionToken` cookie from browser developer tools. Re-paste it when the session expires. |
+| **Kimi K3 coding plan** *(experimental)* | Copy a Kimi Code key from **kimi.com/code/console**. This key is separate from the Moonshot balance key. |
 
-To link several providers from the terminal in one QR session, set the env vars and pass `--provider`:
+Global and China credentials are not interchangeable for Moonshot or MiniMax. Select the provider that matches the credential's platform.
 
-```sh
-OPENROUTER_API_KEY='...' DEEPSEEK_API_KEY='...' \
-  npx vigil-link --provider claude,codex,openrouter,deepseek
-```
+## Add a widget
 
-(Passing `--provider` uses the classic scripted flow instead of the wizard.)
+1. Add a Vigil widget from the iOS widget gallery.
+2. Long-press the widget and choose **Edit Widget**.
+3. Select a linked account.
 
----
+An unconfigured widget uses the first linked account. A widget configured for a removed account stays empty rather than silently switching accounts.
 
-## What's next
+WidgetKit controls when refresh work runs. The widget may display a locally ticking countdown while its underlying usage snapshot ages.
 
-- Concepts and edge cases: [FAQ](faq.md).
-- Something not working: [Troubleshooting](troubleshooting.md).
-- Full per-provider endpoint facts and the researched backlog: [Provider spec](provider-spec.md).
-- Why the design is the way it is: [Architecture](architecture.md) and the [decision records](decisions/).
+## Next steps
+
+- Concepts and provider notes: [FAQ](faq.md).
+- Specific failures: [Troubleshooting](troubleshooting.md).
+- Provider evidence and endpoint status: [Provider registry and support](provider-spec.md).
+- Storage and network boundaries: [Privacy](privacy.md) and [Threat model](threat-model.md).

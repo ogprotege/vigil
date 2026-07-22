@@ -60,7 +60,7 @@ final class CodexAuthTests: XCTestCase {
         XCTAssertEqual(unwrapped.accountId, "acct_123")
         XCTAssertEqual(unwrapped.plan, "pro")
         XCTAssertEqual(unwrapped.expiresAt, now.addingTimeInterval(3600))
-        // "mint" so Vigil owns and refreshes this pair independently of the CLI.
+        // "mint" so Vigil owns and refreshes this pair independently.
         XCTAssertEqual(unwrapped.source, TokenRefresher.mintSource)
         XCTAssertTrue(unwrapped.label?.contains("ChatGPT") == true)
     }

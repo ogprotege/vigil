@@ -1,10 +1,9 @@
 import Foundation
 import CryptoKit
 
-/// On-device Claude OAuth (authorization-code + PKCE) — the Swift twin of
-/// cli/src/oauth/claudeMint.ts, minus the desktop loopback server. Networking
-/// stays with the caller (like TokenRefresher); this type is pure request/URL
-/// construction and response parsing so it unit-tests without a device.
+/// On-device Claude OAuth (authorization-code + PKCE). Networking stays with
+/// the caller (like TokenRefresher); this type is pure request/URL construction
+/// and response parsing so it unit-tests without a device.
 ///
 /// The mobile lane uses the out-of-band `manualRedirectUri`: the browser shows
 /// the authorization code, the user pastes it back, and the app exchanges it.
@@ -65,7 +64,7 @@ public enum ClaudeAuth {
     /// Parses whatever the user pastes after authorizing: a full callback URL, a
     /// "code#state" pair, "code&state=…", or a bare code. Returns the code only
     /// when the state matches (bare/hashless input assumes the expected state).
-    /// Mirrors the CLI's parsePastedCallback.
+    /// Accepts the callback forms Claude may return to the mobile flow.
     public static func parsePastedCode(_ input: String, expectedState: String) -> String? {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
 

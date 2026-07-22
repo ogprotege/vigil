@@ -1,6 +1,11 @@
 # ADR-0005: Mint Vigil its own Claude token pair (don't copy Claude Code's)
 
-**Status:** accepted
+> **Status: amended (2026-07-21).** The principle stands and now governs the
+> on-device sign-in: Vigil mints its own token and never auto-refreshes a
+> credential it did not create. The CLI-copy context is historical — the CLI and
+> the Mac import path have been removed.
+
+**Previous status:** accepted
 
 ## Decision
 

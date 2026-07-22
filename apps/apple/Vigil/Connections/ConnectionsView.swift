@@ -13,7 +13,7 @@ struct ConnectionsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: VigilSpacing.large) {
                     header
-                    pairingCard
+                    addAccountCard
                     linkedAccounts
                     coverageCard
                 }
@@ -24,11 +24,9 @@ struct ConnectionsView: View {
             }
         }
         .navigationTitle("Connections")
-        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(VigilPalette.canvas.opacity(0.96), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
-        #endif
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -79,13 +77,13 @@ struct ConnectionsView: View {
             Text("Choose what Vigil watches.")
                 .font(.system(.largeTitle, design: .rounded).weight(.bold))
                 .foregroundStyle(VigilPalette.ink)
-            Text("Paste a provider key, import Claude/Codex from this Mac when available, or mint an optional renewing sign-in.")
+            Text("Paste a provider key, or sign in with Claude or Codex directly on this phone.")
                 .font(.subheadline)
                 .foregroundStyle(VigilPalette.inkMuted)
         }
     }
 
-    private var pairingCard: some View {
+    private var addAccountCard: some View {
         HStack(alignment: .center, spacing: 14) {
             Image(systemName: "person.badge.key")
                 .font(.system(size: 26, weight: .medium))
@@ -99,7 +97,7 @@ struct ConnectionsView: View {
                 Text("Add an account")
                     .font(.headline)
                     .foregroundStyle(VigilPalette.ink)
-                Text("Local keys and Mac file import first. Browser OAuth only if you want a renewing Vigil-owned token.")
+                Text("Paste any supported provider key, or use browser sign-in for renewing Claude and Codex credentials.")
                     .font(.caption)
                     .foregroundStyle(VigilPalette.inkMuted)
                     .fixedSize(horizontal: false, vertical: true)

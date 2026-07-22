@@ -1,27 +1,23 @@
 import SwiftUI
 import VigilKit
 
-/// Local-first account setup. Prefer importing credentials already on this Mac
-/// or pasting a provider key. Browser OAuth (Sign in with Claude / Codex) is an
-/// optional way to mint a Vigil-owned renewing token. The `npx vigil-link` QR
-/// handoff remains a last-resort computer bridge.
+/// Phone-native account setup. Paste a provider key or use the browser-backed
+/// Claude and Codex sign-in flows to mint Vigil-owned renewing credentials.
 struct AddAccountView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
-    @State private var showScanner = false
     @State private var pending: PendingAction?
     @State private var isLinking = false
     @State private var linkingTask: Task<Void, Never>?
 
-    enum PendingAction {
+    private enum PendingAction {
         case failed(String)
         case confirmUnverified(LinkSource, String)
         case confirmReplace(LinkSource, [String])
     }
 
-    enum LinkSource {
-        case payload(LinkPayload)
+    private enum LinkSource {
         case credentials(Credentials)
     }
 
@@ -33,12 +29,8 @@ struct AddAccountView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: VigilSpacing.large) {
                         intro
-                        #if os(macOS)
-                        localImportCard
-                        #endif
                         directProviderSection
                         renewingSignInSection
-                        computerPairingCard
                         privacyNote
                     }
                     .frame(maxWidth: 820, alignment: .leading)
@@ -48,11 +40,9 @@ struct AddAccountView: View {
                 }
             }
             .navigationTitle("Add account")
-            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(VigilPalette.canvas.opacity(0.96), for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
@@ -63,14 +53,6 @@ struct AddAccountView: View {
                     linkingOverlay
                 }
             }
-            #if os(iOS)
-            .sheet(isPresented: $showScanner) {
-                ScanView { payload in
-                    showScanner = false
-                    attempt(.payload(payload))
-                }
-            }
-            #endif
             .alert(
                 alertTitle,
                 isPresented: .init(
@@ -112,54 +94,8 @@ struct AddAccountView: View {
     }
 
     private var introDetail: String {
-        #if os(macOS)
-        "Import Claude Code or Codex from this Mac, or paste any provider key. Browser sign-in is optional if you want a Vigil-owned renewing token."
-        #else
-        "Paste a provider key, or sign in with Claude / Codex on this phone. No computer required — and no npm package."
-        #endif
+        "Paste a provider key, or sign in with Claude or Codex on this phone. No computer required."
     }
-
-    #if os(macOS)
-    private var localImportCard: some View {
-        VStack(alignment: .leading, spacing: VigilSpacing.medium) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "internaldrive")
-                    .font(.system(size: 24, weight: .medium))
-                    .foregroundStyle(VigilPalette.signal)
-                    .frame(width: 48, height: 48)
-                    .background(
-                        VigilPalette.signal.opacity(0.11),
-                        in: RoundedRectangle(cornerRadius: 15)
-                    )
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Import from this Mac")
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(VigilPalette.ink)
-                        Spacer()
-                        VigilStatusPill(text: "Local", color: VigilPalette.safe)
-                    }
-                    Text("Read Claude Code (~/.claude) and Codex (~/.codex) the same way desktop monitors do — no browser OAuth, no terminal.")
-                        .font(.caption)
-                        .foregroundStyle(VigilPalette.inkMuted)
-                }
-            }
-            NavigationLink {
-                LocalImportView { credentials in
-                    attempt(.credentials(credentials))
-                }
-            } label: {
-                Label("Import Claude or Codex", systemImage: "tray.and.arrow.down")
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 46)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(VigilPalette.signal)
-            .foregroundStyle(VigilPalette.canvas)
-        }
-        .vigilCard(padding: VigilSpacing.large)
-    }
-    #endif
 
     private var renewingSignInSection: some View {
         VStack(alignment: .leading, spacing: VigilSpacing.medium) {
@@ -168,7 +104,7 @@ struct AddAccountView: View {
                 eyebrow: "Optional",
                 detail: "OAuth"
             )
-            Text("Only needed if you want Vigil to own a refreshable sign-in. Pasting a key or importing local files is enough to watch limits.")
+            Text("Only needed if you want Vigil to own a refreshable sign-in. Pasting a provider key is enough to watch limits.")
                 .font(.caption)
                 .foregroundStyle(VigilPalette.inkMuted)
             claudeSignInCard
@@ -242,87 +178,6 @@ struct AddAccountView: View {
         .vigilCard(padding: VigilSpacing.large)
     }
 
-    private var computerPairingCard: some View {
-        VStack(alignment: .leading, spacing: VigilSpacing.medium) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "laptopcomputer.and.iphone")
-                    .font(.system(size: 24, weight: .medium))
-                    .foregroundStyle(VigilPalette.signal)
-                    .frame(width: 48, height: 48)
-                    .background(
-                        VigilPalette.signal.opacity(0.11),
-                        in: RoundedRectangle(cornerRadius: 15)
-                    )
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Already signed in on a computer?")
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(VigilPalette.ink)
-                        Spacer()
-                        VigilStatusPill(text: "Last resort", color: VigilPalette.inkMuted)
-                    }
-                    Text("Only if you can't import on Mac or paste a key — hand a Claude Code / Codex session to your phone with a QR from the optional CLI.")
-                        .font(.caption)
-                        .foregroundStyle(VigilPalette.inkMuted)
-                }
-            }
-
-            setupStep(number: "1", title: "Run this on your computer") {
-                CopyableCommandView(command: pairingCommand)
-            }
-
-            setupStep(number: "2", title: "Bring the link code into Vigil") {
-                HStack(spacing: 10) {
-                    #if os(iOS)
-                    Button {
-                        showScanner = true
-                    } label: {
-                        Label("Scan code", systemImage: "qrcode.viewfinder")
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: 46)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(VigilPalette.signal)
-                    .foregroundStyle(VigilPalette.canvas)
-                    #endif
-
-                    NavigationLink {
-                        PasteCodeView { payload in
-                            attempt(.payload(payload))
-                        }
-                    } label: {
-                        Label("Paste code", systemImage: "doc.on.clipboard")
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: 46)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(VigilPalette.ink)
-                }
-            }
-
-            Text(pairingSafetyNote)
-                .font(.caption2)
-                .foregroundStyle(VigilPalette.inkFaint)
-        }
-        .vigilCard(padding: VigilSpacing.large)
-    }
-
-    private var pairingCommand: String {
-        #if os(macOS)
-        "npx vigil-link --json --yes"
-        #else
-        "npx vigil-link"
-        #endif
-    }
-
-    private var pairingSafetyNote: String {
-        #if os(macOS)
-        "Paste mode prints credential-bearing lines because --yes confirms that choice. Paste them into Vigil, then clear your terminal scrollback. The link expires after 10 minutes."
-        #else
-        "The codes rotate on screen until you confirm capture, then the terminal clears. Scanning keeps credentials out of the clipboard. The link expires after 10 minutes."
-        #endif
-    }
-
     private var directProviderSection: some View {
         VStack(alignment: .leading, spacing: VigilSpacing.medium) {
             VigilSectionHeading(
@@ -330,7 +185,7 @@ struct AddAccountView: View {
                 eyebrow: "Local",
                 detail: "\(ProviderRegistry.all.count) available"
             )
-            Text("The simplest path — paste an API key or token. No browser OAuth. (Claude/Codex tokens pasted here won't auto-renew; on Mac prefer Import from this Mac.)")
+            Text("The simplest path: paste an API key or token. Claude and Codex tokens pasted here do not auto-renew, so use browser sign-in when you want renewing credentials.")
                 .font(.caption)
                 .foregroundStyle(VigilPalette.inkMuted)
 
@@ -396,28 +251,6 @@ struct AddAccountView: View {
         .accessibilityLabel("Verifying account with the provider")
     }
 
-    private func setupStep<Content: View>(
-        number: String,
-        title: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(number)
-                .font(.caption.weight(.bold).monospacedDigit())
-                .foregroundStyle(VigilPalette.canvas)
-                .frame(width: 24, height: 24)
-                .background(VigilPalette.signal, in: Circle())
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 8) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(VigilPalette.ink)
-                content()
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
     private var alertTitle: String {
         switch pending {
         case .confirmUnverified: return "Couldn't verify"
@@ -451,12 +284,6 @@ struct AddAccountView: View {
             do {
                 try Task.checkCancellation()
                 switch source {
-                case .payload(let payload):
-                    try await model.addAccounts(
-                        from: payload,
-                        allowUnverified: allowUnverified,
-                        allowReplace: allowReplace
-                    )
                 case .credentials(let credentials):
                     try await model.addAccount(
                         credentials: credentials,
@@ -524,46 +351,5 @@ private struct ProviderSetupRow: View {
         .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
         .vigilInsetSurface()
         .contentShape(Rectangle())
-    }
-}
-
-struct CopyableCommandView: View {
-    let command: String
-    @State private var copied = false
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Text(command)
-                .font(.system(.callout, design: .monospaced).weight(.semibold))
-                .foregroundStyle(VigilPalette.ink)
-                .textSelection(.enabled)
-            Spacer()
-            Button {
-                #if os(iOS)
-                UIPasteboard.general.string = command
-                #else
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(command, forType: .string)
-                #endif
-                copied = true
-                Task {
-                    try? await Task.sleep(for: .seconds(1.5))
-                    copied = false
-                }
-            } label: {
-                Label(
-                    copied ? "Copied" : "Copy",
-                    systemImage: copied ? "checkmark" : "doc.on.doc"
-                )
-                .font(.caption.weight(.semibold))
-                .frame(minWidth: 68, minHeight: 44)
-            }
-            .buttonStyle(.bordered)
-            .tint(copied ? VigilPalette.safe : VigilPalette.inkMuted)
-            .accessibilityLabel(copied ? "Copied command" : "Copy command")
-        }
-        .padding(.leading, 12)
-        .padding(.trailing, 4)
-        .vigilInsetSurface(cornerRadius: VigilRadius.small)
     }
 }

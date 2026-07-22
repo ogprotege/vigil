@@ -5,17 +5,29 @@ import VigilKit
 
 /// Turns ThresholdEngine crossings into local notifications. The engine is
 /// pure; every side effect lives here.
-final class NotificationManager: Sendable {
+protocol NotificationManaging: Sendable {
+    func requestAuthorizationIfNeeded() async
+    func deliver(events: [ThresholdEvent], account: AccountRef) async -> [ThresholdEvent]
+}
+
+final class NotificationManager: NotificationManaging, Sendable {
     private static let log = Logger(subsystem: "app.vigil", category: "notifications")
     private static var hasApplicationBundle: Bool {
         Bundle.main.bundleURL.pathExtension.lowercased() == "app"
     }
+    static var canUseSystemNotifications: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        let isTesting = environment["XCTestConfigurationFilePath"] != nil
+            || NSClassFromString("XCTestCase") != nil
+        let isPreview = environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+        return hasApplicationBundle && !isTesting && !isPreview
+    }
 
     func requestAuthorizationIfNeeded() async {
-        // UNUserNotificationCenter raises an Objective-C exception when used
-        // from a headless XCTest or preview host without an application
-        // bundle. There is no notification destination in that environment.
-        guard Self.hasApplicationBundle else { return }
+        // App-hosted iOS tests have an .app bundle, but asking the system
+        // center for authorization can present UI and suspend the test run.
+        // Tests and previews have no notification destination.
+        guard Self.canUseSystemNotifications else { return }
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .notDetermined else { return }
@@ -31,7 +43,7 @@ final class NotificationManager: Sendable {
     /// Returns events the operating system did not accept. Callers keep those
     /// events in durable storage and retry later.
     func deliver(events: [ThresholdEvent], account: AccountRef) async -> [ThresholdEvent] {
-        guard Self.hasApplicationBundle else { return events }
+        guard Self.canUseSystemNotifications else { return events }
         let center = UNUserNotificationCenter.current()
         var failed: [ThresholdEvent] = []
         for event in events {

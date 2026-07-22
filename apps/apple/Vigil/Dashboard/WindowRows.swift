@@ -81,6 +81,9 @@ struct LimitMeterRow: View {
     /// and no marker at all.
     var status: SnapshotStatus? = nil
     var fetchedAt: Date? = nil
+    /// Keeps community-researched providers visibly labeled when their
+    /// model-specific lanes are separated from the account card.
+    var isExperimental = false
 
     private var remaining: Double {
         UsagePresentation.remainingPercent(for: window)
@@ -99,11 +102,18 @@ struct LimitMeterRow: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(VigilPalette.ink)
                         .lineLimit(1)
-                    if let accountName {
-                        Text(accountName)
-                            .font(.caption2)
-                            .foregroundStyle(VigilPalette.inkFaint)
-                            .lineLimit(1)
+                    if accountName != nil || isExperimental {
+                        HStack(spacing: 6) {
+                            if let accountName {
+                                Text(accountName)
+                                    .font(.caption2)
+                                    .foregroundStyle(VigilPalette.inkFaint)
+                                    .lineLimit(1)
+                            }
+                            if isExperimental {
+                                ExperimentalBadge()
+                            }
+                        }
                     }
                 }
                 Spacer(minLength: 8)
@@ -146,7 +156,11 @@ struct LimitMeterRow: View {
         .opacity(isDegraded ? 0.7 : 1)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            Text((accountName.map { "\($0), " } ?? "") + UsagePresentation.title(for: window))
+            Text(
+                (accountName.map { "\($0), " } ?? "")
+                    + UsagePresentation.title(for: window)
+                    + (isExperimental ? ", experimental integration" : "")
+            )
         )
         .accessibilityValue(
             Text(
