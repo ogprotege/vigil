@@ -157,6 +157,14 @@ Vigil sends credentials and usage requests only to providers the user activates.
 
 - [token-monitor](https://github.com/Javis603/token-monitor) by Javis603 inspired Vigil's provider and model-limit presentation. Desktop transcript-derived token counts are not available to an iPhone-only app, so Vigil shows only values returned by provider APIs.
 
+---
+
+## Funding
+
+<a href="https://www.buymeacoffee.com/thebiscuit" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" style="height: 60px !important;width: 217px !important;" ></a>
+
+---
+
 ## License
 
 [MIT](LICENSE)
