@@ -1,6 +1,16 @@
+<div align="center">
+
+<img src="assets/icon-256.png" alt="Vigil reserve gauge" width="80" />
+
 # Vigil documentation
 
-This index is the entry point for current Vigil documentation.
+### *Use the app. Understand the data. Build and ship it.*
+
+<p>
+<a href="../README.md">Back to README</a>
+</p>
+
+</div>
 
 > Status: current documentation
 >
@@ -8,54 +18,91 @@ This index is the entry point for current Vigil documentation.
 >
 > Review again: before each release
 
-## Start here
+## Choose your route
 
-- [Product contract](product-contract.md): what Vigil promises, what it cannot know, and the rules every screen must follow.
-- [Setup](user-guide/setup.md): guided sign-in, supported providers, widgets, re-linking, and account removal.
-- [Reading limits](user-guide/reading-limits.md): urgency ranking, percentages, exact amounts, reset handling, and status labels.
-- [History and imports](user-guide/history-and-imports.md): local observations, retention, and the separate OpenAI API organization import.
-- [Privacy, deletion, and notifications](user-guide/privacy-deletion-notifications.md): credentials, local files, backups, alerts, app lock, exports, and deletion.
-- [Troubleshooting](user-guide/troubleshooting.md): common states and the correct response.
+| Use Vigil | Understand the data | Build and ship |
+|---|---|---|
+| [Set up an account](user-guide/setup.md) | [Read limits correctly](user-guide/reading-limits.md) | [Understand the architecture](development/architecture.md) |
+| [Review history and imports](user-guide/history-and-imports.md) | [Read the product contract](product-contract.md) | [Set up development](development/development.md) |
+| [Control privacy and deletion](user-guide/privacy-deletion-notifications.md) | [Check provider support](providers/support-matrix.md) | [Run the test gates](development/testing.md) |
+| [Fix a problem](user-guide/troubleshooting.md) | [Review the threat model](threat-model.md) | [Prepare an iOS release](development/release.md) |
 
-## Stable compatibility links
+## Use Vigil
 
-Older links remain available and point to the canonical guides:
+These guides describe the current product from the user's side of the screen.
+
+- **[Setup](user-guide/setup.md)** covers the guided Claude and ChatGPT/Codex routes, the supported provider catalog, widgets, re-linking, and removal.
+- **[Reading limits](user-guide/reading-limits.md)** explains urgency ranking, percentages, exact amounts, reset handling, freshness, and degraded states.
+- **[History and imports](user-guide/history-and-imports.md)** separates local observations from official provider history.
+- **[Privacy, deletion, and notifications](user-guide/privacy-deletion-notifications.md)** covers Keychain storage, local files, backups, alerts, app lock, exports, and deletion.
+- **[Troubleshooting](user-guide/troubleshooting.md)** gives the correct response for common setup, provider, and storage states.
+
+## Understand the data
+
+- **[Product contract](product-contract.md)** controls what Vigil promises and what every screen must refuse to imply.
+- **[Provider support matrix](providers/support-matrix.md)** is the canonical shipped-provider list, with credentials, data coverage, evidence, and stability.
+- **[Provider details](providers/provider-details.md)** records authentication and interpretation rules for each integration.
+- **[Unsupported candidates](providers/unsupported-candidates.md)** explains why an unlisted service, including Perplexity, is not silently available through **Other provider**.
+- **[Threat model](threat-model.md)** defines security boundaries, protected data, accepted risks, and mitigations.
+
+## Build and ship
+
+- **[Architecture](development/architecture.md)** maps the app, widget, provider client, persistence, scheduling, and diagnostic boundaries.
+- **[Development setup](development/development.md)** owns requirements, XcodeGen, local builds, signing behavior, and repository layout.
+- **[Testing](development/testing.md)** owns package, simulator, documentation, fixture, and device-only gates.
+- **[Provider contribution](development/provider-contribution.md)** is the complete integration checklist.
+- **[Diagnostic schema](development/diagnostic-schema.md)** defines the credential-free export boundary.
+- **[iOS release runbook](development/release.md)** controls archive, signing, approval, upload, and TestFlight verification.
+- **[Current 0.15.0 (17) release record](releases/0.15.0-17.md)** records the exact release state and remaining gates.
+- **[Architecture decisions](decisions/README.md)** preserves durable technical decisions and their status.
+- **[Documentation health](documentation-health.md)** tracks review triggers and known documentation debt.
+
+<details>
+<summary><strong>Stable compatibility links</strong></summary>
+
+Older public paths remain available so external links do not break. Each one
+points to the canonical current guide instead of maintaining a second copy.
 
 - [Getting started](getting-started.md)
 - [FAQ](faq.md)
 - [Privacy](privacy.md)
 - [Troubleshooting](troubleshooting.md)
 
-## Provider references
-
-- [Provider support matrix](providers/support-matrix.md): canonical shipped-provider list, data coverage, evidence, and stability.
-- [Provider details](providers/provider-details.md): authentication and interpretation rules for each integration.
-- [Unsupported candidates](providers/unsupported-candidates.md): why an unlisted provider, including Perplexity, is not silently available through Other provider.
-
-## Development and release
-
-- [Architecture](development/architecture.md)
-- [Development setup](development/development.md)
-- [Testing](development/testing.md)
-- [Provider contribution](development/provider-contribution.md)
-- [Diagnostic schema](development/diagnostic-schema.md)
-- [iOS release runbook](development/release.md)
-- [Current 0.15.0 (17) release record](releases/0.15.0-17.md)
-- [Architecture decisions](decisions/README.md)
-- [Documentation health and debt](documentation-health.md)
+</details>
 
 ## Documentation authority
 
-The product contract controls user-facing claims. `protocol/providers.json` is the reviewable provider contract. The app ships the compiled `ProviderRegistry` mirror, and `SpecParityTests` require the two definitions to match. The XcodeGen manifest in `apps/apple/project.yml` controls the current platform and release version.
+> **One claim, one owner.** The product contract controls user-facing promises.
+> `protocol/providers.json` controls the reviewable provider contract.
+> `apps/apple/project.yml` controls the platform and release identity.
 
-Historical plans, screenshots, and diagnosis reports are evidence of earlier work. They must not be used as current setup instructions unless an active document links to them for a specific reason.
+The app ships a compiled `ProviderRegistry` mirror of the JSON provider
+contract. `SpecParityTests` require both definitions to match. Fixture parity
+tests verify normalized output. Provenance tests verify every fixture's declared
+evidence source.
+
+Historical plans, screenshots, and diagnosis reports remain evidence of earlier
+work. They are not current setup instructions unless an active document links
+to them for a specific reason.
 
 ## Current scope
 
-These guides describe the iOS-only app. The Swift package can run tests on macOS, but Vigil does not ship a macOS app or desktop credential-transfer utility.
+Vigil ships as a native iOS app. The Swift package can run tests on macOS, but
+there is no shipped macOS app or desktop credential-transfer utility.
 
-The current product centers on present limits and provider-reported metrics. History begins when Vigil starts observing an account, except for a supported official provider import. Perplexity is not in the shipped provider registry.
+The product centers on current provider limits and provider-reported metrics.
+History begins when Vigil successfully observes an account, except for a
+supported official provider import. Perplexity is not in the shipped provider
+registry.
 
 ## Maintenance rule
 
-When behavior changes, update the product contract and the affected guide in the same pull request. Keep one canonical source for each claim and link to it from compatibility pages. Follow the review triggers in [Documentation health](documentation-health.md).
+When behavior changes, update its canonical document in the same pull request.
+Compatibility pages should link to that source instead of copying it. Follow
+the review triggers and open debt in [Documentation health](documentation-health.md).
+
+Run the documentation gate from the repository root:
+
+```sh
+scripts/check-docs.sh
+```
