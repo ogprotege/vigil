@@ -15,6 +15,10 @@ final class VigilPrivacyLockUITests: XCTestCase {
         let storageAlert = app.alerts["Vigil couldn't save data"]
         if storageAlert.waitForExistence(timeout: 2) {
             storageAlert.buttons["OK"].tap()
+            XCTAssertTrue(
+                waitForDisappearance(storageAlert, timeout: 5),
+                "The acknowledged storage alert must stop blocking the lock surface."
+            )
         }
     }
 
@@ -32,7 +36,10 @@ final class VigilPrivacyLockUITests: XCTestCase {
 
         let unlock = app.buttons["vigil.lock.unlock"]
         XCTAssertTrue(unlock.exists)
-        XCTAssertTrue(unlock.isHittable)
+        XCTAssertTrue(
+            waitForHittable(unlock, timeout: 8),
+            "The modal lock's Unlock action must become interactive."
+        )
 
         let protectedAccount = app.descendants(matching: .any)["vigil.home.account.claude"]
         XCTAssertFalse(
@@ -61,5 +68,27 @@ final class VigilPrivacyLockUITests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    private func waitForDisappearance(
+        _ element: XCUIElement,
+        timeout: TimeInterval
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    private func waitForHittable(
+        _ element: XCUIElement,
+        timeout: TimeInterval
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "isHittable == true"),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 }
