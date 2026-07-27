@@ -6,9 +6,8 @@ import VigilKit
 /// The demo seed exists only to render honest, representative screenshots for
 /// the README/App Store from a fresh simulator with no real credentials. These
 /// tests lock the gate (demo data must never appear in a real launch) and the
-/// shape (the seed has to populate the same surfaces a real account would — a
-/// tightest-window Watchline, per-model caps for the Models view, and a
-/// metric-only provider — or the screenshots would misrepresent the app).
+/// shape (the seed has to populate the same surfaces a real account would,
+/// including current limits, explicit model caps, and a metric-only provider).
 final class DemoDataTests: XCTestCase {
     // MARK: - Gate: opt-in only, never on by accident
 
@@ -18,6 +17,26 @@ final class DemoDataTests: XCTestCase {
         XCTAssertFalse(DemoData.requested(in: ["VIGIL_DEMO": "0"]))
         XCTAssertFalse(DemoData.requested(in: ["VIGIL_DEMO": "true"]))
         XCTAssertFalse(DemoData.requested(in: ["VIGIL_DEMO": ""]))
+    }
+
+    func testExpiredClaudeStateIsSeparatelyOptIn() throws {
+        XCTAssertTrue(DemoData.claudeAuthExpiredRequested(in: [
+            "VIGIL_DEMO_CLAUDE_AUTH_EXPIRED": "1",
+        ]))
+        XCTAssertFalse(DemoData.claudeAuthExpiredRequested(in: [:]))
+        XCTAssertFalse(DemoData.claudeAuthExpiredRequested(in: [
+            "VIGIL_DEMO_CLAUDE_AUTH_EXPIRED": "true",
+        ]))
+
+        let seed = DemoData.seed(
+            now: Date(timeIntervalSince1970: 1_784_500_000),
+            claudeStatus: .authExpired
+        )
+        let claude = try XCTUnwrap(seed.accounts.first { $0.providerId == "claude" })
+        XCTAssertEqual(seed.snapshots[claude.key]?.status, .authExpired)
+        XCTAssertTrue(seed.snapshots.values.allSatisfy {
+            $0.accountKey == claude.key || $0.status == .ok
+        })
     }
 
     // MARK: - Shape: every surface a real account would fill
@@ -38,21 +57,20 @@ final class DemoDataTests: XCTestCase {
         )
     }
 
-    func testSeedPopulatesTheModelsViewWithLabeledPerModelCaps() {
+    func testSeedUsesOnlyProviderGroundedPlanAndModelLabels() throws {
         let seed = DemoData.seed(now: Date(timeIntervalSince1970: 1_784_500_000))
-        let candidates = UsagePresentation.modelLimits(
-            accounts: seed.accounts,
-            snapshots: seed.snapshots
-        )
-        XCTAssertGreaterThanOrEqual(
-            candidates.count, 2,
-            "the Models tab is the headline of this release — its screenshot must not be empty"
-        )
-        let labels = candidates.compactMap { $0.window.label }
-        XCTAssertTrue(
-            labels.contains("Fable"),
-            "the flagship model caps (e.g. Fable) are the reason the Models view exists"
-        )
+        let claude = try XCTUnwrap(seed.accounts.first { $0.providerId == "claude" })
+        XCTAssertNil(claude.plan)
+        XCTAssertNil(seed.snapshots[claude.key]?.planLabel)
+        let codex = try XCTUnwrap(seed.accounts.first { $0.providerId == "codex" })
+        XCTAssertEqual(codex.plan, "pro")
+        XCTAssertEqual(seed.snapshots[codex.key]?.planLabel, "pro")
+        XCTAssertTrue(seed.snapshots[codex.key]?.windows.contains {
+            $0.label == "GPT-5.3-Codex-Spark · Weekly"
+        } == true)
+        XCTAssertFalse(seed.snapshots.values.flatMap(\.windows).contains {
+            $0.label == "Fable" || $0.label == "GPT-5.6 Sol"
+        })
     }
 
     func testSeedIncludesAMetricOnlyProviderSoTheMetricsSectionShows() {

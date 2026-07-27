@@ -4,11 +4,25 @@ import XCTest
 
 final class ThresholdEngineTests: XCTestCase {
     func testCrossingFires() {
+        let current = TestSupport.snapshot(
+            windows: [TestSupport.window("session", 81)]
+        )
         let events = ThresholdEngine.crossings(
             previous: TestSupport.snapshot(windows: [TestSupport.window("session", 79)]),
-            current: TestSupport.snapshot(windows: [TestSupport.window("session", 81)])
+            current: current
         )
-        XCTAssertEqual(events, [ThresholdEvent(windowId: "session", threshold: 80, utilization: 81)])
+        XCTAssertEqual(
+            events,
+            [
+                ThresholdEvent(
+                    windowId: "session",
+                    threshold: 80,
+                    utilization: 81,
+                    observedAt: current.fetchedAt,
+                    resetAt: current.windows[0].resetsAt
+                ),
+            ]
+        )
     }
 
     func testJumpAcrossMultipleThresholdsFiresEach() {
@@ -33,6 +47,47 @@ final class ThresholdEngineTests: XCTestCase {
             current: TestSupport.snapshot(windows: [TestSupport.window("session", 5)])
         )
         XCTAssertTrue(events.isEmpty)
+    }
+
+    func testNewResetSegmentDoesNotInheritPriorCycleThresholdBaseline() {
+        let firstReset = Date(timeIntervalSince1970: 2_000_003_600)
+        let nextReset = firstReset.addingTimeInterval(3_600)
+        let previous = ProviderSnapshot(
+            providerId: "claude",
+            accountKey: "claude:test",
+            accountLabel: nil,
+            planLabel: nil,
+            fetchedAt: firstReset.addingTimeInterval(-120),
+            status: .ok,
+            windows: [
+                UsageWindow(
+                    id: "session",
+                    utilization: 79,
+                    resetsAt: firstReset,
+                    windowSeconds: 18_000,
+                    secondary: false
+                ),
+            ]
+        )
+        let current = ProviderSnapshot(
+            providerId: "claude",
+            accountKey: "claude:test",
+            accountLabel: nil,
+            planLabel: nil,
+            fetchedAt: firstReset.addingTimeInterval(60),
+            status: .ok,
+            windows: [
+                UsageWindow(
+                    id: "session",
+                    utilization: 85,
+                    resetsAt: nextReset,
+                    windowSeconds: 18_000,
+                    secondary: false
+                ),
+            ]
+        )
+
+        XCTAssertTrue(ThresholdEngine.crossings(previous: previous, current: current).isEmpty)
     }
 
     func testAlreadyAboveThresholdDoesNotRefire() {
@@ -62,28 +117,194 @@ final class ThresholdEngineTests: XCTestCase {
     func testCrossingSpanningDegradedPreviousStillFires() {
         // A failed fetch carries the last good windows forward; a crossing
         // that spans the blip (79 -> network error -> 81) must still fire.
+        let current = TestSupport.snapshot(
+            windows: [TestSupport.window("session", 81)]
+        )
         let events = ThresholdEngine.crossings(
             previous: TestSupport.snapshot(windows: [TestSupport.window("session", 79)], status: .network),
-            current: TestSupport.snapshot(windows: [TestSupport.window("session", 81)])
+            current: current
         )
-        XCTAssertEqual(events, [ThresholdEvent(windowId: "session", threshold: 80, utilization: 81)])
+        XCTAssertEqual(
+            events,
+            [
+                ThresholdEvent(
+                    windowId: "session",
+                    threshold: 80,
+                    utilization: 81,
+                    observedAt: current.fetchedAt,
+                    resetAt: current.windows[0].resetsAt
+                ),
+            ]
+        )
     }
 
     func testDuplicateProviderWindowIDsCannotCrashOrDuplicateNotifications() {
+        let current = TestSupport.snapshot(windows: [
+            TestSupport.window("session", 81),
+            TestSupport.window("session", 99),
+        ])
         let events = ThresholdEngine.crossings(
             previous: TestSupport.snapshot(windows: [
                 TestSupport.window("session", 79),
                 TestSupport.window("session", 5),
             ]),
-            current: TestSupport.snapshot(windows: [
-                TestSupport.window("session", 81),
-                TestSupport.window("session", 99),
-            ])
+            current: current
         )
 
         XCTAssertEqual(
             events,
-            [ThresholdEvent(windowId: "session", threshold: 80, utilization: 81)]
+            [
+                ThresholdEvent(
+                    windowId: "session",
+                    threshold: 80,
+                    utilization: 81,
+                    observedAt: current.fetchedAt,
+                    resetAt: current.windows[0].resetsAt
+                ),
+            ]
+        )
+    }
+
+    func testPendingDispositionRejectsStaleOrChangedCrossings() {
+        let observedAt = Date(timeIntervalSince1970: 2_000_000_000)
+        let resetAt = observedAt.addingTimeInterval(3_600)
+        let event = ThresholdEvent(
+            windowId: "session",
+            threshold: 80,
+            utilization: 82,
+            observedAt: observedAt,
+            resetAt: resetAt
+        )
+        let fresh = validationSnapshot(
+            fetchedAt: observedAt.addingTimeInterval(60),
+            utilization: 84,
+            resetAt: resetAt
+        )
+
+        XCTAssertEqual(
+            ThresholdEngine.disposition(
+                of: event,
+                against: fresh,
+                at: observedAt.addingTimeInterval(120)
+            ),
+            .actionable
+        )
+        XCTAssertEqual(
+            ThresholdEngine.disposition(
+                of: ThresholdEvent(
+                    windowId: "session",
+                    threshold: 80,
+                    utilization: 82
+                ),
+                against: fresh,
+                at: observedAt.addingTimeInterval(120)
+            ),
+            .unverifiable
+        )
+        XCTAssertEqual(
+            ThresholdEngine.disposition(
+                of: event,
+                against: fresh,
+                at: observedAt.addingTimeInterval(1_801)
+            ),
+            .expired
+        )
+        XCTAssertEqual(
+            ThresholdEngine.disposition(
+                of: event,
+                against: validationSnapshot(
+                    fetchedAt: observedAt.addingTimeInterval(60),
+                    utilization: 84,
+                    resetAt: resetAt.addingTimeInterval(3_600)
+                ),
+                at: observedAt.addingTimeInterval(120)
+            ),
+            .resetMismatch
+        )
+        XCTAssertEqual(
+            ThresholdEngine.disposition(
+                of: event,
+                against: validationSnapshot(
+                    fetchedAt: observedAt.addingTimeInterval(60),
+                    utilization: 72,
+                    resetAt: resetAt
+                ),
+                at: observedAt.addingTimeInterval(120)
+            ),
+            .noLongerCrossed
+        )
+    }
+
+    func testLegacyThresholdEventDecodesWithoutVerificationMetadata() throws {
+        let event = try JSONDecoder().decode(
+            ThresholdEvent.self,
+            from: Data(
+                #"{"windowId":"session","threshold":80,"utilization":81}"#.utf8
+            )
+        )
+
+        XCTAssertNil(event.observedAt)
+        XCTAssertNil(event.resetAt)
+        XCTAssertNil(event.resetSegment)
+    }
+
+    func testPendingDispositionAllowsARecentWindowWithoutResetMetadata() {
+        let observedAt = Date(timeIntervalSince1970: 2_000_000_000)
+        let event = ThresholdEvent(
+            windowId: "credits",
+            threshold: 80,
+            utilization: 82,
+            observedAt: observedAt
+        )
+        let snapshot = ProviderSnapshot(
+            providerId: "openrouter",
+            accountKey: "openrouter:test",
+            accountLabel: nil,
+            planLabel: nil,
+            fetchedAt: observedAt.addingTimeInterval(60),
+            status: .ok,
+            windows: [
+                UsageWindow(
+                    id: "credits",
+                    utilization: 84,
+                    resetsAt: nil,
+                    windowSeconds: nil,
+                    secondary: false
+                ),
+            ]
+        )
+
+        XCTAssertEqual(
+            ThresholdEngine.disposition(
+                of: event,
+                against: snapshot,
+                at: observedAt.addingTimeInterval(120)
+            ),
+            .actionable
+        )
+    }
+
+    private func validationSnapshot(
+        fetchedAt: Date,
+        utilization: Double,
+        resetAt: Date
+    ) -> ProviderSnapshot {
+        ProviderSnapshot(
+            providerId: "claude",
+            accountKey: "claude:test",
+            accountLabel: nil,
+            planLabel: nil,
+            fetchedAt: fetchedAt,
+            status: .ok,
+            windows: [
+                UsageWindow(
+                    id: "session",
+                    utilization: utilization,
+                    resetsAt: resetAt,
+                    windowSeconds: 18_000,
+                    secondary: false
+                ),
+            ]
         )
     }
 }
@@ -172,6 +393,59 @@ final class PendingEventStoreTests: XCTestCase {
         try store.append(events, accountKey: key)
         try store.acknowledge(events, accountKey: key)
         XCTAssertTrue(try store.load(accountKey: key).isEmpty)
+    }
+
+    func testResetSegmentsRemainIndependentThroughAppendAndAcknowledge() throws {
+        let store = PendingEventStore(directory: try TestSupport.tempDirectory())
+        let key = "claude:segments"
+        let observedAt = Date(timeIntervalSince1970: 2_000_000_000)
+        let first = ThresholdEvent(
+            windowId: "session",
+            threshold: 80,
+            utilization: 81,
+            observedAt: observedAt,
+            resetAt: observedAt.addingTimeInterval(3_600)
+        )
+        let next = ThresholdEvent(
+            windowId: "session",
+            threshold: 80,
+            utilization: 82,
+            observedAt: observedAt.addingTimeInterval(3_700),
+            resetAt: observedAt.addingTimeInterval(7_200)
+        )
+
+        try store.append([first, next], accountKey: key)
+        XCTAssertEqual(try store.load(accountKey: key), [first, next])
+
+        try store.acknowledge([first], accountKey: key)
+        XCTAssertEqual(try store.load(accountKey: key), [next])
+    }
+
+    func testAcknowledgeDoesNotConsumeNewerEventInTheSameSegment() throws {
+        let store = PendingEventStore(directory: try TestSupport.tempDirectory())
+        let key = "claude:newer"
+        let observedAt = Date(timeIntervalSince1970: 2_000_000_000)
+        let resetAt = observedAt.addingTimeInterval(3_600)
+        let delivering = ThresholdEvent(
+            windowId: "session",
+            threshold: 80,
+            utilization: 90,
+            observedAt: observedAt,
+            resetAt: resetAt
+        )
+        let appendedWhileDelivering = ThresholdEvent(
+            windowId: "session",
+            threshold: 80,
+            utilization: 84,
+            observedAt: observedAt.addingTimeInterval(60),
+            resetAt: resetAt
+        )
+
+        try store.append([delivering], accountKey: key)
+        try store.append([appendedWhileDelivering], accountKey: key)
+        try store.acknowledge([delivering], accountKey: key)
+
+        XCTAssertEqual(try store.load(accountKey: key), [appendedWhileDelivering])
     }
 
     func testCorruptQueueFailsClosedAndIsPreserved() throws {

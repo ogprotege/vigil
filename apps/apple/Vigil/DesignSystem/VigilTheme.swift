@@ -1,25 +1,25 @@
 import SwiftUI
 import VigilKit
 
-/// Vigil's "night watch" visual language. The app is intentionally dark:
-/// it is a glanceable instrument panel, and the restrained palette keeps the
-/// quota signal louder than the chrome around it.
+/// Vigil's quiet instrument palette. Carbon and graphite carry the chrome;
+/// frost carries content; violet identifies interaction; mint and amber carry
+/// provider truth. Status color never substitutes for a written status.
 enum VigilPalette {
-    static let canvas = Color(red: 0.090, green: 0.063, blue: 0.153)
-    static let canvasLift = Color(red: 0.157, green: 0.110, blue: 0.255)
-    static let surface = Color(red: 0.145, green: 0.106, blue: 0.231)
-    static let surfaceRaised = Color(red: 0.196, green: 0.149, blue: 0.302)
-    static let surfaceInset = Color(red: 0.075, green: 0.051, blue: 0.133)
-    static let border = Color(red: 0.302, green: 0.255, blue: 0.404)
-    static let borderStrong = Color(red: 0.420, green: 0.369, blue: 0.522)
+    static let canvas = Color(red: 0.043, green: 0.051, blue: 0.063)
+    static let canvasLift = Color(red: 0.075, green: 0.086, blue: 0.106)
+    static let surface = Color(red: 0.086, green: 0.102, blue: 0.125)
+    static let surfaceRaised = Color(red: 0.125, green: 0.145, blue: 0.176)
+    static let surfaceInset = Color(red: 0.055, green: 0.067, blue: 0.082)
+    static let border = Color(red: 0.180, green: 0.204, blue: 0.239)
+    static let borderStrong = Color(red: 0.286, green: 0.318, blue: 0.365)
 
-    static let ink = Color(red: 0.961, green: 0.953, blue: 0.980)
-    static let inkMuted = Color(red: 0.663, green: 0.631, blue: 0.722)
-    static let inkFaint = Color(red: 0.590, green: 0.558, blue: 0.650)
+    static let ink = Color(red: 0.957, green: 0.965, blue: 0.976)
+    static let inkMuted = Color(red: 0.667, green: 0.698, blue: 0.745)
+    static let inkFaint = Color(red: 0.486, green: 0.522, blue: 0.584)
 
-    static let signal = Color(red: 0.392, green: 0.871, blue: 0.714)
-    static let safe = signal
-    static let caution = Color(red: 0.945, green: 0.788, blue: 0.376)
+    static let signal = Color(red: 0.616, green: 0.549, blue: 1.000)
+    static let safe = Color(red: 0.396, green: 0.839, blue: 0.706)
+    static let caution = Color(red: 0.949, green: 0.737, blue: 0.400)
     static let critical = Color(red: 0.941, green: 0.424, blue: 0.451)
 
     static func limitColor(utilization: Double) -> Color {
@@ -57,14 +57,14 @@ struct VigilScreenBackground: View {
         ZStack {
             LinearGradient(
                 colors: [VigilPalette.canvas, VigilPalette.canvasLift],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+                startPoint: .top,
+                endPoint: .bottom
             )
             RadialGradient(
-                colors: [VigilPalette.signal.opacity(0.13), .clear],
+                colors: [VigilPalette.signal.opacity(0.10), .clear],
                 center: .topTrailing,
                 startRadius: 0,
-                endRadius: 460
+                endRadius: 420
             )
         }
         .ignoresSafeArea()

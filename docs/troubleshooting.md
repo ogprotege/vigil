@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Start by confirming that you installed the newest TestFlight build. Then open **Connections**, select the affected account, and note its status and last-update time.
+Start by confirming that you installed the newest TestFlight build. Then open **Accounts**, select the affected account, and note its status and last-update time.
 
 If you are setting up Vigil for the first time, read [Getting started](getting-started.md).
 
@@ -10,7 +10,7 @@ If you are setting up Vigil for the first time, read [Getting started](getting-s
 - Return to the same pending sign-in screen before submitting the code.
 - Do not reuse an earlier code. The PKCE verifier belongs to the sign-in attempt that created it.
 - If the browser shows an authorization error, cancel the attempt and begin again from Vigil.
-- If the account later says **Re-link needed**, remove it and use **Sign in with Claude** again.
+- If the account later says **Re-link needed**, open that account and use **Re-link**. Vigil keeps its existing local identity and history.
 
 Vigil refreshes only Claude credentials it minted. A manually pasted Claude token is not auto-refreshed.
 
@@ -20,7 +20,7 @@ Vigil refreshes only Claude credentials it minted. A manually pasted Claude toke
 - OpenAI may require device-code authorization under ChatGPT **Settings → Security**.
 - Keep Vigil available while approval completes. The app respects the server's polling interval.
 - If the code expires, cancel and start a new sign-in.
-- If the account later says **Re-link needed**, use **Sign in with Codex** again.
+- If the account later says **Re-link needed**, open that account and use **Re-link**.
 
 ## Claude says Live but shows no limits
 
@@ -28,11 +28,11 @@ Update to the newest build. Claude reset timestamps can contain fractional secon
 
 Current builds also enforce required outputs. A successful response with missing required windows becomes **Provider changed**, not Live.
 
-## Models shows no row for an account
+## Account detail shows no model-specific cap
 
-The Models tab shows only genuine model-specific or special quota lanes. An ordinary session or weekly plan window stays on Home.
+Account detail labels a lane as a model cap only when the provider contract identifies model scope. Ordinary session, weekly, modality, and generic feature limits remain current or special limits.
 
-Some providers do not expose model-specific limits. An empty Models section for those providers is correct.
+Some providers do not expose model-specific limits. Their absence is correct and does not hide plan-wide limits.
 
 ## A card shows Cooling down, Stale, Re-link needed, Provider changed, or Offline
 
@@ -46,7 +46,7 @@ Some providers do not expose model-specific limits. An empty Models section for 
 
 Check these provider-specific requirements:
 
-- **OpenAI API:** use a read-only organization Admin key. A project key such as `sk-proj-...` cannot access the organization costs endpoint.
+- **OpenAI API:** use a dedicated API-platform organization Admin API key only after accepting its broad organization-owner access. Vigil sends Usage and Costs GET requests, but the credential itself is not read-only. Revoke it when you disconnect permanently. A project key such as `sk-proj-...` cannot access the organization endpoints.
 - **GitHub Copilot:** provide both a fine-grained token with Account Plan read permission and the username. Organization-managed seats can return an empty per-user result.
 - **Moonshot and MiniMax:** global and China hosts use separate key namespaces. Choose the matching provider.
 - **xAI:** provide a Management Key and team ID, not a model-inference key.
@@ -60,6 +60,8 @@ Copy the credential again without leading or trailing spaces. Revoke and replace
 Every current provider has a 300-second poll floor. The app and widgets reserve an account-level lease in shared storage before a request.
 
 A deferred refresh protects the account from rapid polling. Wait until the displayed next-safe time. Do not delete local data or reinstall the app to bypass a normal delay.
+
+The 300-second floor is not a promise that iOS will collect a reading every five minutes. Foreground, background, and widget checks all obey the same floor, while iOS decides when background work actually runs.
 
 ## The app stays in Cooling down
 
@@ -107,6 +109,36 @@ Storage failures are separate from provider-network failures:
 - A Keychain deletion failure leaves the account linked and visible.
 
 Check free device storage, restart once, and try again. If the error persists, collect sanitized Console logs for subsystem `app.vigil`.
+
+If Vigil reports that its account index, Keychain payload, or lifecycle registry cannot be recovered, ordinary linking and removal stay blocked. Open **Settings** and use **Erase Vigil data and start over** only if you accept permanent deletion of every local Vigil credential, account, snapshot, history record, notification, and polling record. The action does not delete provider accounts. A failed reset remains blocked and can be retried; it never reactivates a partially erased account.
+
+## History has gaps or fewer rows than expected
+
+**Observed by Vigil** contains only successful readings that this installation retained. It cannot fill activity between provider checks, and iOS does not guarantee a background schedule. A quota percentage also cannot be converted into complete token history.
+
+The SQLite archive keeps rows for up to 400 days. Each account has independent caps of 120,000 observed readings and 5,000 provider-backfill records. **Load more** uses a stable cursor. If one page fails, retry it without removing the account.
+
+The OpenAI administrative import is separate. It requests up to 365 days of API organization completion usage and costs. It does not import ChatGPT or Codex subscription activity.
+
+## A diagnostic export has fewer rows than the archive
+
+This is expected. The diagnostic report intentionally exports a bounded recent selection per account and source. Inspect `historyScope.retainedSampleCount` and `historyScope.exportedSampleCount` to see the difference. The report is not a full history backup.
+
+## Vigil says it preserved an account repair backup
+
+Vigil keeps the damaged account-index copy after rebuilding the visible account list. Confirm the recovered accounts first. Then use **Settings → Delete account repair backup** to remove only that preserved copy. This action does not remove linked accounts, credentials, snapshots, or usage history, and it is separate from the full local reset used when identity data cannot be recovered.
+
+## App lock or app-switcher privacy needs attention
+
+Enable **Require Face ID or Touch ID** in Vigil Settings and confirm the iPhone has device-owner authentication configured. iOS can use the device passcode when biometrics do not complete. Vigil stores no biometric data.
+
+Moving Vigil into the app switcher should replace account content with an opaque cover. A configured widget is a separate surface and remains visible according to its own placement and iOS settings.
+
+## Account removal did not finish
+
+Vigil keeps an account visible when a required deletion fails, even if its credential was already removed. Retry **Remove account** after checking free storage. Successful removal clears snapshots, SQLite and legacy history, event and lock metadata, pending and delivered notifications, poll state, and damaged account-index backups.
+
+If unreadable history blocks removal, Vigil offers a separate destructive recovery action. That action deletes all local Vigil history for every account, then retries removal. Read the confirmation carefully because the history cannot be reconstructed unless a provider exposes an official administrative history API.
 
 ## Shared storage is unavailable
 

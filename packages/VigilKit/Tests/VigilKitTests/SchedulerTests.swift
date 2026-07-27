@@ -60,6 +60,63 @@ final class SchedulerTests: XCTestCase {
         XCTAssertEqual(afterCharge, backoffUntil, "429 backoff must not be shortened")
     }
 
+    func testLifecycleRotationRetiresLocalOwnerWithoutDroppingPollFloor() async throws {
+        let clock = ClockBox(Date(timeIntervalSince1970: 1_784_408_400))
+        let store = FileLedgerStore(directory: try TestSupport.tempDirectory())
+        let scheduler = makeScheduler(clock: clock, store: store)
+
+        let acquired = await scheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertTrue(acquired)
+        let retired = await scheduler.retireInFlightForLifecycleRotation(
+            accountKey: key,
+            policy: policy
+        )
+        XCTAssertTrue(retired)
+        let blocked = await scheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertFalse(
+            blocked,
+            "rotation must charge the already-dispatched request's provider floor"
+        )
+
+        clock.advance(by: policy.minSeconds + 1)
+        let reacquired = await scheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertTrue(
+            reacquired,
+            "the retired process-local owner must not wedge future fetches"
+        )
+        await scheduler.release(accountKey: key)
+    }
+
+    func testStaleLeaseRetirementCannotClearNewLifecycleOwner() async throws {
+        let clock = ClockBox(Date(timeIntervalSince1970: 1_784_408_400))
+        let store = FileLedgerStore(directory: try TestSupport.tempDirectory())
+        let scheduler = makeScheduler(clock: clock, store: store)
+
+        let acquiredOldLease = await scheduler.acquireLease(accountKey: key, policy: policy)
+        let oldLease = try XCTUnwrap(acquiredOldLease)
+        let cleared = await scheduler.clear(accountKey: key)
+        XCTAssertTrue(cleared)
+        let acquiredNewLease = await scheduler.acquireLease(accountKey: key, policy: policy)
+        let newLease = try XCTUnwrap(acquiredNewLease)
+
+        let staleRetired = await scheduler.retireInFlightForLifecycleRotation(
+            oldLease,
+            policy: policy
+        )
+        XCTAssertTrue(staleRetired)
+        let thirdAcquire = await scheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertFalse(
+            thirdAcquire,
+            "stale cleanup must not release the new lifecycle's active owner"
+        )
+        let newRecorded = await scheduler.recordResult(
+            newLease,
+            policy: policy,
+            status: .ok
+        )
+        XCTAssertTrue(newRecorded)
+    }
+
     func testSingleFlightAndMinInterval() async throws {
         let clock = ClockBox(Date(timeIntervalSince1970: 1_784_408_400))
         let store = FileLedgerStore(directory: try TestSupport.tempDirectory())

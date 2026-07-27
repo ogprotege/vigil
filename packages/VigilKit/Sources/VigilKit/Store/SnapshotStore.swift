@@ -296,6 +296,41 @@ enum PersistenceFileIO {
         throw StorePersistenceError.deleteFailed(path: url.path, reason: posixReason())
     }
 
+    /// Tightens a SQLite-created file after it appears. SQLite owns creation
+    /// of WAL and shared-memory sidecars, so stores cannot use the atomic JSON
+    /// writer for them. The containing directory is already owner-only; this
+    /// closes the remaining permissions and iOS data-protection gap.
+    static func secureRegularFileIfPresent(at url: URL) throws {
+        let descriptor = Darwin.open(url.path, O_RDWR | O_CLOEXEC | O_NOFOLLOW)
+        guard descriptor >= 0 else {
+            if errno == ENOENT { return }
+            throw StorePersistenceError.writeFailed(path: url.path, reason: posixReason())
+        }
+        defer { _ = Darwin.close(descriptor) }
+
+        var metadata = stat()
+        guard Darwin.fstat(descriptor, &metadata) == 0 else {
+            throw StorePersistenceError.writeFailed(path: url.path, reason: posixReason())
+        }
+        guard metadata.st_mode & S_IFMT == S_IFREG else {
+            throw StorePersistenceError.writeFailed(
+                path: url.path,
+                reason: "The path does not contain a regular file."
+            )
+        }
+        guard Darwin.fchmod(descriptor, mode_t(S_IRUSR | S_IWUSR)) == 0 else {
+            throw StorePersistenceError.writeFailed(path: url.path, reason: posixReason())
+        }
+        do {
+            try applyFileProtection(to: url)
+        } catch {
+            throw StorePersistenceError.writeFailed(
+                path: url.path,
+                reason: error.localizedDescription
+            )
+        }
+    }
+
     private static func syncDirectory(_ directory: URL, operationPath: String) throws {
         let descriptor = Darwin.open(directory.path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW)
         guard descriptor >= 0 else {
@@ -416,6 +451,15 @@ public struct SnapshotStore: Sendable {
             try PersistenceFileIO.removeIfPresent(at: url(accountKey, "current"))
             try PersistenceFileIO.removeIfPresent(at: url(accountKey, "previous"))
         }
+    }
+
+    /// Deletes both payloads and the account-key-derived advisory lock after
+    /// the caller has tombstoned the account across every process. Do not use
+    /// this for an active account because unlinking a live advisory lock can
+    /// split future callers across two lock inodes.
+    public func deleteRetiredAccount(accountKey: String) throws {
+        try delete(accountKey: accountKey)
+        try PersistenceFileIO.removeIfPresent(at: lockURL(accountKey))
     }
 
     private func read(accountKey: String, kind: String) throws -> ProviderSnapshot? {

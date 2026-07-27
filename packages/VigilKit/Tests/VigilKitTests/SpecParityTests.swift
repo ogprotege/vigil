@@ -98,6 +98,7 @@ final class SpecParityTests: XCTestCase {
         let resetsAt: String
         let used: String?
         let limit: String?
+        let remaining: String?
     }
 
     private struct SpecCondition: Decodable {
@@ -334,6 +335,7 @@ final class SpecParityTests: XCTestCase {
         XCTAssertEqual(swift.additionalWindows?.fields?.resetsAt, json.additionalWindows?.fields?.resetsAt, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.fields?.used, json.additionalWindows?.fields?.used, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.fields?.limit, json.additionalWindows?.fields?.limit, file: file, line: line)
+        XCTAssertEqual(swift.additionalWindows?.fields?.remaining, json.additionalWindows?.fields?.remaining, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.requiredWhenPresent, json.additionalWindows.map { $0.requiredWhenPresent ?? false }, file: file, line: line)
         XCTAssertEqual(swift.additionalWindows?.conditions.map(conditionSignature), json.additionalWindows.map { ($0.conditions ?? []).map(conditionSignature) }, file: file, line: line)
         let jsonEntryWindows = json.additionalWindows?.entryWindows ?? []
@@ -353,6 +355,7 @@ final class SpecParityTests: XCTestCase {
                 XCTAssertEqual(got.fields?.resetsAt, want.fields?.resetsAt, file: file, line: line)
                 XCTAssertEqual(got.fields?.used, want.fields?.used, file: file, line: line)
                 XCTAssertEqual(got.fields?.limit, want.fields?.limit, file: file, line: line)
+                XCTAssertEqual(got.fields?.remaining, want.fields?.remaining, file: file, line: line)
             }
         }
         // The Swift mirror carries oauth only for providers whose refresh
@@ -391,6 +394,7 @@ final class SpecParityTests: XCTestCase {
             XCTAssertEqual(got.fields?.resetsAt, want.fields?.resetsAt, file: file, line: line)
             XCTAssertEqual(got.fields?.used, want.fields?.used, file: file, line: line)
             XCTAssertEqual(got.fields?.limit, want.fields?.limit, file: file, line: line)
+            XCTAssertEqual(got.fields?.remaining, want.fields?.remaining, file: file, line: line)
             XCTAssertEqual(got.requiredWhenPresent, want.requiredWhenPresent ?? true, file: file, line: line)
             XCTAssertEqual(got.fallbackGroup, want.fallbackGroup, file: file, line: line)
         }

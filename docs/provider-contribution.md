@@ -157,14 +157,14 @@ Check:
 - Add account picker, form labels, hints, validation, and experimental badge;
 - Keychain write, update, migration, and deletion behavior;
 - Home window and metric presentation;
-- Models inclusion rules;
+- account-detail classification of model-scoped and other special limits;
 - Connections status, plan label, and freshness;
 - threshold notifications;
 - widget behavior for providers without percentage windows;
 - multi-account identity and collision behavior;
 - authentication, network, provider-drift, and storage-error copy.
 
-Do not fill Models with an ordinary plan-wide row when no model-specific lane exists.
+Do not label an ordinary plan-wide or generic feature row as a model cap.
 
 If a provider exposes only metrics, ensure percentage-only widgets fail honestly rather than inventing a gauge.
 
@@ -207,7 +207,7 @@ Then test the provider on a physical phone with an account you own:
 
 1. Add the credential through the intended onboarding path.
 2. Confirm the first accepted snapshot contains every required output.
-3. Confirm Home, Models, Connections, and widgets behave correctly.
+3. Confirm Home, account detail, Accounts, and widgets behave correctly.
 4. Confirm one provider failure does not stop other accounts.
 5. Confirm rate limiting and expired authentication produce the right state.
 6. Remove the account and confirm credential and observation cleanup.
@@ -225,7 +225,7 @@ A provider is ready when:
 - required outputs prevent false-Live partial mapping;
 - fixtures and expected outputs pass;
 - every fixture has honest provenance;
-- Home, Models, Connections, notifications, and widgets were reviewed;
+- Home, account detail, Accounts, notifications, and widgets were reviewed;
 - credentials and production account data stayed out of the repository;
 - endpoint stability and experimental state are accurate;
 - physical-device validation was completed when the release claims live support.

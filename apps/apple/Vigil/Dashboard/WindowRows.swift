@@ -48,7 +48,7 @@ struct LimitWindowView: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 ResetCountdownView(resetsAt: window.resetsAt)
                 Spacer()
-                Text("\(Int(window.utilization.rounded()))% used")
+                Text(usedDescription(window))
                     .font(.caption2.monospacedDigit())
                     .foregroundStyle(VigilPalette.inkFaint)
             }
@@ -60,7 +60,7 @@ struct LimitWindowView: View {
         .accessibilityValue(
             Text(
                 "\(Int(remaining.rounded())) percent left, "
-                    + "\(Int(window.utilization.rounded())) percent used"
+                    + accessibilityUsedDescription(window)
             )
         )
         .accessibilityHint(accessibilityCountdown(window.resetsAt))
@@ -68,11 +68,11 @@ struct LimitWindowView: View {
 }
 
 /// A compact stacked limit bar: name (+ optional account) on top, a full-width
-/// reservoir, and reset + used underneath. Reads as a clean scannable list —
-/// used by the account cards and the Models view.
+/// reservoir, and reset + used underneath. Reads as a clean scannable list,
+/// used by the complete account-detail surface.
 struct LimitMeterRow: View {
     let window: UsageWindow
-    /// Shown under the title when the same row appears across accounts (Models view).
+    /// Optional context for a row reused across accounts.
     var accountName: String? = nil
     /// Snapshot the window came from, so a row never presents preserved
     /// last-good numbers as current. `UsageService` deliberately keeps the last
@@ -85,6 +85,8 @@ struct LimitMeterRow: View {
     /// model-specific lanes are separated from the account card.
     var isExperimental = false
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     private var remaining: Double {
         UsagePresentation.remainingPercent(for: window)
     }
@@ -94,84 +96,146 @@ struct LimitMeterRow: View {
         return SnapshotFreshness.isDegraded(status: status, fetchedAt: fetchedAt)
     }
 
+    private var resetPending: Bool {
+        guard let fetchedAt else { return false }
+        return SnapshotFreshness.resetIsUnconfirmed(
+            for: window,
+            fetchedAt: fetchedAt
+        )
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(UsagePresentation.title(for: window))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(VigilPalette.ink)
-                        .lineLimit(1)
-                    if accountName != nil || isExperimental {
-                        HStack(spacing: 6) {
-                            if let accountName {
-                                Text(accountName)
-                                    .font(.caption2)
-                                    .foregroundStyle(VigilPalette.inkFaint)
-                                    .lineLimit(1)
+        Group {
+            if resetPending {
+                Label {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(UsagePresentation.title(for: window))
+                            .font(.subheadline.weight(.semibold))
+                        Text("Reset passed · awaiting provider update")
+                            .font(.caption)
+                    }
+                } icon: {
+                    Image(systemName: "arrow.clockwise.circle")
+                }
+                .foregroundStyle(VigilPalette.caution)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+            } else {
+                VStack(alignment: .leading, spacing: 7) {
+                    meterHeader
+
+                    LimitReservoirBar(
+                        remaining: remaining,
+                        tint: UsageTint.color(for: window.utilization)
+                    )
+
+                    Group {
+                        if dynamicTypeSize.isAccessibilitySize {
+                            VStack(alignment: .leading, spacing: 4) {
+                                resetOrStaleness
+                                usedLabel
                             }
-                            if isExperimental {
-                                ExperimentalBadge()
+                        } else {
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                resetOrStaleness
+                                Spacer()
+                                usedLabel
                             }
                         }
                     }
                 }
-                Spacer(minLength: 8)
-                HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Text("\(Int(remaining.rounded()))%")
-                        .font(.callout.weight(.bold).monospacedDigit())
-                        .foregroundStyle(UsageTint.color(for: window.utilization))
-                    Text("left")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(VigilPalette.inkMuted)
-                }
-            }
-
-            LimitReservoirBar(
-                remaining: remaining,
-                tint: UsageTint.color(for: window.utilization)
-            )
-
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                if isDegraded, let status, let fetchedAt {
-                    // Not current: say so instead of ticking a countdown that
-                    // implies the number behind it is live.
-                    Label(
-                        UsagePresentation.stalenessNote(status: status, fetchedAt: fetchedAt),
-                        systemImage: "exclamationmark.triangle.fill"
+                .opacity(isDegraded ? 0.7 : 1)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(
+                    Text(
+                        (accountName.map { "\($0), " } ?? "")
+                            + UsagePresentation.title(for: window)
+                            + (isExperimental ? ", experimental integration" : "")
                     )
-                    .font(.caption2)
-                    .foregroundStyle(VigilPalette.caution)
-                    .lineLimit(1)
-                } else {
-                    ResetCountdownView(resetsAt: window.resetsAt)
-                }
-                Spacer()
-                Text("\(Int(window.utilization.rounded()))% used")
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(VigilPalette.inkFaint)
+                )
+                .accessibilityValue(
+                    Text(
+                        "\(Int(remaining.rounded())) percent left, "
+                            + accessibilityUsedDescription(window)
+                            + (isDegraded && status != nil && fetchedAt != nil
+                                ? ", \(UsagePresentation.stalenessNote(status: status!, fetchedAt: fetchedAt!))"
+                                : "")
+                    )
+                )
+                .accessibilityHint(isDegraded ? Text("") : accessibilityCountdown(window.resetsAt))
             }
         }
         .padding(.vertical, 9)
-        .opacity(isDegraded ? 0.7 : 1)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            Text(
-                (accountName.map { "\($0), " } ?? "")
-                    + UsagePresentation.title(for: window)
-                    + (isExperimental ? ", experimental integration" : "")
+    }
+
+    @ViewBuilder
+    private var meterHeader: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 6) {
+                titleBlock
+                remainingLabel
+            }
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                titleBlock
+                Spacer(minLength: 8)
+                remainingLabel
+            }
+        }
+    }
+
+    private var titleBlock: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(UsagePresentation.title(for: window))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(VigilPalette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            if accountName != nil || isExperimental {
+                VStack(alignment: .leading, spacing: 4) {
+                    if let accountName {
+                        Text(accountName)
+                            .font(.caption2)
+                            .foregroundStyle(VigilPalette.inkFaint)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if isExperimental {
+                        ExperimentalBadge()
+                    }
+                }
+            }
+        }
+    }
+
+    private var remainingLabel: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 3) {
+            Text("\(Int(remaining.rounded()))%")
+                .font(.callout.weight(.bold).monospacedDigit())
+                .foregroundStyle(UsageTint.color(for: window.utilization))
+            Text("left")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(VigilPalette.inkMuted)
+        }
+    }
+
+    @ViewBuilder
+    private var resetOrStaleness: some View {
+        if isDegraded, let status, let fetchedAt {
+            Label(
+                UsagePresentation.stalenessNote(status: status, fetchedAt: fetchedAt),
+                systemImage: "exclamationmark.triangle.fill"
             )
-        )
-        .accessibilityValue(
-            Text(
-                "\(Int(remaining.rounded())) percent left, "
-                    + "\(Int(window.utilization.rounded())) percent used"
-                    + (isDegraded && status != nil && fetchedAt != nil
-                        ? ", \(UsagePresentation.stalenessNote(status: status!, fetchedAt: fetchedAt!))"
-                        : "")
-            )
-        )
-        .accessibilityHint(isDegraded ? Text("") : accessibilityCountdown(window.resetsAt))
+            .font(.caption2)
+            .foregroundStyle(VigilPalette.caution)
+            .fixedSize(horizontal: false, vertical: true)
+        } else {
+            ResetCountdownView(resetsAt: window.resetsAt)
+        }
+    }
+
+    private var usedLabel: some View {
+        Text(usedDescription(window))
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(VigilPalette.inkFaint)
     }
 }
 
@@ -179,6 +243,8 @@ struct LimitMeterRow: View {
 struct LimitMeterStack: View {
     let windows: [UsageWindow]
     var accountName: String? = nil
+    var status: SnapshotStatus? = nil
+    var fetchedAt: Date? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -186,7 +252,12 @@ struct LimitMeterStack: View {
                 if index > 0 {
                     Divider().overlay(VigilPalette.ink.opacity(0.08))
                 }
-                LimitMeterRow(window: window, accountName: accountName)
+                LimitMeterRow(
+                    window: window,
+                    accountName: accountName,
+                    status: status,
+                    fetchedAt: fetchedAt
+                )
             }
         }
     }
@@ -241,7 +312,7 @@ struct WindowBarRow: View {
 }
 
 func accessibilityCountdown(_ resetsAt: Date?) -> Text {
-    guard let resetsAt else { return Text("No reset scheduled") }
+    guard let resetsAt else { return Text("No reset reported") }
     if resetsAt <= Date() { return Text("Reset due, awaiting refresh") }
     return Text("Resets \(resetsAt, style: .relative) from now")
 }
@@ -265,7 +336,7 @@ struct ResetCountdownView: View {
                     Text("Reset due · awaiting refresh")
                 }
             } else {
-                Text("No reset scheduled")
+                Text("No reset reported")
             }
         }
         .font(.caption)
@@ -277,6 +348,34 @@ enum UsageTint {
     static func color(for utilization: Double) -> Color {
         VigilPalette.limitColor(utilization: utilization)
     }
+}
+
+private func usedDescription(_ window: UsageWindow) -> String {
+    let percent = "\(Int(window.utilization.rounded()))% used"
+    guard let used = window.used, let limit = window.limit else { return percent }
+    if !UsagePresentation.exactAmountsMatchUtilization(window) {
+        let remaining = window.remaining.map { ", \(usageNumber($0)) remaining" } ?? ""
+        return "\(percent) · Provider amounts: \(usageNumber(used)) used, \(usageNumber(limit)) limit\(remaining)"
+    }
+    let exact = "\(usageNumber(used)) / \(usageNumber(limit)) used"
+    guard let remaining = window.remaining else { return "\(percent) · \(exact)" }
+    return "\(percent) · \(exact) · \(usageNumber(remaining)) left"
+}
+
+private func accessibilityUsedDescription(_ window: UsageWindow) -> String {
+    let percent = "\(Int(window.utilization.rounded())) percent used"
+    guard let used = window.used, let limit = window.limit else { return percent }
+    if !UsagePresentation.exactAmountsMatchUtilization(window) {
+        let remaining = window.remaining.map { ", \(usageNumber($0)) remaining" } ?? ""
+        return "\(percent), provider reports \(usageNumber(used)) used, \(usageNumber(limit)) limit\(remaining)"
+    }
+    let exact = "\(usageNumber(used)) of \(usageNumber(limit)) used"
+    guard let remaining = window.remaining else { return "\(percent), \(exact)" }
+    return "\(percent), \(exact), \(usageNumber(remaining)) left"
+}
+
+private func usageNumber(_ value: Double) -> String {
+    value.formatted(.number.precision(.fractionLength(0...2)))
 }
 
 /// Scalar spend and balance values remain amounts because inventing a

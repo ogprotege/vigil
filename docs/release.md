@@ -2,7 +2,7 @@
 
 This runbook covers the iOS app and widget extension. The repository no longer builds or publishes a desktop app or command-line package. The legacy `vigil-link@0.2.0` npm artifact remains installable until the authenticated deprecation step below is completed.
 
-The first live TestFlight upload occurred on 2026-07-18. The examples below target version **0.14.0**, build **15**.
+The first live TestFlight upload occurred on 2026-07-18. The current candidate is version **0.15.0**, build **16**.
 
 ## One-time setup
 
@@ -52,7 +52,7 @@ Use `0700` directories and `0600` files for local signing backups.
 ## Preflight
 
 1. Confirm the working tree contains only intended release changes.
-2. Confirm `MARKETING_VERSION: 0.14.0` and `CURRENT_PROJECT_VERSION: 15` in `apps/apple/project.yml`.
+2. Confirm `MARKETING_VERSION: 0.15.0` and `CURRENT_PROJECT_VERSION: 16` in `apps/apple/project.yml`.
 3. Confirm no signing secret is tracked.
 4. Run the full local gate.
 
@@ -74,44 +74,59 @@ xcodebuild -project Vigil.xcodeproj -scheme Vigil \
   test CODE_SIGNING_ALLOWED=NO
 ```
 
-## Archive and upload 0.14.0 (15)
+## Archive and upload 0.15.0 (16)
 
 ```sh
-cd apps/apple
+cd /Users/biscuit/Vigil
 
-VIGIL_RELEASE_VERSION=0.14.0
-VIGIL_RELEASE_BUILD=15
-VIGIL_ARCHIVE_PATH="build/Vigil-0.14.0-15.xcarchive"
-VIGIL_EXPORT_PATH="build/export-0.14.0-15"
+VIGIL_RELEASE_VERSION=0.15.0
+VIGIL_RELEASE_BUILD=16
+VIGIL_ARCHIVE_PATH="apps/apple/build/Vigil-0.15.0-16.xcarchive"
+VIGIL_DERIVED_PATH="apps/apple/build/DerivedData-0.15.0-16"
+
+test "$(stat -f '%Lp' /Users/biscuit/private_keys)" = 700
+test -z "$(git status --porcelain)"
+git diff --check
+test ! -e "$VIGIL_ARCHIVE_PATH"
+test ! -e "$VIGIL_DERIVED_PATH"
+
+umask 077
+xcodegen generate --spec apps/apple/project.yml
+xcodebuild -project apps/apple/Vigil.xcodeproj -scheme Vigil \
+  -configuration Release \
+  -destination 'generic/platform=iOS' \
+  -derivedDataPath "$VIGIL_DERIVED_PATH" \
+  -archivePath "$VIGIL_ARCHIVE_PATH" \
+  VALIDATE_PRODUCT=YES \
+  clean archive
+
+scripts/verify-ios-archive.sh \
+  "$VIGIL_ARCHIVE_PATH" \
+  "$VIGIL_RELEASE_VERSION" \
+  "$VIGIL_RELEASE_BUILD"
+```
+
+The verifier checks app and widget identities, signed entitlements, embedded
+profiles and expiration dates, privacy manifests and required-reason entries,
+release versions, the encryption declaration, signatures, and matching dSYMs.
+
+`ExportOptions.plist` has `destination=upload`. Therefore the next command sends
+the build to App Store Connect. Run it only after the release owner explicitly
+approves app `6792373775`, version `0.15.0`, build `16`, upload and Internal
+TestFlight distribution.
+
+```sh
+cd /Users/biscuit/Vigil/apps/apple
+
 VIGIL_ASC_KEY_PATH="$HOME/private_keys/AuthKey_YOUR_KEY_ID.p8"
 VIGIL_ASC_KEY_ID="YOUR_KEY_ID"
 VIGIL_ASC_ISSUER_ID="YOUR_ISSUER_ID"
 
-test ! -e "$VIGIL_ARCHIVE_PATH"
-test ! -e "$VIGIL_EXPORT_PATH"
-
-xcodegen generate
-xcodebuild -project Vigil.xcodeproj -scheme Vigil \
-  -destination 'generic/platform=iOS' \
-  archive \
-  -archivePath "$VIGIL_ARCHIVE_PATH"
-
-test "$(/usr/libexec/PlistBuddy \
-  -c 'Print:ApplicationProperties:CFBundleShortVersionString' \
-  "$VIGIL_ARCHIVE_PATH/Info.plist")" = "$VIGIL_RELEASE_VERSION"
-
-test "$(/usr/libexec/PlistBuddy \
-  -c 'Print:ApplicationProperties:CFBundleVersion' \
-  "$VIGIL_ARCHIVE_PATH/Info.plist")" = "$VIGIL_RELEASE_BUILD"
-
-codesign --verify --deep --strict \
-  "$VIGIL_ARCHIVE_PATH/Products/Applications/Vigil.app"
-
 env PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
   xcodebuild -exportArchive \
-  -archivePath "$VIGIL_ARCHIVE_PATH" \
+  -archivePath "build/Vigil-0.15.0-16.xcarchive" \
   -exportOptionsPlist ExportOptions.plist \
-  -exportPath "$VIGIL_EXPORT_PATH" \
+  -exportPath "build/export-0.15.0-16" \
   -allowProvisioningUpdates \
   -authenticationKeyPath "$VIGIL_ASC_KEY_PATH" \
   -authenticationKeyID "$VIGIL_ASC_KEY_ID" \
@@ -137,16 +152,25 @@ Do not describe the npm artifact as deprecated until the second command returns 
 
 After processing:
 
-1. Confirm version 0.14.0 and build 15 in App Store Connect.
+1. Confirm version 0.15.0 and build 16 in App Store Connect.
 2. Confirm the build entered the Internal group.
 3. Install it from TestFlight on a clean device or after removing the prior build.
 4. Add Claude through phone-native browser approval.
 5. Add Codex through device authorization.
 6. Add one pasted-key provider.
-7. Confirm Home shows plan-wide windows and Models shows only genuine model lanes.
+7. Confirm Home ranks accounts by urgency and each account detail shows all real plan-wide, special, and genuine model lanes.
 8. Confirm stale, rate-limit, and provider-drift states do not display as Live.
 9. Confirm app and widget share the selected account and poll ledger.
-10. Confirm account removal deletes the credential and local observations.
+10. Produce successful app and widget readings. Confirm **Observed by Vigil** retains both and that the **View all ... records** action loads later cursor pages without duplicates.
+11. Confirm the archive reports a rolling 400-day policy with independent per-account caps of 120,000 observed and 5,000 provider-backfill records.
+12. On an OpenAI API organization account, start the optional import from account detail. Confirm it is user-initiated, covers no more than 365 days, labels rows **Imported from provider**, keeps costs separate from token groups, and never describes the rows as ChatGPT or Codex subscription activity.
+13. Export diagnostics. Confirm `historyScope.retainedSampleCount` and `historyScope.exportedSampleCount` are present, the exported history is a bounded recent subset, and no credential, raw provider body, or free-form account label appears.
+14. Enable the app lock. Confirm device-owner authentication unlocks Vigil, protected content is not interactive or accessible while locked, and inactive or background app-switcher snapshots show the opaque privacy cover. Confirm the configured widget remains a separately visible surface.
+15. Confirm exact five-minute background sampling is never promised. Leave the app and widget long enough to observe that iOS controls actual scheduling while every request still obeys the provider floor.
+16. Remove an account during active app and widget work. Confirm no late task recreates credentials, snapshots, SQLite history, pending events, notifications, lock files, poll state, index backups, or lifecycle metadata.
+17. On a disposable install, corrupt the lifecycle registry through the test fixture and confirm Settings presents the full local recovery action. Confirm its warning lists credentials and history, cancellation changes nothing, and confirmation returns Vigil to an empty setup state without leaving widget data or Vigil notifications.
+18. Recreate any widget configured by an earlier beta if its Apple-managed configuration may still contain a legacy raw account identifier. New widget configurations must use opaque identifiers.
+19. If Settings reports an account-index repair backup, delete it separately. Confirm this preserves linked accounts, Keychain credentials, snapshots, and history.
 
 ## Known release gotchas
 

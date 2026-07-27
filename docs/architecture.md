@@ -14,7 +14,7 @@
 │  │   ├─ UsageClient and UsageMapper                                    │
 │  │   ├─ FetchScheduler and FileLedgerStore                             │
 │  │   ├─ KeychainCredentialsStore                                       │
-│  │   ├─ SnapshotStore and observation history                          │
+│  │   ├─ SnapshotStore and SQLite UsageHistoryStore                     │
 │  │   └─ ThresholdEngine                                                │
 │  └─ VigilWidgets                                                       │
 │      └─ reads shared snapshots and obeys the shared poll ledger        │
@@ -49,7 +49,7 @@ Adding a provider can require authentication, request construction, mapping, fix
 
 ```text
 UsageWindow {
-  id, label?, utilization: 0...100,
+  id, label?, utilization: 0...100, used?, limit?,
   resetsAt?, windowSeconds?, secondary
 }
 
@@ -62,6 +62,12 @@ ProviderSnapshot {
   providerId, accountKey, accountLabel?, planLabel?, fetchedAt,
   status: ok | authExpired | rateLimited | schemaChanged | network,
   windows, metrics
+}
+
+UsageHistorySample {
+  source: observed | providerBackfill,
+  accountKey, providerId, recordedAt, retrievedAt,
+  status, normalized windows, normalized metrics
 }
 ```
 
@@ -83,6 +89,11 @@ The lease is durable and expires after a bounded interval. The scheduler clamps 
 
 Provider reset timestamps let every surface render a moving countdown without another request. Widget timelines can schedule reset-boundary entries. The UI still shows snapshot age because a live countdown does not imply fresh utilization.
 
+Provider requests and Claude/Codex token exchanges use an ephemeral URL session
+with no response cache or cookie store. Startup clears app-scoped default-session
+cache and cookie residue left by pre-0.15 builds. Browser approval remains owned
+by the system browser and is outside Vigil's storage boundary.
+
 ### Required-output contracts
 
 Successful HTTP status is not enough. A provider response must parse and satisfy its declared minimum windows, metrics, IDs, exhaustive collections, and correlated-field rules.
@@ -91,7 +102,29 @@ This prevents a partial response from being labeled Live merely because one unre
 
 ### Persistence honesty
 
-Credential rotation, Keychain deletion, account index updates, snapshots, observation history, notification state, and polling leases each have explicit failure paths. Storage failure is not collapsed into a provider-network state.
+Credential rotation, Keychain deletion, account index updates, snapshots, normalized history, notification state, and polling leases each have explicit failure paths. Storage failure is not collapsed into a provider-network state.
+
+Account removal first tombstones the account across app and widget processes. It then clears credentials, current and prior snapshots, normalized and legacy history, pending event data, queued and delivered notifications, poll state, account-derived lock files, and damaged account-index backups. The account stays visible when a required cleanup fails so the user can retry. A final generation-scoped sweep prevents an older in-flight fetch from recreating removed state.
+
+Async provider work owns an opaque scheduler lease. Release, result recording, cancellation, and lifecycle rotation can mutate only that exact lease. A late operation from an older account generation cannot clear the polling state of a prompt re-link. Notification identifiers also include an opaque lifecycle scope. Removal performs an account-wide sweep only while its tombstone is authoritative; stale post-delivery cleanup removes exact old-generation identifiers.
+
+If an identity registry is unreadable, ordinary mutation remains blocked. Settings exposes a separately confirmed full local reset. The reset blocks new notification drains, waits for older account cleanup and notification delivery, replaces even a corrupt lifecycle registry with tombstones under the shared lock, deletes every enumerable Keychain credential and Vigil-owned local store, writes an empty account index, clears tombstones last, and performs a final owned-notification sweep. This ordering keeps app and widget writers invalid across crashes and partial failures.
+
+### On-device history
+
+Every accepted snapshot persisted by the app, background task, or widget also enters `UsageHistoryStore`. The store is `usage-history-v2.sqlite3` inside the App Group directory. It uses transactions, WAL mode, short-lived full-mutex connections, owner-only permissions, and iOS data protection. An external file lock coordinates legacy migration and whole-store deletion across processes.
+
+Each window sample carries a segment identity derived from provider, window ID, and reset timestamp. A changed reset timestamp begins a new segment. Device observations remain distinct from historical buckets imported through an official provider API.
+
+History retention is bounded to 400 days. Each account has independent capacities of 120,000 device observations and 5,000 provider-backfill records. A large provider import therefore cannot evict observed history for that account or another account. Every distinct successful fetch time remains a separate observation; only an exact duplicate write of the same fetch is idempotent. Corrupt history fails closed instead of being silently replaced.
+
+Account detail reads summary counts without decoding the archive, then loads retained history newest-first with stable cursor paging. The normal archive page contains 100 records. This keeps launch and account-detail work bounded even when a source reaches its retention cap.
+
+The current official backfill is limited to OpenAI API-platform organization data. A user-initiated import requests up to 365 days of documented completion-usage and organization-cost buckets with an Admin API key. Token quantities and costs remain separate because their provider grouping dimensions differ. These rows do not describe ChatGPT or Codex subscription activity.
+
+Diagnostic export is intentionally smaller than the retained archive. It uses the bounded recent preview for each account and provenance source, then records `retainedSampleCount`, `exportedSampleCount`, and the `bounded-recent-per-account-and-source` selection rule in the report.
+
+On upgrade, Vigil migrates the retired `usage-observations.json` money log into normalized observed metrics. Legacy UUIDs remain stable, so a retry cannot duplicate imported rows. The retired file is deleted only after every eligible reading is stored successfully.
 
 ## Authentication ownership
 
@@ -106,23 +139,28 @@ Manually pasted credentials are externally owned. Vigil never rotates their refr
 - iOS background: opportunistic `BGAppRefreshTask` execution.
 - Widget timeline: fetches only when the snapshot is old enough and the shared ledger permits it.
 
-iOS and WidgetKit decide when background work runs. Vigil cannot promise exact refresh times.
+iOS and WidgetKit decide when background work runs. Vigil cannot promise exact refresh times or five-minute sampling. The five-minute provider minimum is a rate floor, not a background schedule.
 
 ## Presentation rules
 
-- Home leads with plan-wide session and weekly windows and can include a compact subset of model or special lanes, plus balances and spend.
-- Models is the complete model-only list and contains only genuine model-specific or model-associated quota lanes.
-- An account with no model-specific lane does not contribute a fallback weekly row to Models.
+- Limits ranks accounts by required action and remaining quota.
+- One decisive current window appears in each Home row. Complete windows and metrics live in account detail.
+- Model-cap sections contain only windows whose provider contract explicitly identifies model scope. Generic secondary or labeled feature lanes are not assumed to be model caps.
+- Device history is labeled `Observed by Vigil`. Provider-returned historical buckets are labeled `Imported from provider`.
+- No calendar filter is applied to current provider reset windows.
 - Experimental provider labels remain visible in onboarding and account surfaces.
 - Stale or incompatible data never receives a Live label.
 
 ## Security posture
 
 - Credentials use `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` in the shared Keychain group.
-- Snapshots, account metadata, leases, and notification state use the App Group container.
+- Snapshots, normalized history, account metadata, leases, and notification state use the App Group container.
+- New widget configurations and notification identifiers use non-reversible account digests. Existing raw widget selections remain readable only as an upgrade bridge.
 - Provider traffic uses operating-system TLS directly from the device.
 - Vigil has no collection server or analytics.
-- The optional app lock reduces casual access. It does not create a separate cryptographic boundary around Keychain.
+- The optional app lock uses system device-owner authentication with biometric or passcode handling. Vigil stores no biometric data.
+- Root content is hidden from interaction and accessibility while locked. An opaque privacy cover replaces it whenever the scene is inactive or backgrounded, including app-switcher snapshots.
+- The lock protects the app surface. It does not create a separate cryptographic boundary around Keychain or hide a configured widget.
 
 See [Threat model](threat-model.md) and [Privacy](privacy.md) for precise limits.
 
@@ -132,5 +170,6 @@ See [Threat model](threat-model.md) and [Privacy](privacy.md) for precise limits
 - Most opt-in fixtures are not sanitized Vigil production captures.
 - Account-level poll leases do not create a global provider budget across several linked accounts.
 - Background execution is opportunistic.
+- Observed history can therefore contain gaps and cannot prove complete activity between readings.
 - Balance and spend providers may have no percentage window suitable for a gauge.
 - Vigil trusts the operating system certificate store and does not pin provider certificates.

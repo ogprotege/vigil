@@ -2,6 +2,43 @@ import Foundation
 import OSLog
 import VigilKit
 
+enum ProviderUsageSession {
+    static let shared = make()
+
+    static func make() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.urlCache = nil
+        configuration.httpShouldSetCookies = false
+        configuration.httpCookieStorage = nil
+        return URLSession(configuration: configuration)
+    }
+}
+
+/// Removes only this app's legacy default-session storage. Provider requests
+/// and OAuth token exchanges now use `ProviderUsageSession`, whose ephemeral
+/// configuration neither reads nor writes these stores. Browser cookies from
+/// Safari or an OAuth approval surface are outside this process and untouched.
+enum LegacyNetworkStorageCleaner {
+    static func removeAppScopedSharedSessionData() {
+        let legacyCache = URLCache.shared
+        legacyCache.removeAllCachedResponses()
+        // On current iOS simulators, `removeAllCachedResponses()` can leave a
+        // just-written in-memory entry observable through the same cache
+        // instance until its storage bookkeeping catches up. Zeroing both
+        // capacities forces eviction, and replacing the process-wide default
+        // guarantees no legacy response can be reused. Vigil's active network
+        // sessions carry their own nil cache, so the zero-capacity default is
+        // also the honest steady state for this app.
+        legacyCache.memoryCapacity = 0
+        legacyCache.diskCapacity = 0
+        URLCache.shared = URLCache(memoryCapacity: 0, diskCapacity: 0)
+        HTTPCookieStorage.shared.cookies?.forEach {
+            HTTPCookieStorage.shared.deleteCookie($0)
+        }
+    }
+}
+
 /// One ledger-gated fetch: acquire -> request -> classify -> snapshot ->
 /// recordResult. Shared by the app, the widget timeline provider, and
 /// background refresh so every surface obeys the same budget.
@@ -14,6 +51,9 @@ enum UsageService {
         case rotatedCredentials
         /// The provider outcome was received, but its snapshot was not saved.
         case snapshot
+        /// A successful provider reading could not be appended to the durable
+        /// on-device history. Current usage may still be available.
+        case history
         /// Existing snapshot data could not be read safely.
         case snapshotRead
         /// A threshold crossing could not be parked for app delivery.
@@ -21,6 +61,10 @@ enum UsageService {
         /// The shared polling ledger could not be read or written. The string
         /// is safe, user-facing storage context, never credential material.
         case fetchLedger(String)
+        /// The shared account-generation registry could not be validated.
+        /// Writes stop fail-closed because account removal cannot otherwise be
+        /// made atomic across the app and widget processes.
+        case accountLifecycle(String)
     }
 
     enum CredentialState: Sendable, Equatable {
@@ -53,12 +97,15 @@ enum UsageService {
         snapshots: SnapshotStore,
         vault: (any CredentialsStore)? = nil,
         surface: String,
-        session: URLSession = .shared,
+        session: URLSession = ProviderUsageSession.shared,
         persistSnapshot: Bool = true,
         emitThresholdEvents: Bool = true,
         persistRotatedCredentials: Bool = true,
         allowCredentialRefresh: Bool = true,
-        pendingEvents: PendingEventStore? = nil
+        pendingEvents: PendingEventStore? = nil,
+        history: UsageHistoryStore? = nil,
+        lifecycle: AccountLifecycleStore? = nil,
+        generation: AccountLifecycleGeneration? = nil
     ) async -> Result {
         guard let spec = ProviderRegistry.spec(for: account.providerId) else {
             return Result(
@@ -70,7 +117,32 @@ enum UsageService {
             )
         }
 
-        guard await scheduler.acquire(accountKey: account.key, policy: spec.poll) else {
+        if lifecycle != nil, generation == nil {
+            return inactiveResult(credentials: credentials)
+        }
+
+        let acquiredLease: FetchLease?
+        do {
+            acquiredLease = try await schedulerAcquire(
+                scheduler,
+                policy: spec.poll,
+                lifecycle,
+                generation: generation,
+                accountKey: account.key
+            )
+        } catch let error as AccountLifecycleError {
+            return lifecycleFailureResult(error, credentials: credentials)
+        } catch {
+            return Result(
+                snapshot: nil,
+                nextAllowed: nil,
+                persistenceIssue: .accountLifecycle(error.localizedDescription),
+                effectiveCredentials: credentials,
+                credentialState: .unchanged
+            )
+        }
+
+        guard let lease = acquiredLease else {
             let acquireError = await scheduler.persistenceErrorDescription(accountKey: account.key)
             if let acquireError {
                 log.error(
@@ -101,7 +173,32 @@ enum UsageService {
         do {
             previous = try snapshots.current(accountKey: account.key)
         } catch {
-            let released = await scheduler.release(accountKey: account.key)
+            let released: Bool
+            do {
+                released = try await schedulerRelease(
+                    scheduler,
+                    lease: lease,
+                    lifecycle,
+                    generation: generation,
+                    accountKey: account.key
+                )
+            } catch let lifecycleError as AccountLifecycleError where isInvalidation(lifecycleError) {
+                return await retireAndReturnInactive(
+                    scheduler: scheduler,
+                    lease: lease,
+                    policy: spec.poll,
+                    accountKey: account.key,
+                    credentials: credentials
+                )
+            } catch {
+                return Result(
+                    snapshot: nil,
+                    nextAllowed: nil,
+                    persistenceIssue: .accountLifecycle(error.localizedDescription),
+                    effectiveCredentials: credentials,
+                    credentialState: .unchanged
+                )
+            }
             log.error(
                 "[\(surface)] \(account.key, privacy: .private(mask: .hash)): snapshot read failed: \(error.localizedDescription, privacy: .private(mask: .hash)); lease released: \(released, privacy: .public)"
             )
@@ -150,7 +247,33 @@ enum UsageService {
                 // cancels the refresh task group, a foreground/background cycle
                 // could then send one Claude request per cycle with no floor.
                 if error is CancellationError || (error as? URLError)?.code == .cancelled {
-                    let charged = await scheduler.chargeFloor(accountKey: account.key, policy: spec.poll)
+                    let charged: Bool
+                    do {
+                        charged = try await schedulerChargeFloor(
+                            scheduler,
+                            lease: lease,
+                            policy: spec.poll,
+                            lifecycle,
+                            generation: generation,
+                            accountKey: account.key
+                        )
+                    } catch let lifecycleError as AccountLifecycleError where isInvalidation(lifecycleError) {
+                        return await retireAndReturnInactive(
+                            scheduler: scheduler,
+                            lease: lease,
+                            policy: spec.poll,
+                            accountKey: account.key,
+                            credentials: credentials
+                        )
+                    } catch {
+                        return Result(
+                            snapshot: nil,
+                            nextAllowed: nil,
+                            persistenceIssue: .accountLifecycle(error.localizedDescription),
+                            effectiveCredentials: credentials,
+                            credentialState: .unchanged
+                        )
+                    }
                     let schedulerError = charged ? nil : await scheduler.persistenceErrorDescription(accountKey: account.key)
                     log.info("[\(surface)] \(account.key, privacy: .private(mask: .hash)): cancelled, released")
                     return Result(
@@ -189,7 +312,9 @@ enum UsageService {
                 vault: vault,
                 surface: surface,
                 session: session,
-                persistRotatedCredentials: persistRotatedCredentials
+                persistRotatedCredentials: persistRotatedCredentials,
+                lifecycle: lifecycle,
+                generation: generation
             ) {
             case .outcome(let outcome, let updated):
                 effectiveCredentials = updated
@@ -224,6 +349,14 @@ enum UsageService {
                 planLabel = nil
                 windows = []
                 metrics = []
+            case .lifecycleInvalidated:
+                return await retireAndReturnInactive(
+                    scheduler: scheduler,
+                    lease: lease,
+                    policy: spec.poll,
+                    accountKey: account.key,
+                    credentials: credentials
+                )
             case .unavailable:
                 break
             }
@@ -260,13 +393,56 @@ enum UsageService {
 
         if persistSnapshot {
             do {
-                try snapshots.save(snapshot, accountKey: account.key)
+                _ = try withLifecycle(
+                    lifecycle,
+                    generation: generation,
+                    accountKey: account.key
+                ) {
+                    try snapshots.save(snapshot, accountKey: account.key)
+                }
+            } catch let error as AccountLifecycleError where isInvalidation(error) {
+                return await retireAndReturnInactive(
+                    scheduler: scheduler,
+                    lease: lease,
+                    policy: spec.poll,
+                    accountKey: account.key,
+                    credentials: effectiveCredentials
+                )
             } catch {
                 if persistenceIssue == nil {
                     persistenceIssue = .snapshot
                 }
                 log.error(
                     "[\(surface)] \(account.key, privacy: .private(mask: .hash)): snapshot save failed: \(error.localizedDescription, privacy: .private(mask: .hash))"
+                )
+            }
+        }
+        // Only accepted provider readings enter history. Degraded snapshots
+        // intentionally retain old values, so archiving them would invent a
+        // new observation at the time of a network or authentication error.
+        if persistSnapshot, snapshot.status == .ok, let history {
+            do {
+                _ = try withLifecycle(
+                    lifecycle,
+                    generation: generation,
+                    accountKey: account.key
+                ) {
+                    try history.append(snapshot: snapshot)
+                }
+            } catch let error as AccountLifecycleError where isInvalidation(error) {
+                return await retireAndReturnInactive(
+                    scheduler: scheduler,
+                    lease: lease,
+                    policy: spec.poll,
+                    accountKey: account.key,
+                    credentials: effectiveCredentials
+                )
+            } catch {
+                if persistenceIssue == nil {
+                    persistenceIssue = .history
+                }
+                log.error(
+                    "[\(surface)] \(account.key, privacy: .private(mask: .hash)): history append failed: \(error.localizedDescription, privacy: .private(mask: .hash))"
                 )
             }
         }
@@ -278,8 +454,22 @@ enum UsageService {
             : []
         if persistSnapshot, !events.isEmpty {
             do {
-                try (pendingEvents ?? PendingEventStore(directory: SharedContainer.directory))
-                    .append(events, accountKey: account.key)
+                try withLifecycle(
+                    lifecycle,
+                    generation: generation,
+                    accountKey: account.key
+                ) {
+                    try (pendingEvents ?? PendingEventStore(directory: SharedContainer.directory))
+                        .append(events, accountKey: account.key)
+                }
+            } catch let error as AccountLifecycleError where isInvalidation(error) {
+                return await retireAndReturnInactive(
+                    scheduler: scheduler,
+                    lease: lease,
+                    policy: spec.poll,
+                    accountKey: account.key,
+                    credentials: effectiveCredentials
+                )
             } catch {
                 if persistenceIssue == nil {
                     persistenceIssue = .pendingEvents
@@ -303,11 +493,34 @@ enum UsageService {
         // charged whenever the provider answered.
         let shouldChargePollClock = persistSnapshot || providerAnswered
         if shouldChargePollClock {
-            let recorded = await scheduler.recordResult(
-                accountKey: account.key,
-                policy: spec.poll,
-                status: status
-            )
+            let recorded: Bool
+            do {
+                recorded = try await schedulerRecordResult(
+                    scheduler,
+                    lease: lease,
+                    policy: spec.poll,
+                    status: status,
+                    lifecycle,
+                    generation: generation,
+                    accountKey: account.key
+                )
+            } catch let error as AccountLifecycleError where isInvalidation(error) {
+                return await retireAndReturnInactive(
+                    scheduler: scheduler,
+                    lease: lease,
+                    policy: spec.poll,
+                    accountKey: account.key,
+                    credentials: effectiveCredentials
+                )
+            } catch {
+                return Result(
+                    snapshot: nil,
+                    nextAllowed: nil,
+                    persistenceIssue: .accountLifecycle(error.localizedDescription),
+                    effectiveCredentials: effectiveCredentials,
+                    credentialState: credentialState
+                )
+            }
             if !recorded {
                 let schedulerError = await scheduler.persistenceErrorDescription(accountKey: account.key)
                     ?? "The polling lease changed before the result was recorded."
@@ -322,7 +535,32 @@ enum UsageService {
                 )
             }
         } else {
-            let released = await scheduler.release(accountKey: account.key)
+            let released: Bool
+            do {
+                released = try await schedulerRelease(
+                    scheduler,
+                    lease: lease,
+                    lifecycle,
+                    generation: generation,
+                    accountKey: account.key
+                )
+            } catch let error as AccountLifecycleError where isInvalidation(error) {
+                return await retireAndReturnInactive(
+                    scheduler: scheduler,
+                    lease: lease,
+                    policy: spec.poll,
+                    accountKey: account.key,
+                    credentials: effectiveCredentials
+                )
+            } catch {
+                return Result(
+                    snapshot: nil,
+                    nextAllowed: nil,
+                    persistenceIssue: .accountLifecycle(error.localizedDescription),
+                    effectiveCredentials: effectiveCredentials,
+                    credentialState: credentialState
+                )
+            }
             if !released {
                 let schedulerError = await scheduler.persistenceErrorDescription(accountKey: account.key)
                     ?? "The polling lease could not be released after a failed verify."
@@ -349,6 +587,7 @@ enum UsageService {
         case rotatedRetryUnavailable(Credentials)
         case credentialPersistenceFailed(Credentials)
         case outcome(UsageClient.Outcome, Credentials)
+        case lifecycleInvalidated
     }
 
     private static func refreshAndRetry(
@@ -358,7 +597,9 @@ enum UsageService {
         vault: (any CredentialsStore)?,
         surface: String,
         session: URLSession,
-        persistRotatedCredentials: Bool
+        persistRotatedCredentials: Bool,
+        lifecycle: AccountLifecycleStore?,
+        generation: AccountLifecycleGeneration?
     ) async -> RefreshRetryResult {
         guard let refreshRequest = TokenRefresher.refreshRequest(spec: spec, credentials: credentials) else {
             return .unavailable
@@ -382,7 +623,15 @@ enum UsageService {
                     return .credentialPersistenceFailed(updated)
                 }
                 do {
-                    try vault.save(updated, accountKey: account.key)
+                    try withLifecycle(
+                        lifecycle,
+                        generation: generation,
+                        accountKey: account.key
+                    ) {
+                        try vault.save(updated, accountKey: account.key)
+                    }
+                } catch let error as AccountLifecycleError where isInvalidation(error) {
+                    return .lifecycleInvalidated
                 } catch {
                     log.error(
                         "[\(surface)] \(account.key, privacy: .private(mask: .hash)): rotated credential save failed: \(error.localizedDescription, privacy: .private(mask: .hash))"
@@ -414,5 +663,154 @@ enum UsageService {
             // the token WAS rejected; the next cycle can try again.
             return .unavailable
         }
+    }
+
+    private static func withLifecycle<T>(
+        _ lifecycle: AccountLifecycleStore?,
+        generation: AccountLifecycleGeneration?,
+        accountKey: String,
+        _ body: () throws -> T
+    ) throws -> T {
+        guard let lifecycle else { return try body() }
+        guard let generation else { throw AccountLifecycleError.inactiveAccount }
+        return try lifecycle.withCurrentGeneration(
+            generation,
+            accountKey: accountKey,
+            body
+        )
+    }
+
+    private static func schedulerAcquire(
+        _ scheduler: FetchScheduler,
+        policy: PollPolicy,
+        _ lifecycle: AccountLifecycleStore?,
+        generation: AccountLifecycleGeneration?,
+        accountKey: String
+    ) async throws -> FetchLease? {
+        guard let lifecycle else {
+            return await scheduler.acquireLease(accountKey: accountKey, policy: policy)
+        }
+        guard let generation else { throw AccountLifecycleError.inactiveAccount }
+        return try await scheduler.acquireLease(
+            accountKey: accountKey,
+            policy: policy,
+            lifecycle: lifecycle,
+            generation: generation
+        )
+    }
+
+    private static func schedulerRelease(
+        _ scheduler: FetchScheduler,
+        lease: FetchLease,
+        _ lifecycle: AccountLifecycleStore?,
+        generation: AccountLifecycleGeneration?,
+        accountKey: String
+    ) async throws -> Bool {
+        guard let lifecycle else { return await scheduler.release(lease) }
+        guard let generation else { throw AccountLifecycleError.inactiveAccount }
+        return try await scheduler.release(
+            lease,
+            lifecycle: lifecycle,
+            generation: generation
+        )
+    }
+
+    private static func schedulerChargeFloor(
+        _ scheduler: FetchScheduler,
+        lease: FetchLease,
+        policy: PollPolicy,
+        _ lifecycle: AccountLifecycleStore?,
+        generation: AccountLifecycleGeneration?,
+        accountKey: String
+    ) async throws -> Bool {
+        guard let lifecycle else {
+            return await scheduler.chargeFloor(lease, policy: policy)
+        }
+        guard let generation else { throw AccountLifecycleError.inactiveAccount }
+        return try await scheduler.chargeFloor(
+            lease,
+            policy: policy,
+            lifecycle: lifecycle,
+            generation: generation
+        )
+    }
+
+    private static func schedulerRecordResult(
+        _ scheduler: FetchScheduler,
+        lease: FetchLease,
+        policy: PollPolicy,
+        status: SnapshotStatus,
+        _ lifecycle: AccountLifecycleStore?,
+        generation: AccountLifecycleGeneration?,
+        accountKey: String
+    ) async throws -> Bool {
+        guard let lifecycle else {
+            return await scheduler.recordResult(
+                lease,
+                policy: policy,
+                status: status
+            )
+        }
+        guard let generation else { throw AccountLifecycleError.inactiveAccount }
+        return try await scheduler.recordResult(
+            lease,
+            policy: policy,
+            status: status,
+            lifecycle: lifecycle,
+            generation: generation
+        )
+    }
+
+    private static func isInvalidation(_ error: AccountLifecycleError) -> Bool {
+        switch error {
+        case .inactiveAccount, .staleGeneration:
+            return true
+        case .corruptRegistry, .persistence:
+            return false
+        }
+    }
+
+    private static func lifecycleFailureResult(
+        _ error: AccountLifecycleError,
+        credentials: Credentials
+    ) -> Result {
+        if isInvalidation(error) {
+            return inactiveResult(credentials: credentials)
+        }
+        return Result(
+            snapshot: nil,
+            nextAllowed: nil,
+            persistenceIssue: .accountLifecycle(error.localizedDescription),
+            effectiveCredentials: credentials,
+            credentialState: .unchanged
+        )
+    }
+
+    private static func inactiveResult(credentials: Credentials) -> Result {
+        Result(
+            snapshot: nil,
+            nextAllowed: nil,
+            persistenceIssue: nil,
+            effectiveCredentials: credentials,
+            credentialState: .unchanged
+        )
+    }
+
+    /// A generation may be invalidated while this process owns the scheduler
+    /// slot. Guarded release/result methods must then fail, but the local owner
+    /// still needs retiring or this app/widget process can never fetch that key
+    /// again. Charge the normal floor because the request was already sent.
+    private static func retireAndReturnInactive(
+        scheduler: FetchScheduler,
+        lease: FetchLease,
+        policy: PollPolicy,
+        accountKey: String,
+        credentials: Credentials
+    ) async -> Result {
+        _ = await scheduler.retireInFlightForLifecycleRotation(
+            lease,
+            policy: policy
+        )
+        return inactiveResult(credentials: credentials)
     }
 }

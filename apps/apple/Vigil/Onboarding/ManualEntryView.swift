@@ -5,6 +5,8 @@ import VigilKit
 /// so the form shows only the credential fields that are actually relevant.
 struct ManualEntryView: View {
     let onSubmit: (Credentials) -> Void
+    let submitTitle: String
+    let locksProvider: Bool
 
     @Environment(\.dismiss) private var dismiss
     @State private var providerId: String
@@ -16,9 +18,13 @@ struct ManualEntryView: View {
 
     init(
         providerId: String = "claude",
+        submitTitle: String = "Verify and add account",
+        locksProvider: Bool = false,
         onSubmit: @escaping (Credentials) -> Void
     ) {
         self.onSubmit = onSubmit
+        self.submitTitle = submitTitle
+        self.locksProvider = locksProvider
         _providerId = State(initialValue: providerId)
     }
 
@@ -78,15 +84,21 @@ struct ManualEntryView: View {
             }
             VStack(alignment: .leading, spacing: 5) {
                 VigilEyebrow(text: "Provider")
-                Picker("Provider", selection: $providerId) {
-                    ForEach(ProviderRegistry.all, id: \.id) { spec in
-                        Text(ProviderPresentation.pickerTitle(for: spec))
-                            .tag(spec.id)
+                if locksProvider {
+                    Text(selectedSpec?.displayName ?? providerId)
+                        .font(.headline)
+                        .foregroundStyle(VigilPalette.ink)
+                } else {
+                    Picker("Provider", selection: $providerId) {
+                        ForEach(ProviderRegistry.all, id: \.id) { spec in
+                            Text(ProviderPresentation.pickerTitle(for: spec))
+                                .tag(spec.id)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .tint(VigilPalette.ink)
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .tint(VigilPalette.ink)
                 if let selectedSpec {
                     HStack(spacing: 7) {
                         Text(ProviderPresentation.setupLabel(for: selectedSpec))
@@ -120,6 +132,14 @@ struct ManualEntryView: View {
                 .font(.callout)
                 .foregroundStyle(VigilPalette.inkMuted)
                 .textSelection(.enabled)
+
+                if let warning = ProviderPresentation.credentialWarning(for: selectedSpec) {
+                    StatusBannerView(
+                        icon: "exclamationmark.shield",
+                        tint: VigilPalette.critical,
+                        text: warning
+                    )
+                }
 
                 if selectedSpec.experimental {
                     StatusBannerView(
@@ -223,7 +243,7 @@ struct ManualEntryView: View {
     }
 
     private var submitButton: some View {
-        Button("Verify and add account") {
+        Button(submitTitle) {
             let trimmedRefresh = refreshToken.trimmingCharacters(in: .whitespacesAndNewlines)
             let trimmedAccount = accountId.trimmingCharacters(in: .whitespacesAndNewlines)
             let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)

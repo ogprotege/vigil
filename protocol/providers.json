@@ -931,7 +931,7 @@
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
       },
-      "manualEntryHint": "Create a read-only Admin API key at platform.openai.com -> Settings -> Organization -> Admin keys and paste it. Regular project keys (sk-proj-...) are rejected by the billing endpoint.",
+      "manualEntryHint": "OpenAI API-platform Admin API keys are broad organization-owner credentials, not read-only keys. Vigil sends only documented GET requests to the organization Usage and Costs APIs. Regular project keys (sk-proj-...) cannot access those endpoints. Create a dedicated key for Vigil, store it only on this iPhone, and revoke it when you stop using the integration.",
       "metricMappings": [
         {
           "id": "spend_month",
@@ -1398,6 +1398,37 @@
           "fallbackGroup": "plan",
           "fields": {
             "utilization": "totalPercentUsed",
+            "used": "used",
+            "limit": "limit",
+            "remaining": "remaining",
+            "resetsAt": "$.billingCycleEnd"
+          }
+        },
+        {
+          "id": "plan",
+          "sourceKey": "individualUsage.plan",
+          "sourceContainer": "object",
+          "resetFormat": "iso8601",
+          "secondary": false,
+          "requiredWhenPresent": false,
+          "fallbackGroup": "plan",
+          "fields": {
+            "utilization": "totalPercentUsed",
+            "used": "used",
+            "limit": "limit",
+            "resetsAt": "$.billingCycleEnd"
+          }
+        },
+        {
+          "id": "plan",
+          "sourceKey": "individualUsage.plan",
+          "sourceContainer": "object",
+          "resetFormat": "iso8601",
+          "secondary": false,
+          "requiredWhenPresent": false,
+          "fallbackGroup": "plan",
+          "fields": {
+            "utilization": "totalPercentUsed",
             "resetsAt": "$.billingCycleEnd"
           }
         },
@@ -1664,6 +1695,7 @@
           "fields": {
             "used": "detail.used",
             "limit": "detail.limit",
+            "remaining": "detail.remaining",
             "resetsAt": "detail.resetTime"
           }
         },
@@ -1677,6 +1709,7 @@
           "fields": {
             "used": "used",
             "limit": "limit",
+            "remaining": "remaining",
             "resetsAt": "resetTime"
           }
         }

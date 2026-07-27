@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import OSLog
 import UserNotifications
@@ -7,7 +8,22 @@ import VigilKit
 /// pure; every side effect lives here.
 protocol NotificationManaging: Sendable {
     func requestAuthorizationIfNeeded() async
-    func deliver(events: [ThresholdEvent], account: AccountRef) async -> [ThresholdEvent]
+    func removeLegacyNotifications() async
+    func removeAllVigilNotifications() async
+    func deliver(
+        events: [ThresholdEvent],
+        account: AccountRef,
+        deliveryScope: String
+    ) async -> [ThresholdEvent]
+    func removeNotifications(accountKey: String) async
+    func removeNotifications(identifiers: [String]) async
+}
+
+extension NotificationManaging {
+    /// Test doubles and embedders without a system notification center need no
+    /// migration work. NotificationManager supplies the production cleanup.
+    func removeLegacyNotifications() async {}
+    func removeAllVigilNotifications() async {}
 }
 
 final class NotificationManager: NotificationManaging, Sendable {
@@ -40,9 +56,55 @@ final class NotificationManager: NotificationManaging, Sendable {
         }
     }
 
+    /// Builds through 0.14 wrote raw account keys into notification IDs. An
+    /// account removed by that build may have no remaining index or Keychain
+    /// record from which to reconstruct its key, so migrate by shape once the
+    /// app can inspect Notification Center. Current IDs are exactly two
+    /// SHA-256 components and are preserved.
+    func removeLegacyNotifications() async {
+        guard Self.canUseSystemNotifications else { return }
+        let center = UNUserNotificationCenter.current()
+        let pending = await center.pendingNotificationRequests()
+        center.removePendingNotificationRequests(
+            withIdentifiers: Self.legacyNotificationIdentifiers(
+                among: pending.map(\.identifier)
+            )
+        )
+        let delivered = await center.deliveredNotifications()
+        center.removeDeliveredNotifications(
+            withIdentifiers: Self.legacyNotificationIdentifiers(
+                among: delivered.map { $0.request.identifier }
+            )
+        )
+    }
+
+    /// Removes only Vigil-owned threshold notifications. Used by the explicit
+    /// full local-data recovery when damaged identity stores cannot enumerate
+    /// notifications account by account.
+    func removeAllVigilNotifications() async {
+        guard Self.canUseSystemNotifications else { return }
+        let center = UNUserNotificationCenter.current()
+        let pending = await center.pendingNotificationRequests()
+        center.removePendingNotificationRequests(
+            withIdentifiers: Self.allVigilNotificationIdentifiers(
+                among: pending.map(\.identifier)
+            )
+        )
+        let delivered = await center.deliveredNotifications()
+        center.removeDeliveredNotifications(
+            withIdentifiers: Self.allVigilNotificationIdentifiers(
+                among: delivered.map { $0.request.identifier }
+            )
+        )
+    }
+
     /// Returns events the operating system did not accept. Callers keep those
     /// events in durable storage and retry later.
-    func deliver(events: [ThresholdEvent], account: AccountRef) async -> [ThresholdEvent] {
+    func deliver(
+        events: [ThresholdEvent],
+        account: AccountRef,
+        deliveryScope: String
+    ) async -> [ThresholdEvent] {
         guard Self.canUseSystemNotifications else { return events }
         let center = UNUserNotificationCenter.current()
         var failed: [ThresholdEvent] = []
@@ -54,7 +116,11 @@ final class NotificationManager: NotificationManaging, Sendable {
                 : "Crossed \(event.threshold)% of the \(windowName(event.windowId)) window."
             content.sound = .default
             let request = UNNotificationRequest(
-                identifier: "app.vigil.threshold.\(account.key).\(event.windowId).\(event.threshold)",
+                identifier: Self.notificationIdentifier(
+                    accountKey: account.key,
+                    deliveryScope: deliveryScope,
+                    event: event
+                ),
                 content: content,
                 trigger: nil
             )
@@ -68,6 +134,97 @@ final class NotificationManager: NotificationManaging, Sendable {
             }
         }
         return failed
+    }
+
+    /// Removes every queued or already-presented threshold notification for
+    /// one account without exposing its account key to the system identifier.
+    func removeNotifications(accountKey: String) async {
+        guard Self.canUseSystemNotifications else { return }
+        let center = UNUserNotificationCenter.current()
+        let pending = await center.pendingNotificationRequests()
+        center.removePendingNotificationRequests(
+            withIdentifiers: Self.notificationIdentifiers(
+                forAccountKey: accountKey,
+                among: pending.map(\.identifier)
+            )
+        )
+        let delivered = await center.deliveredNotifications()
+        center.removeDeliveredNotifications(
+            withIdentifiers: Self.notificationIdentifiers(
+                forAccountKey: accountKey,
+                among: delivered.map { $0.request.identifier }
+            )
+        )
+    }
+
+    /// Exact cleanup for an async delivery that became stale. Account-wide
+    /// cleanup is intentionally reserved for the tombstoned removal flow,
+    /// because the same account key may already belong to a new lifecycle.
+    func removeNotifications(identifiers: [String]) async {
+        guard Self.canUseSystemNotifications, !identifiers.isEmpty else { return }
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+        center.removeDeliveredNotifications(withIdentifiers: identifiers)
+    }
+
+    static func notificationIdentifier(
+        accountKey: String,
+        deliveryScope: String,
+        event: ThresholdEvent
+    ) -> String {
+        let identity = [
+            deliveryScope,
+            event.windowId,
+            String(event.threshold),
+            event.resetSegment.map(String.init) ?? "no-reset",
+        ].joined(separator: "\u{1F}")
+        return "\(accountNotificationPrefix(accountKey: accountKey))\(digest(identity))"
+    }
+
+    static func accountNotificationPrefix(accountKey: String) -> String {
+        "app.vigil.threshold.\(digest(accountKey))."
+    }
+
+    private static func digest(_ value: String) -> String {
+        SHA256.hash(data: Data(value.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+    }
+
+    static func notificationIdentifiers(
+        forAccountKey accountKey: String,
+        among identifiers: [String]
+    ) -> [String] {
+        let prefix = accountNotificationPrefix(accountKey: accountKey)
+        // Builds through 0.14 embedded the raw account key in notification
+        // identifiers. Include that exact legacy namespace during removal so
+        // an upgrade cannot leave private identifiers in Notification Center.
+        // New notifications use only the non-reversible prefix above.
+        let legacyPrefix = "app.vigil.threshold.\(accountKey)."
+        return identifiers.filter {
+            $0.hasPrefix(prefix) || $0.hasPrefix(legacyPrefix)
+        }
+    }
+
+    static func legacyNotificationIdentifiers(among identifiers: [String]) -> [String] {
+        let namespace = "app.vigil.threshold."
+        return identifiers.filter { identifier in
+            guard identifier.hasPrefix(namespace) else { return false }
+            let suffix = identifier.dropFirst(namespace.count)
+            let components = suffix.split(separator: ".", omittingEmptySubsequences: false)
+            guard components.count == 2 else { return true }
+            return !components.allSatisfy(isSHA256Hex)
+        }
+    }
+
+    static func allVigilNotificationIdentifiers(among identifiers: [String]) -> [String] {
+        identifiers.filter { $0.hasPrefix("app.vigil.threshold.") }
+    }
+
+    private static func isSHA256Hex(_ value: Substring) -> Bool {
+        value.count == 64 && value.allSatisfy { character in
+            character.isNumber || ("a"..."f").contains(character)
+        }
     }
 
     private func windowName(_ id: String) -> String {

@@ -6,36 +6,65 @@ import SwiftUI
 /// never strands the user.
 struct AppLockView: View {
     let unlock: () -> Void
+    let automaticallyAuthenticates: Bool
+    let authenticationOverride: (() -> Void)?
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var failed = false
     @State private var prompted = false
 
+    init(
+        automaticallyAuthenticates: Bool = true,
+        authenticationOverride: (() -> Void)? = nil,
+        unlock: @escaping () -> Void
+    ) {
+        self.automaticallyAuthenticates = automaticallyAuthenticates
+        self.authenticationOverride = authenticationOverride
+        self.unlock = unlock
+    }
+
     var body: some View {
-        VStack(spacing: 18) {
-            Image(systemName: "lock.fill")
-                .font(.system(size: 44))
-                .foregroundStyle(.secondary)
-            Text("Vigil is locked")
-                .font(.title2.weight(.semibold))
-            if failed {
-                Text("Authentication didn't complete.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-            Button("Unlock") { authenticate() }
+        ZStack {
+            VigilPalette.canvas
+                .ignoresSafeArea()
+                .accessibilityHidden(true)
+
+            VStack(spacing: 18) {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 44))
+                    .foregroundStyle(VigilPalette.inkMuted)
+                    .accessibilityHidden(true)
+                Text("Vigil is locked")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(VigilPalette.ink)
+                    .accessibilityAddTraits(.isHeader)
+                if failed {
+                    Text("Authentication didn't complete.")
+                        .font(.callout)
+                        .foregroundStyle(VigilPalette.inkMuted)
+                }
+                Button(action: authenticate) {
+                    Text("Unlock")
+                        .frame(minWidth: 120, minHeight: 44)
+                }
                 .buttonStyle(.borderedProminent)
+                .tint(VigilPalette.signal)
+                .accessibilityIdentifier("vigil.lock.unlock")
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial)
+        .ignoresSafeArea()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("vigil.lock")
+        .accessibilityAddTraits(.isModal)
         // Prompt only once the scene is actually frontmost — firing while
         // still backgrounded fails instantly and lands users on the "didn't
         // complete" state before they ever saw Face ID.
         .task {
-            if scenePhase == .active { promptOnce() }
+            if automaticallyAuthenticates, scenePhase == .active { promptOnce() }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { promptOnce() }
+            if automaticallyAuthenticates, phase == .active { promptOnce() }
         }
     }
 
@@ -47,6 +76,11 @@ struct AppLockView: View {
 
     private func authenticate() {
         failed = false
+        if let authenticationOverride {
+            authenticationOverride()
+            return
+        }
+
         let context = LAContext()
         var error: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
@@ -62,5 +96,25 @@ struct AppLockView: View {
                 if success { unlock() } else { failed = true }
             }
         }
+    }
+}
+
+/// Opaque scene-phase cover captured by iOS for inactive and app-switcher
+/// snapshots. It intentionally exposes no provider or account information.
+struct AppSwitcherPrivacyCover: View {
+    var body: some View {
+        ZStack {
+            VigilPalette.canvas
+            VStack(spacing: 12) {
+                Image(systemName: "lock.shield.fill")
+                    .font(.system(size: 38, weight: .semibold))
+                Text("Vigil")
+                    .font(.title2.weight(.semibold))
+            }
+            .foregroundStyle(VigilPalette.inkMuted)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
     }
 }

@@ -15,7 +15,7 @@ struct WidgetAccount: AppEntity {
     let providerName: String
 
     init(_ account: AccountRef) {
-        id = account.key
+        id = OpaqueAccountIdentifier.widgetID(for: account.key)
         providerId = account.providerId
         label = account.label
         plan = account.plan
@@ -29,31 +29,39 @@ struct WidgetAccount: AppEntity {
         return DisplayRepresentation(title: "\(providerName)")
     }
 
-    var accountRef: AccountRef {
-        AccountRef(key: id, providerId: providerId, label: label, plan: plan)
-    }
 }
 
 struct WidgetAccountQuery: EntityQuery {
     func entities(for identifiers: [WidgetAccount.ID]) async throws -> [WidgetAccount] {
         let wanted = Set(identifiers)
-        return try AccountIndex.load()
-            .filter { wanted.contains($0.key) }
+        return try activeAccounts()
+            .filter {
+                wanted.contains(OpaqueAccountIdentifier.widgetID(for: $0.key))
+                    || wanted.contains($0.key) // v1 configuration migration only
+            }
             .map(WidgetAccount.init)
     }
 
     func suggestedEntities() async throws -> [WidgetAccount] {
-        try AccountIndex.load().map(WidgetAccount.init)
+        try activeAccounts().map(WidgetAccount.init)
     }
 
     func defaultResult() async -> WidgetAccount? {
         do {
-            return try AccountIndex.load().first.map(WidgetAccount.init)
+            return try activeAccounts().first.map(WidgetAccount.init)
         } catch {
             Logger(subsystem: "app.vigil", category: "widget")
                 .error("Could not load a default widget account: \(error.localizedDescription, privacy: .private(mask: .hash))")
             return nil
         }
+    }
+
+    private func activeAccounts() throws -> [AccountRef] {
+        let accounts = try AccountIndex.load()
+        let statuses = try AccountLifecycleStore(
+            directory: SharedContainer.directory
+        ).statuses()
+        return accounts.filter { statuses[$0.key] == .active }
     }
 }
 
@@ -72,10 +80,10 @@ struct UsageEntry: TimelineEntry {
 }
 
 /// Reads snapshots from the shared container with zero network; fetches only
-/// when the snapshot is older than 30 minutes AND the shared ledger allows
-/// (docs/architecture.md fetch triggers). Timeline entries are scheduled at
-/// reset boundaries so a window visually drops to ~0% on time even before the
-/// next real fetch confirms it.
+/// when the snapshot is older than 30 minutes or a reset needs confirmation,
+/// and only when the shared ledger allows (docs/architecture.md fetch
+/// triggers). Timeline entries are scheduled at reset boundaries so the old
+/// value is hidden until the next real fetch confirms the new window.
 struct UsageTimelineProvider: AppIntentTimelineProvider {
     private static let log = Logger(subsystem: "app.vigil", category: "widget")
     private static let staleAfter: TimeInterval = 30 * 60
@@ -92,7 +100,14 @@ struct UsageTimelineProvider: AppIntentTimelineProvider {
     }
 
     func snapshot(for configuration: SelectUsageAccountIntent, in context: Context) async -> UsageEntry {
-        let (account, snapshot) = Self.load(accountKey: configuration.account?.id)
+        var (account, snapshot, generation) = Self.load(
+            accountIdentifier: configuration.account?.id
+        )
+        if !Self.isStillCurrent(account: account, generation: generation) {
+            account = nil
+            snapshot = nil
+            generation = nil
+        }
         return UsageEntry(
             date: Date(),
             account: account,
@@ -101,46 +116,106 @@ struct UsageTimelineProvider: AppIntentTimelineProvider {
     }
 
     func timeline(for configuration: SelectUsageAccountIntent, in context: Context) async -> Timeline<UsageEntry> {
-        var (account, snapshot) = Self.load(accountKey: configuration.account?.id)
+        var (account, snapshot, generation) = Self.load(
+            accountIdentifier: configuration.account?.id
+        )
+        var refreshAfter: Date?
+        let now = Date()
 
-        if let account,
-           (snapshot.map { Date().timeIntervalSince($0.fetchedAt) > Self.staleAfter } ?? true) {
+        if let selectedAccount = account,
+           (snapshot.map {
+               now.timeIntervalSince($0.fetchedAt) > Self.staleAfter
+                   || SnapshotFreshness.hasUnconfirmedReset(in: $0, at: now)
+           } ?? true) {
             do {
+                let directory = SharedContainer.directory
+                let lifecycle = AccountLifecycleStore(directory: directory)
+                // The widget is a consumer of app-owned identity state. It
+                // must never create lifecycle authority: a stale timeline
+                // resuming after a full reset could otherwise resurrect the
+                // departed account. Opening the app performs any legacy
+                // register-if-missing upgrade before widgets fetch again.
+                guard let generation else {
+                    account = nil
+                    snapshot = nil
+                    return Self.timeline(account: account, snapshot: snapshot)
+                }
                 let vault = SharedKeychain.credentialsStore()
-                if let credentials = try vault.load(accountKey: account.key) {
+                let credentials = try lifecycle.withCurrentGeneration(
+                    generation,
+                    accountKey: selectedAccount.key
+                ) {
+                    try vault.load(accountKey: selectedAccount.key)
+                }
+                if let credentials {
                     let result = await UsageService.refresh(
-                        account: account,
+                        account: selectedAccount,
                         credentials: credentials,
                         scheduler: Self.scheduler,
-                        snapshots: SnapshotStore(directory: SharedContainer.directory),
+                        snapshots: SnapshotStore(directory: directory),
                         vault: vault,
                         surface: "widget",
-                        pendingEvents: PendingEventStore(directory: SharedContainer.directory)
+                        pendingEvents: PendingEventStore(directory: directory),
+                        history: UsageHistoryStore(directory: directory),
+                        lifecycle: lifecycle,
+                        generation: generation
                     )
-                    if let fresh = result.snapshot { snapshot = fresh }
+                    let stillIndexed = (try? AccountIndex.load().contains {
+                        $0.key == selectedAccount.key
+                    }) == true
+                    if try lifecycle.isCurrent(generation, accountKey: selectedAccount.key),
+                       stillIndexed {
+                        if let fresh = result.snapshot { snapshot = fresh }
+                    } else {
+                        account = nil
+                        snapshot = nil
+                    }
                     if let issue = result.persistenceIssue {
                         Self.log.error(
                             "Widget persistence failure: \(String(describing: issue), privacy: .private(mask: .hash))"
                         )
                     }
+                    if let nextAllowed = result.nextAllowed {
+                        refreshAfter = nextAllowed
+                    } else {
+                        refreshAfter = await Self.scheduler.nextAllowedFetch(
+                            accountKey: selectedAccount.key
+                        )
+                    }
                 } else {
                     Self.log.error(
-                        "No credentials found for configured account \(account.key, privacy: .private(mask: .hash))"
+                        "No credentials found for configured account \(selectedAccount.key, privacy: .private(mask: .hash))"
                     )
                 }
             } catch {
                 Self.log.error(
-                    "Could not load credentials for \(account.key, privacy: .private(mask: .hash)): \(error.localizedDescription, privacy: .private(mask: .hash))"
+                    "Could not load credentials for \(selectedAccount.key, privacy: .private(mask: .hash)): \(error.localizedDescription, privacy: .private(mask: .hash))"
                 )
             }
         }
 
-        return Self.timeline(account: account, snapshot: snapshot)
+        // Always revalidate the exact generation captured while loading, even
+        // when the snapshot was fresh and no network await occurred. A reset
+        // or remove/re-link that wins after load must not let this invocation
+        // submit its old account and snapshot to WidgetKit.
+        if !Self.isStillCurrent(account: account, generation: generation) {
+            account = nil
+            snapshot = nil
+            generation = nil
+        }
+
+        return Self.timeline(
+            account: account,
+            snapshot: snapshot,
+            refreshAfter: refreshAfter
+        )
     }
 
     // MARK: - Data
 
-    private static func load(accountKey: String?) -> (AccountRef?, ProviderSnapshot?) {
+    private static func load(
+        accountIdentifier: String?
+    ) -> (AccountRef?, ProviderSnapshot?, AccountLifecycleGeneration?) {
         let accounts: [AccountRef]
         do {
             accounts = try AccountIndex.load()
@@ -148,35 +223,72 @@ struct UsageTimelineProvider: AppIntentTimelineProvider {
             log.error(
                 "Could not read account index: \(error.localizedDescription, privacy: .private(mask: .hash))"
             )
-            return (nil, nil)
+            return (nil, nil, nil)
         }
 
         // A removed configured account stays empty instead of silently
         // switching the widget to another user's account.
-        let account = AccountIndex.selected(from: accounts, accountKey: accountKey)
-        guard let account else { return (nil, nil) }
+        let account = AccountIndex.selectedForWidget(
+            from: accounts,
+            identifier: accountIdentifier
+        )
+        guard let account else { return (nil, nil, nil) }
         do {
-            let snapshot = try SnapshotStore(directory: SharedContainer.directory)
-                .current(accountKey: account.key)
-            return (account, snapshot)
+            let directory = SharedContainer.directory
+            let lifecycle = AccountLifecycleStore(directory: directory)
+            guard let generation = try lifecycle.captureActiveGeneration(
+                accountKey: account.key
+            ) else {
+                return (nil, nil, nil)
+            }
+            let snapshot = try lifecycle.withCurrentGeneration(
+                generation,
+                accountKey: account.key
+            ) {
+                try SnapshotStore(directory: directory).current(accountKey: account.key)
+            }
+            return (account, snapshot, generation)
         } catch {
             log.error(
                 "Could not read snapshot for \(account.key, privacy: .private(mask: .hash)): \(error.localizedDescription, privacy: .private(mask: .hash))"
             )
-            return (account, nil)
+            return (account, nil, nil)
         }
     }
 
-    private static func timeline(account: AccountRef?, snapshot: ProviderSnapshot?) -> Timeline<UsageEntry> {
+    private static func isStillCurrent(
+        account: AccountRef?,
+        generation: AccountLifecycleGeneration?
+    ) -> Bool {
+        guard let account, let generation else { return false }
+        do {
+            let directory = SharedContainer.directory
+            let lifecycle = AccountLifecycleStore(directory: directory)
+            guard try lifecycle.isCurrent(generation, accountKey: account.key) else {
+                return false
+            }
+            return try AccountIndex.load().contains { $0.key == account.key }
+        } catch {
+            log.error(
+                "Could not revalidate widget account: \(error.localizedDescription, privacy: .private(mask: .hash))"
+            )
+            return false
+        }
+    }
+
+    private static func timeline(
+        account: AccountRef?,
+        snapshot: ProviderSnapshot?,
+        refreshAfter: Date? = nil
+    ) -> Timeline<UsageEntry> {
         let now = Date()
-        // The first entry is reset-adjusted too: after a boundary passes, a
-        // reloaded timeline must not regress to the pre-reset percentage.
         var entries = [UsageEntry(
             date: now,
             account: account,
-            snapshot: snapshot.map { applyingResets(to: $0, at: now) }
+            snapshot: snapshot
         )]
 
+        var reloadAt = now.addingTimeInterval(staleAfter)
         if let snapshot {
             let boundaries = snapshot.windows
                 .compactMap(\.resetsAt)
@@ -188,43 +300,18 @@ struct UsageTimelineProvider: AppIntentTimelineProvider {
                 entries.append(UsageEntry(
                     date: at,
                     account: account,
-                    snapshot: Self.applyingResets(to: snapshot, at: at)
+                    snapshot: snapshot
                 ))
+                reloadAt = min(reloadAt, at)
             }
         }
+        if let refreshAfter, refreshAfter > now {
+            reloadAt = min(reloadAt, refreshAfter.addingTimeInterval(1))
+        }
 
-        // Re-evaluate the fetch rule every 30 minutes; boundary entries handle
-        // visual resets in between with zero network.
-        return Timeline(entries: entries, policy: .after(now.addingTimeInterval(staleAfter)))
-    }
-
-    /// A window whose reset has passed renders at approximately 0% until the
-    /// next provider fetch confirms its new state.
-    private static func applyingResets(to snapshot: ProviderSnapshot, at date: Date) -> ProviderSnapshot {
-        ProviderSnapshot(
-            providerId: snapshot.providerId,
-            accountKey: snapshot.accountKey,
-            accountLabel: snapshot.accountLabel,
-            planLabel: snapshot.planLabel,
-            fetchedAt: snapshot.fetchedAt,
-            status: snapshot.status,
-            windows: snapshot.windows.map { window in
-                guard let resetsAt = window.resetsAt, resetsAt <= date,
-                      // Clock-skew guard: only zero a window whose reset is
-                      // genuinely later than the data itself — a resetsAt at
-                      // or before fetchedAt would fabricate 0% over fresh data.
-                      resetsAt > snapshot.fetchedAt
-                else { return window }
-                return UsageWindow(
-                    id: window.id,
-                    utilization: 0,
-                    resetsAt: nil,
-                    windowSeconds: window.windowSeconds,
-                    secondary: window.secondary
-                )
-            },
-            metrics: snapshot.metrics
-        )
+        // Ask WidgetKit for a new timeline at the first reset or ledger retry,
+        // while retaining the ordinary 30-minute upper bound.
+        return Timeline(entries: entries, policy: .after(reloadAt))
     }
 
     private static var sampleSnapshot: ProviderSnapshot {

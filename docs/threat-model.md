@@ -8,7 +8,7 @@ Vigil is an iOS-only local client. It has no collection server. This document st
 - API keys, management keys, session cookies, and account identifiers;
 - usage windows, reset times, balances, spend, and plan labels;
 - account index and user-provided labels;
-- poll leases, rate-limit state, observation history, and notification events;
+- poll leases, rate-limit state, normalized history, and notification events;
 - release signing credentials and provisioning profiles used outside the repository.
 
 ## Trust boundaries
@@ -21,7 +21,7 @@ Keychain protects credentials at rest under Apple's platform security model. Vig
 
 ### App Group container
 
-The app and widget share snapshots, account metadata, poll leases, observation history, and notification events through `group.app.vigil.shared`.
+The app and widget share snapshots, account metadata, poll leases, normalized history, and notification events through `group.app.vigil.shared`.
 
 These files contain no bearer credential. They can still reveal account relationships, usage, balance, spending, and timing. Apple sandboxing and device data protection guard them.
 
@@ -78,6 +78,11 @@ HTTP 429 advances provider-configured backoff. Manual refresh cannot bypass an a
 - Countdowns are identified as local projections from the last reset timestamp.
 - Experimental providers remain labeled.
 - Biometric app lock can reduce casual access while the device is unlocked.
+- Device observations and provider-imported historical buckets carry different provenance labels.
+
+### Diagnostic export
+
+The export builder accepts normalized state but no credential store or raw provider body. It replaces internal account keys with per-file aliases and allow-lists every encoded field. The user chooses whether and where to save or share the resulting JSON file.
 
 ## Accepted risks
 
@@ -113,7 +118,9 @@ The app lock is a convenience control, not a second hardware-backed credential v
 
 ### Local metadata
 
-Snapshots and observations are not encrypted by Vigil. They rely on iOS sandboxing and data protection. A device compromise can expose usage and billing metadata even when bearer credentials remain in Keychain.
+Snapshots, history, and observations are not encrypted by Vigil. They rely on iOS sandboxing and data protection. A device compromise can expose usage and billing metadata even when bearer credentials remain in Keychain.
+
+An exported diagnostic file is no longer protected by Vigil's App Group container. It contains no credential by design, but its usage and billing metadata can still be sensitive.
 
 ### Multiple linked accounts
 
@@ -142,7 +149,7 @@ Vigil trusts the operating system's TLS validation. It does not pin provider cer
 - exact-time background monitoring;
 - server-side push alerts;
 - protecting data after a user logs, exports, screenshots, or shares it;
-- monitoring desktop transcript token counts unavailable to the phone.
+- monitoring desktop transcript token counts unavailable to the phone unless a separate paired collector supplies them.
 
 ## Security reporting
 

@@ -10,6 +10,39 @@ struct AccountCardView: View {
     let nextAllowed: Date?
     let relink: () -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var confirmedWindows: [UsageWindow] {
+        guard let snapshot else { return [] }
+        return SnapshotFreshness.confirmedWindows(in: snapshot)
+    }
+
+    private var resetPending: Bool {
+        snapshot.map { SnapshotFreshness.hasUnconfirmedReset(in: $0) } ?? false
+    }
+
+    private var currentWindows: [UsageWindow] {
+        UsagePresentation.sortedWindows(
+            confirmedWindows.filter {
+                !UsagePresentation.isModelWindow(
+                    $0,
+                    providerId: account.providerId
+                )
+            }
+        )
+    }
+
+    private var modelWindows: [UsageWindow] {
+        UsagePresentation.sortedWindows(
+            confirmedWindows.filter {
+                UsagePresentation.isModelWindow(
+                    $0,
+                    providerId: account.providerId
+                )
+            }
+        )
+    }
+
     private var primaryMetrics: [UsageMetric] {
         snapshot?.metrics.filter { !$0.secondary } ?? []
     }
@@ -24,12 +57,12 @@ struct AccountCardView: View {
             statusBanner
 
             if let snapshot, (!snapshot.windows.isEmpty || !snapshot.metrics.isEmpty) {
-                // One scannable stack — primary session/weekly first, then
-                // model-specific caps — so every provider and model limit is
-                // visible on the Limits screen without digging.
-                let allWindows = UsagePresentation.sortedWindows(snapshot.windows)
-                if !allWindows.isEmpty {
-                    LimitMeterStack(windows: allWindows)
+                if !currentWindows.isEmpty {
+                    windowSection(title: "Current limits", windows: currentWindows, snapshot: snapshot)
+                }
+
+                if !modelWindows.isEmpty {
+                    windowSection(title: "Model caps", windows: modelWindows, snapshot: snapshot)
                 }
 
                 if !primaryMetrics.isEmpty {
@@ -43,14 +76,14 @@ struct AccountCardView: View {
                     metricSection(title: "More account details", metrics: secondaryMetrics)
                 }
 
-                footer(snapshot)
+                SnapshotFreshnessLine(snapshot: snapshot, nextAllowed: nextAllowed)
             } else if let snapshot, snapshot.status == .ok {
                 StatusBannerView(
                     icon: "infinity",
                     tint: VigilPalette.signal,
                     text: "This provider reports no finite usage limits."
                 )
-                footer(snapshot)
+                SnapshotFreshnessLine(snapshot: snapshot, nextAllowed: nextAllowed)
             } else if snapshot == nil {
                 waitingState
             }
@@ -68,31 +101,24 @@ struct AccountCardView: View {
             )
 
             VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 7) {
-                    Text(account.displayName)
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(VigilPalette.ink)
-                        .lineLimit(2)
-                    if ProviderPresentation.isExperimental(providerId: account.providerId) {
-                        ExperimentalBadge()
-                    }
+                Text(account.displayName)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(VigilPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                if ProviderPresentation.isExperimental(providerId: account.providerId) {
+                    ExperimentalBadge()
                 }
                 if let label = account.label, !label.isEmpty {
                     Text(label)
                         .font(.caption)
                         .foregroundStyle(VigilPalette.inkMuted)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                HStack(spacing: 7) {
-                    accountStatus
-                    if let plan = snapshot?.planLabel ?? account.plan, !plan.isEmpty {
-                        Text(plan.capitalized)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(VigilPalette.signal)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(VigilPalette.signal.opacity(0.11), in: Capsule())
-                    }
+                accountStatus
+                if let plan = snapshot?.planLabel ?? account.plan, !plan.isEmpty {
+                    Text(UsagePresentation.planTitle(plan))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(VigilPalette.signal)
                 }
             }
             Spacer(minLength: 4)
@@ -102,7 +128,13 @@ struct AccountCardView: View {
     @ViewBuilder
     private var accountStatus: some View {
         if let snapshot {
-            if SnapshotFreshness.isStale(fetchedAt: snapshot.fetchedAt), snapshot.status == .ok {
+            if snapshot.status == .ok, resetPending {
+                VigilStatusPill(
+                    text: "Awaiting update",
+                    color: VigilPalette.caution,
+                    symbol: "arrow.clockwise.circle"
+                )
+            } else if SnapshotFreshness.isStale(fetchedAt: snapshot.fetchedAt), snapshot.status == .ok {
                 VigilStatusPill(
                     text: "Stale",
                     color: VigilPalette.caution,
@@ -129,7 +161,13 @@ struct AccountCardView: View {
         if let snapshot {
             switch snapshot.status {
             case .ok:
-                EmptyView()
+                if resetPending {
+                    StatusBannerView(
+                        icon: "arrow.clockwise.circle",
+                        tint: VigilPalette.caution,
+                        text: "A provider reset passed. Vigil hid the old value until the next provider update."
+                    )
+                }
             case .rateLimited:
                 StatusBannerView(
                     icon: "hourglass",
@@ -139,16 +177,18 @@ struct AccountCardView: View {
                     } ?? "Provider cooldown is active"
                 )
             case .authExpired:
-                HStack(spacing: 10) {
-                    StatusBannerView(
-                        icon: "key.slash",
-                        tint: VigilPalette.critical,
-                        text: "This sign-in expired."
-                    )
-                    Button("Re-link", action: relink)
-                        .buttonStyle(.borderedProminent)
-                        .tint(VigilPalette.signal)
-                        .controlSize(.small)
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 10) {
+                            expiredBanner
+                            relinkButton
+                        }
+                    } else {
+                        HStack(spacing: 10) {
+                            expiredBanner
+                            relinkButton
+                        }
+                    }
                 }
             case .schemaChanged:
                 StatusBannerView(
@@ -162,15 +202,53 @@ struct AccountCardView: View {
                     tint: VigilPalette.inkMuted,
                     text: snapshot.windows.isEmpty && snapshot.metrics.isEmpty
                         ? "Vigil has not reached this provider yet."
-                        : "Offline · showing the last known provider values."
+                        : "Offline. Showing the last known provider values."
                 )
             }
         }
     }
 
+    private var expiredBanner: some View {
+                    StatusBannerView(
+                        icon: "key.slash",
+                        tint: VigilPalette.critical,
+                        text: "This sign-in expired."
+                    )
+    }
+
+    private var relinkButton: some View {
+        Button(action: relink) {
+            Text("Re-link")
+                .frame(minHeight: 44)
+        }
+            .buttonStyle(.borderedProminent)
+            .tint(VigilPalette.signal)
+            .controlSize(.small)
+            .accessibilityIdentifier("vigil.account.relink")
+    }
+
+    private func windowSection(
+        title: String,
+        windows: [UsageWindow],
+        snapshot: ProviderSnapshot
+    ) -> some View {
+        VStack(alignment: .leading, spacing: VigilSpacing.small) {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(VigilPalette.ink)
+            LimitMeterStack(
+                windows: windows,
+                status: snapshot.status,
+                fetchedAt: snapshot.fetchedAt
+            )
+        }
+    }
+
     private func metricSection(title: String, metrics: [UsageMetric]) -> some View {
         VStack(alignment: .leading, spacing: VigilSpacing.small) {
-            VigilSectionHeading(title, eyebrow: "Provider values")
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(VigilPalette.ink)
             LazyVGrid(
                 columns: [GridItem(.adaptive(minimum: 180), spacing: 10)],
                 alignment: .leading,
@@ -183,43 +261,33 @@ struct AccountCardView: View {
         }
     }
 
-    private func footer(_ snapshot: ProviderSnapshot) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.caption2.weight(.semibold))
-            if snapshot.fetchedAt > .distantPast {
-                Text("Updated")
-                Text(snapshot.fetchedAt, style: .relative)
-                Text("ago")
-            } else {
-                Text("No successful update yet")
-            }
-            if let nextAllowed, nextAllowed > .now {
-                Text("· next check \(nextAllowed.formatted(date: .omitted, time: .shortened))")
-            }
-        }
-        .font(.caption2)
-        .foregroundStyle(Staleness.tint(for: snapshot.fetchedAt))
-        .accessibilityElement(children: .combine)
-    }
-
     private var waitingState: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "antenna.radiowaves.left.and.right")
-                .font(.title3)
-                .foregroundStyle(VigilPalette.signal)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Waiting for the first provider check")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(VigilPalette.ink)
-                Text("Vigil will show each available limit here.")
-                    .font(.caption)
-                    .foregroundStyle(VigilPalette.inkMuted)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 10) { waitingContent }
+            } else {
+                HStack(spacing: 12) { waitingContent }
             }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .vigilInsetSurface()
+    }
+
+    @ViewBuilder
+    private var waitingContent: some View {
+        Image(systemName: "antenna.radiowaves.left.and.right")
+            .font(.title3)
+            .foregroundStyle(VigilPalette.signal)
+        VStack(alignment: .leading, spacing: 3) {
+            Text("Waiting for the first provider check")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(VigilPalette.ink)
+            Text("Vigil will show each available limit here.")
+                .font(.caption)
+                .foregroundStyle(VigilPalette.inkMuted)
+        }
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -251,15 +319,5 @@ struct StatusBannerView: View {
             RoundedRectangle(cornerRadius: VigilRadius.small)
                 .stroke(tint.opacity(0.24), lineWidth: 1)
         }
-    }
-}
-
-/// Uses the shared cross-surface freshness threshold rather than a dashboard-
-/// only policy.
-enum Staleness {
-    static func tint(for fetchedAt: Date) -> Color {
-        SnapshotFreshness.isStale(fetchedAt: fetchedAt)
-            ? VigilPalette.caution
-            : VigilPalette.inkMuted
     }
 }

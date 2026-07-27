@@ -1,0 +1,434 @@
+{
+  "agent": "architecture-state-provider-flow",
+  "status": "complete",
+  "scope": "Shipped iOS architecture, first-run setup, authentication, provider refresh, persistence, presentation state, and widget flow",
+  "branch": "agent/finish-ios-only-removal",
+  "head": "35fadf1",
+  "files_inspected": [
+    "CLAUDE.md",
+    "docs/architecture.md",
+    "docs/getting-started.md",
+    "docs/provider-spec.md",
+    "docs/provider-contribution.md",
+    "apps/apple/project.yml",
+    "apps/apple/Vigil/VigilApp.swift",
+    "apps/apple/Vigil/RootView.swift",
+    "apps/apple/Vigil/AppModel.swift",
+    "apps/apple/Vigil/Onboarding/AddAccountView.swift",
+    "apps/apple/Vigil/Onboarding/ManualEntryView.swift",
+    "apps/apple/Vigil/Onboarding/ClaudeSignInView.swift",
+    "apps/apple/Vigil/Onboarding/CodexSignInView.swift",
+    "apps/apple/Vigil/Connections/ConnectionsView.swift",
+    "apps/apple/Vigil/Dashboard/DashboardView.swift",
+    "apps/apple/Vigil/Dashboard/ModelsView.swift",
+    "apps/apple/Vigil/Support/SharedContainer.swift",
+    "apps/apple/Vigil/Support/UsageService.swift",
+    "apps/apple/Vigil/Support/UsageObservationStore.swift",
+    "apps/apple/Vigil/Support/UsagePeriod.swift",
+    "apps/apple/Vigil/Support/UsagePresentation.swift",
+    "apps/apple/Vigil/Support/ProviderPresentation.swift",
+    "apps/apple/VigilWidgets/UsageTimelineProvider.swift",
+    "apps/apple/VigilWidgets/VigilWidgets.swift",
+    "packages/VigilKit/Sources/VigilKit/Models/Models.swift",
+    "packages/VigilKit/Sources/VigilKit/Providers/ProviderSpec.swift",
+    "packages/VigilKit/Sources/VigilKit/Providers/ClaudeAuth.swift",
+    "packages/VigilKit/Sources/VigilKit/Providers/CodexAuth.swift",
+    "packages/VigilKit/Sources/VigilKit/Providers/TokenRefresher.swift",
+    "packages/VigilKit/Sources/VigilKit/Providers/UsageClient.swift",
+    "packages/VigilKit/Sources/VigilKit/Providers/UsageMapper.swift",
+    "packages/VigilKit/Sources/VigilKit/Scheduler/FetchScheduler.swift",
+    "packages/VigilKit/Sources/VigilKit/Store/SnapshotStore.swift",
+    "packages/VigilKit/Sources/VigilKit/Vault/CredentialsStore.swift",
+    "packages/VigilKit/Sources/VigilKit/Vault/KeychainCredentialsStore.swift",
+    "packages/VigilKit/Tests/VigilKitTests/SpecParityTests.swift",
+    "packages/VigilKit/Tests/VigilKitTests/FixtureParityTests.swift",
+    "packages/VigilKit/Tests/VigilKitTests/SchedulerTests.swift",
+    "apps/apple/VigilTests/AppModelReliabilityTests.swift",
+    "apps/apple/VigilTests/UsagePeriodTests.swift",
+    "apps/apple/VigilTests/UsagePresentationTests.swift",
+    "apps/apple/VigilTests/RefreshReportTests.swift",
+    "apps/apple/VigilTests/SurfaceHonestyTests.swift",
+    "protocol/providers.json",
+    "protocol/fixture-provenance.json"
+  ],
+  "execution_trace": [
+    {
+      "stage": "first_launch",
+      "behavior": "VigilApp constructs one AppModel. AppModel synchronously loads the account index, per-account snapshots, and observations. RootView then presents four equal tabs. There is no onboarding gate.",
+      "evidence": [
+        "apps/apple/Vigil/VigilApp.swift:11",
+        "apps/apple/Vigil/AppModel.swift:61",
+        "apps/apple/Vigil/AppModel.swift:80",
+        "apps/apple/Vigil/AppModel.swift:114",
+        "apps/apple/Vigil/RootView.swift:38"
+      ]
+    },
+    {
+      "stage": "account_setup",
+      "behavior": "The Add Account sheet first renders a registry-driven grid for all fourteen manual providers, including Claude and Codex. Separate Claude PKCE and Codex device-code routes appear below it. ManualEntryView repeats provider selection inside the chosen provider route.",
+      "evidence": [
+        "apps/apple/Vigil/Onboarding/AddAccountView.swift:29",
+        "apps/apple/Vigil/Onboarding/AddAccountView.swift:100",
+        "apps/apple/Vigil/Onboarding/AddAccountView.swift:181",
+        "apps/apple/Vigil/Onboarding/ManualEntryView.swift:70",
+        "packages/VigilKit/Sources/VigilKit/Providers/ProviderSpec.swift:1285"
+      ]
+    },
+    {
+      "stage": "authentication",
+      "behavior": "Manual setup builds Credentials directly. Claude exchanges an out-of-band PKCE code. Codex polls a device authorization flow. Each route returns Credentials to AppModel.addAccount.",
+      "evidence": [
+        "apps/apple/Vigil/Onboarding/ManualEntryView.swift:225",
+        "apps/apple/Vigil/Onboarding/ClaudeSignInView.swift:148",
+        "apps/apple/Vigil/Onboarding/CodexSignInView.swift:150",
+        "packages/VigilKit/Sources/VigilKit/Providers/ClaudeAuth.swift:83",
+        "packages/VigilKit/Sources/VigilKit/Providers/CodexAuth.swift:116"
+      ]
+    },
+    {
+      "stage": "verify_and_commit",
+      "behavior": "AppModel validates credentials, derives an account key, and runs a ledger-gated UsageService verification. It then commits credentials to Keychain, account metadata to account-index.json, the verified snapshot to SnapshotStore, an optional money observation, notification authorization, and a widget reload.",
+      "evidence": [
+        "apps/apple/Vigil/AppModel.swift:240",
+        "apps/apple/Vigil/AppModel.swift:259",
+        "apps/apple/Vigil/AppModel.swift:291",
+        "apps/apple/Vigil/AppModel.swift:320",
+        "apps/apple/Vigil/AppModel.swift:366",
+        "apps/apple/Vigil/AppModel.swift:391"
+      ]
+    },
+    {
+      "stage": "refresh",
+      "behavior": "Foreground timer, pull refresh, background task, verification, and widget refresh all enter UsageService. UsageService acquires the shared ledger, builds the provider request, classifies the response, maps it, preserves last-good values on failure, saves a snapshot, emits threshold events, and records the poll result.",
+      "evidence": [
+        "apps/apple/Vigil/AppModel.swift:539",
+        "apps/apple/Vigil/AppModel.swift:620",
+        "apps/apple/Vigil/Support/UsageService.swift:42",
+        "apps/apple/Vigil/Support/UsageService.swift:73",
+        "apps/apple/Vigil/Support/UsageService.swift:129",
+        "apps/apple/Vigil/Support/UsageService.swift:232",
+        "apps/apple/Vigil/Support/UsageService.swift:261",
+        "apps/apple/Vigil/Support/UsageService.swift:304"
+      ]
+    },
+    {
+      "stage": "presentation",
+      "behavior": "Home, Models, and Connections derive UI from AppModel's in-memory accounts and snapshots. The widget independently reads account-index.json and SnapshotStore from the App Group container. Home also mixes current quota windows with sampled spend observations under one period selector.",
+      "evidence": [
+        "apps/apple/Vigil/Dashboard/DashboardView.swift:13",
+        "apps/apple/Vigil/Dashboard/DashboardView.swift:177",
+        "apps/apple/Vigil/Dashboard/ModelsView.swift:61",
+        "apps/apple/Vigil/Connections/ConnectionsView.swift:117",
+        "apps/apple/VigilWidgets/UsageTimelineProvider.swift:143",
+        "apps/apple/Vigil/Support/UsagePeriod.swift:81"
+      ]
+    }
+  ],
+  "architecture_metrics": {
+    "provider_count": 14,
+    "experimental_provider_count": 5,
+    "app_model_lines": 922,
+    "usage_service_lines": 418,
+    "provider_spec_lines": 1294,
+    "usage_mapper_lines": 1321,
+    "spec_parity_test_lines": 507,
+    "fixture_parity_test_lines": 787,
+    "provider_fixture_evidence_counts": {
+      "live_sanitized": 2,
+      "vendor_example": 1,
+      "community_research": 5,
+      "synthetic_derived": 23
+    },
+    "durable_state_surfaces": [
+      "Keychain credentials",
+      "account-index.json",
+      "current and previous snapshot files",
+      "fetch-ledger.json",
+      "usage-observations.json",
+      "pending threshold event files",
+      "UserDefaults for app lock and selected period"
+    ]
+  },
+  "findings": [
+    {
+      "id": "ARCH-001",
+      "severity": "high",
+      "confidence": "high",
+      "title": "Widget and dashboard use two truths with no observation channel",
+      "diagnosis": "The widget can write a newer shared snapshot and advance the shared poll gate while the running app keeps an older snapshot in memory. AppModel loads disk only at initialization and does not reload on activation or a deferred refresh.",
+      "signals": [
+        {
+          "evidence": "apps/apple/VigilWidgets/UsageTimelineProvider.swift:103",
+          "meaning": "The widget calls UsageService and saves through SnapshotStore."
+        },
+        {
+          "evidence": "apps/apple/Vigil/AppModel.swift:80",
+          "meaning": "AppModel calls loadFromDisk only during initialization."
+        },
+        {
+          "evidence": "apps/apple/Vigil/AppModel.swift:731",
+          "meaning": "Activation restarts polling and notifications but does not reconcile disk state."
+        },
+        {
+          "evidence": "apps/apple/Vigil/AppModel.swift:665",
+          "meaning": "A ledger-deferred result updates nextAllowed but does not reload the newer shared snapshot."
+        }
+      ],
+      "user_impact": "Home, Models, Connections, and the widget can disagree after a widget-owned fetch. The poll floor can keep the app from correcting itself immediately."
+    },
+    {
+      "id": "ARCH-002",
+      "severity": "critical-product",
+      "confidence": "high",
+      "title": "The period selector applies desktop token-history semantics to incompatible phone data",
+      "diagnosis": "Vigil cannot read desktop transcript token totals. It instead combines current provider quota windows with sparse billing observations, then labels both through Day, Week, Month, Year, and Life. When a selected period has no matching window, the code deliberately shows an unrelated primary window.",
+      "signals": [
+        {
+          "evidence": "README.md:158",
+          "meaning": "The repository states that desktop transcript-derived token counts are unavailable on iPhone."
+        },
+        {
+          "evidence": "apps/apple/Vigil/Support/UsagePeriod.swift:37",
+          "meaning": "Period filtering maps calendar labels onto provider reset windows."
+        },
+        {
+          "evidence": "apps/apple/Vigil/Support/UsagePeriod.swift:60",
+          "meaning": "Missing matches fall back to any primary window."
+        },
+        {
+          "evidence": "apps/apple/VigilTests/UsagePeriodTests.swift:34",
+          "meaning": "A test requires Day to display a weekly-only window."
+        },
+        {
+          "evidence": "apps/apple/Vigil/Support/UsageObservationStore.swift:117",
+          "meaning": "Life is backed by at most 400 days and 5,000 sparse observations."
+        }
+      ],
+      "user_impact": "A user can select Day and receive a weekly quota, or select Life and receive a rolling 400-day observed delta. The control looks precise while its meaning changes by provider and available data."
+    },
+    {
+      "id": "ARCH-003",
+      "severity": "high",
+      "confidence": "high",
+      "title": "The provider registry drives first-run information architecture",
+      "diagnosis": "The first run exposes four tabs, a blank period hero, fourteen manual provider routes, and separate OAuth routes. The setup flow asks users to understand provider mechanics before Vigil establishes the basic monitoring task.",
+      "signals": [
+        {
+          "evidence": "apps/apple/Vigil/RootView.swift:38",
+          "meaning": "First launch always presents Home, Models, Connections, and Settings."
+        },
+        {
+          "evidence": "apps/apple/Vigil/Dashboard/DashboardView.swift:27",
+          "meaning": "The empty dashboard renders the period picker and empty hero before the setup card."
+        },
+        {
+          "evidence": "apps/apple/Vigil/Onboarding/AddAccountView.swift:181",
+          "meaning": "All fourteen registry entries appear in the first manual setup section."
+        },
+        {
+          "evidence": "apps/apple/Vigil/Onboarding/AddAccountView.swift:100",
+          "meaning": "Claude and Codex appear again as separate renewing sign-in routes below the manual grid."
+        },
+        {
+          "evidence": "docs/getting-started.md:3",
+          "meaning": "The phone-only promise conflicts with the Cursor instruction requiring browser developer tools at docs/getting-started.md:76."
+        }
+      ],
+      "user_impact": "Setup feels like a provider integration console. Users see duplicate routes, optional concepts, and often-empty destinations before seeing one successful limit."
+    },
+    {
+      "id": "ARCH-004",
+      "severity": "high",
+      "confidence": "high",
+      "title": "Claude account identity is derived from rotating credential material",
+      "diagnosis": "When a provider supplies no account ID, AppModel hashes the refresh token or access token into the account key. Claude sign-in supplies no stable account ID. Automatic refresh keeps using the old storage key, but a later re-link generates a new key and bypasses replacement detection.",
+      "signals": [
+        {
+          "evidence": "apps/apple/Vigil/AppModel.swift:240",
+          "meaning": "Account identity falls back to a credential fingerprint."
+        },
+        {
+          "evidence": "packages/VigilKit/Sources/VigilKit/Providers/ClaudeAuth.swift:108",
+          "meaning": "Claude exchange credentials include tokens but no account ID."
+        },
+        {
+          "evidence": "apps/apple/Vigil/AppModel.swift:272",
+          "meaning": "Replacement detection compares only the derived key."
+        },
+        {
+          "evidence": "apps/apple/Vigil/Support/UsageService.swift:215",
+          "meaning": "The code itself records that re-linking after rotation can strand a permanent duplicate row."
+        }
+      ],
+      "user_impact": "A re-link can create a second row for the same Claude account. The old row, widget selection, snapshots, ledger, and observations remain tied to the obsolete key."
+    },
+    {
+      "id": "ARCH-005",
+      "severity": "high",
+      "confidence": "high",
+      "title": "AppModel is a main-actor transaction coordinator for unrelated domains",
+      "diagnosis": "One 922-line observable owns account identity, Keychain coordination, account-index recovery, snapshot cache, spend history, poll state, notification delivery, widget reloads, preferences, foreground timers, and every user-facing storage error. Adding or removing one account requires manual compensation across several stores.",
+      "signals": [
+        {
+          "evidence": "apps/apple/Vigil/AppModel.swift:11",
+          "meaning": "The observable declares UI state and all storage and service dependencies together."
+        },
+        {
+          "evidence": "apps/apple/Vigil/AppModel.swift:259",
+          "meaning": "Account linking verifies, saves Keychain, saves the index, saves a snapshot, records history, requests notifications, and reloads widgets."
+        },
+        {
+          "evidence": "apps/apple/Vigil/AppModel.swift:434",
+          "meaning": "Removal coordinates credentials, snapshots, pending events, observations, the account index, memory, widgets, and the ledger."
+        },
+        {
+          "evidence": "apps/apple/VigilTests/AppModelReliabilityTests.swift:104",
+          "meaning": "Tests need explicit rollback cases for cross-store partial failure."
+        },
+        {
+          "evidence": "apps/apple/VigilTests/AppModelReliabilityTests.swift:184",
+          "meaning": "Cache cleanup failure can leave a visible account whose credentials are already deleted."
+        }
+      ],
+      "user_impact": "Small interface changes touch reliability code, and reliability fixes change visible state. The resulting churn explains repeated regressions in refresh messages, empty states, removal, and re-link behavior."
+    },
+    {
+      "id": "ARCH-006",
+      "severity": "high",
+      "confidence": "high",
+      "title": "Fourteen-provider breadth rests on a hand-mirrored contract and one very large generic mapper",
+      "diagnosis": "providers.json is canonical only in intent. The shipped runtime duplicates it in 1,294 lines of Swift, validates the duplicate through a 507-line parity test, and maps every response through a 1,321-line generic interpreter. Most fixtures are modeled rather than captured from Vigil production traffic.",
+      "signals": [
+        {
+          "evidence": "packages/VigilKit/Sources/VigilKit/Providers/ProviderSpec.swift:639",
+          "meaning": "ProviderRegistry explicitly hand-mirrors providers.json."
+        },
+        {
+          "evidence": "packages/VigilKit/Tests/VigilKitTests/SpecParityTests.swift:5",
+          "meaning": "A second schema and field-by-field assertion layer exists only to keep the duplicate aligned."
+        },
+        {
+          "evidence": "packages/VigilKit/Tests/VigilKitTests/FixtureParityTests.swift:578",
+          "meaning": "The test history states that Claude still shipped broken while a partial metric mapped."
+        },
+        {
+          "evidence": "protocol/fixture-provenance.json:91",
+          "meaning": "Only two fixture inputs are classified live_sanitized. The repository count is 23 synthetic, 5 community, 1 vendor example, and 2 live captures."
+        },
+        {
+          "evidence": "docs/provider-spec.md:11",
+          "meaning": "Five providers are experimental and most have no Vigil production capture."
+        }
+      ],
+      "user_impact": "Provider count increases setup choices and UI states faster than it increases dependable monitoring. A passing parity suite proves internal agreement, not current upstream behavior."
+    },
+    {
+      "id": "ARCH-007",
+      "severity": "medium",
+      "confidence": "high",
+      "title": "Refresh summary collapses distinct failures into a network message",
+      "diagnosis": "Per-account refresh preserves authExpired and schemaChanged in each snapshot, but RefreshReport reduces all non-ok, non-rate-limited outcomes to failed. Its all-failed message then says the app could not reach the providers.",
+      "signals": [
+        {
+          "evidence": "apps/apple/Vigil/AppModel.swift:668",
+          "meaning": "authExpired, schemaChanged, and network all return the same failed outcome."
+        },
+        {
+          "evidence": "apps/apple/Vigil/AppModel.swift:566",
+          "meaning": "The failed summary always says the providers could not be reached."
+        },
+        {
+          "evidence": "apps/apple/VigilTests/RefreshReportTests.swift:31",
+          "meaning": "Tests verify counts and text fragments but do not preserve failure reasons."
+        }
+      ],
+      "user_impact": "A provider can answer with rejected authentication or a changed schema while the transient notice reports a reachability problem. The row and notice can disagree."
+    },
+    {
+      "id": "ARCH-008",
+      "severity": "medium",
+      "confidence": "medium",
+      "title": "The link cancellation boundary does not cover the commit",
+      "diagnosis": "The overlay cancels the outer Task, but AppModel.addAccount does not check cancellation after verification returns and before it writes credentials and account state. The outer view checks cancellation only after addAccount finishes.",
+      "signals": [
+        {
+          "evidence": "apps/apple/Vigil/Onboarding/AddAccountView.swift:224",
+          "meaning": "The overlay promises that nothing is saved until verification finishes and exposes Cancel."
+        },
+        {
+          "evidence": "apps/apple/Vigil/Onboarding/AddAccountView.swift:276",
+          "meaning": "The next cancellation check occurs after addAccount returns."
+        },
+        {
+          "evidence": "apps/apple/Vigil/AppModel.swift:291",
+          "meaning": "The verify await is followed by commit logic without Task.checkCancellation."
+        }
+      ],
+      "user_impact": "A cancellation racing a completed provider response can still enter the commit path. This is a code-path risk, not a reproduced runtime failure in this audit."
+    },
+    {
+      "id": "ARCH-009",
+      "severity": "medium",
+      "confidence": "high",
+      "title": "Widget projection mutates provider data without recording that it is projected",
+      "diagnosis": "At a reset boundary the widget replaces utilization with zero before a provider confirms the reset. It keeps the original ok status and fetchedAt, and it drops the window label while rebuilding the value.",
+      "signals": [
+        {
+          "evidence": "apps/apple/VigilWidgets/UsageTimelineProvider.swift:170",
+          "meaning": "Timeline entries apply local reset projections."
+        },
+        {
+          "evidence": "apps/apple/VigilWidgets/UsageTimelineProvider.swift:201",
+          "meaning": "The projection writes utilization zero and omits label."
+        },
+        {
+          "evidence": "apps/apple/VigilWidgets/VigilWidgets.swift:47",
+          "meaning": "Degradation is based only on status and age, so a recent projected snapshot can appear current."
+        }
+      ],
+      "user_impact": "For up to the freshness threshold, a widget may present inferred 100 percent remaining without a distinct projected state. Model-scoped names can also degrade to generated identifiers after reset."
+    }
+  ],
+  "git_history_signals": [
+    {
+      "commit": "6d918dd",
+      "date": "2026-07-21",
+      "signal": "Introduced the token-monitor-style periods and provider bars."
+    },
+    {
+      "commit": "4413c93",
+      "date": "2026-07-21",
+      "signal": "Added 114 AppModel lines to distinguish fetched from poll-floor deferred refreshes."
+    },
+    {
+      "commit": "e04ef74",
+      "date": "2026-07-21",
+      "signal": "Corrected the live Claude model-limit field from utilization to percent."
+    },
+    {
+      "commit": "9db6a00",
+      "date": "2026-07-21",
+      "signal": "Fixed 31 audit findings across AppModel, UsageService, UsageMapper, scheduler, widgets, and presentation."
+    },
+    {
+      "commit": "25d2f43",
+      "date": "2026-07-22",
+      "signal": "Removed plan-wide fallback rows from the Models tab after the prior design mislabeled them as model data."
+    },
+    {
+      "commit": "35fadf1",
+      "date": "2026-07-22",
+      "signal": "Removed desktop handoff and left the iOS app solely responsible for account setup and provider polling."
+    }
+  ],
+  "recommended_boundaries": [
+    "A task-first first-run coordinator that selects one recommended setup route before exposing the provider catalog",
+    "A stable AccountIdentity independent of access and refresh tokens",
+    "An AccountRepository that owns Keychain, account index, snapshots, observations, pending events, and compensation rules",
+    "A shared observable SnapshotRepository used by both app refresh and external App Group reconciliation",
+    "A typed RefreshResult that preserves auth, schema, network, rate-limit, storage, and deferred reasons through presentation",
+    "Separate quota-window presentation from calendar spend history instead of placing both behind one period control",
+    "A smaller primary-provider tier, with experimental and API-billing integrations outside the default first-run path",
+    "A projected widget model that marks inferred reset values and preserves source labels"
+  ]
+}

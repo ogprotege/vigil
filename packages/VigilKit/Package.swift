@@ -11,7 +11,10 @@ let package = Package(
         .library(name: "VigilKit", targets: ["VigilKit"])
     ],
     targets: [
-        .target(name: "VigilKit"),
+        .target(
+            name: "VigilKit",
+            linkerSettings: [.linkedLibrary("sqlite3")]
+        ),
         .testTarget(name: "VigilKitTests", dependencies: ["VigilKit"]),
     ]
 )

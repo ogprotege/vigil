@@ -49,6 +49,83 @@ final class SurfaceHonestyTests: XCTestCase {
         }
     }
 
+    func testPassedProviderResetHidesOldWindowWithoutInventingZeroUsage() {
+        let fetchedAt = Date(timeIntervalSince1970: 1_000)
+        let oldWindow = UsageWindow(
+            id: "session",
+            utilization: 87,
+            resetsAt: fetchedAt.addingTimeInterval(300),
+            windowSeconds: 18_000,
+            secondary: false,
+            used: 87,
+            limit: 100
+        )
+        let currentWindow = UsageWindow(
+            id: "weekly",
+            utilization: 42,
+            resetsAt: fetchedAt.addingTimeInterval(86_400),
+            windowSeconds: 604_800,
+            secondary: false
+        )
+        let snapshot = ProviderSnapshot(
+            providerId: "claude",
+            accountKey: "claude:test",
+            accountLabel: nil,
+            planLabel: nil,
+            fetchedAt: fetchedAt,
+            status: .ok,
+            windows: [oldWindow, currentWindow]
+        )
+        let afterReset = fetchedAt.addingTimeInterval(301)
+
+        XCTAssertTrue(SnapshotFreshness.hasUnconfirmedReset(in: snapshot, at: afterReset))
+        XCTAssertEqual(
+            SnapshotFreshness.confirmedWindows(in: snapshot, at: afterReset),
+            [currentWindow]
+        )
+        XCTAssertEqual(
+            snapshot.windows.first?.utilization,
+            87,
+            "The reset boundary must never rewrite an observed value to zero."
+        )
+        XCTAssertEqual(snapshot.windows.first?.used, 87)
+        XCTAssertEqual(snapshot.windows.first?.limit, 100)
+    }
+
+    func testResetAtOrBeforeFetchDoesNotInvalidateFreshProviderReading() {
+        let fetchedAt = Date(timeIntervalSince1970: 2_000)
+        let window = UsageWindow(
+            id: "session",
+            utilization: 35,
+            resetsAt: fetchedAt,
+            windowSeconds: 18_000,
+            secondary: false
+        )
+        let snapshot = ProviderSnapshot(
+            providerId: "claude",
+            accountKey: "claude:test",
+            accountLabel: nil,
+            planLabel: nil,
+            fetchedAt: fetchedAt,
+            status: .ok,
+            windows: [window]
+        )
+
+        XCTAssertFalse(
+            SnapshotFreshness.hasUnconfirmedReset(
+                in: snapshot,
+                at: fetchedAt.addingTimeInterval(60)
+            )
+        )
+        XCTAssertEqual(
+            SnapshotFreshness.confirmedWindows(
+                in: snapshot,
+                at: fetchedAt.addingTimeInterval(60)
+            ),
+            [window]
+        )
+    }
+
     // MARK: - MetricFormat (all dashboard rows share one formatter)
 
     func testThreeLetterUnitFormatsAsCurrency() {

@@ -1,0 +1,392 @@
+{
+  "angle": "integration-points",
+  "findings": {
+    "structure": [
+      {
+        "component": "Vigil launch and navigation",
+        "type": "entrypoint",
+        "description": "VigilApp constructs one AppModel, injects it into RootView, and RootView gives Home, Models, Connections, and Settings equal tab weight.",
+        "files": [
+          "apps/apple/Vigil/VigilApp.swift:5-38",
+          "apps/apple/Vigil/RootView.swift:28-79"
+        ]
+      },
+      {
+        "component": "Vigil account setup",
+        "type": "flow",
+        "description": "Home and Connections both present AddAccountView. That sheet lists every manual provider before the two renewing sign-in routes.",
+        "files": [
+          "apps/apple/Vigil/Dashboard/DashboardView.swift:77-88",
+          "apps/apple/Vigil/Connections/ConnectionsView.swift:30-41",
+          "apps/apple/Vigil/Onboarding/AddAccountView.swift:24-40",
+          "apps/apple/Vigil/Onboarding/AddAccountView.swift:181-209"
+        ]
+      },
+      {
+        "component": "Vigil refresh path",
+        "type": "service",
+        "description": "Dashboard, scene lifecycle, and background tasks call AppModel, which combines account persistence, provider refresh, notification delivery, preferences, timers, and WidgetKit reloads.",
+        "files": [
+          "apps/apple/Vigil/AppModel.swift:11-83",
+          "apps/apple/Vigil/AppModel.swift:259-393",
+          "apps/apple/Vigil/AppModel.swift:539-755",
+          "apps/apple/Vigil/Background/BackgroundRefresh.swift:35-56"
+        ]
+      },
+      {
+        "component": "Token Monitor local-first launch",
+        "type": "reference entrypoint",
+        "description": "The reference starts a live local collector when no hub is configured. It reads local tool data and pushes a summary into the renderer without first asking for an account.",
+        "files": [
+          "token-monitor/README.md:143-145",
+          "token-monitor/src/electron/main.js:307-308",
+          "token-monitor/src/electron/main.js:2662-2687",
+          "token-monitor/src/electron/main.js:3280-3316"
+        ]
+      },
+      {
+        "component": "Token Monitor summary and drill-down",
+        "type": "reference presentation",
+        "description": "The reference keeps total tokens and cost above its views, limits Home to short summaries, and turns each Home module into a drill-down entry.",
+        "files": [
+          "token-monitor/src/electron/renderer/index.html:1193-1231",
+          "token-monitor/src/electron/renderer/homeOverview.js:85-142",
+          "token-monitor/src/electron/renderer/app.js:4105-4145"
+        ]
+      }
+    ],
+    "patterns": [
+      {
+        "name": "Automatic core path, optional advanced path",
+        "usage": "Token Monitor defaults to local live collection. Hub sync and manual provider credentials stay optional.",
+        "files": [
+          "token-monitor/README.md:143-180",
+          "token-monitor/README.md:207-219",
+          "token-monitor/src/electron/main.js:2313-2323"
+        ]
+      },
+      {
+        "name": "Summary before detail",
+        "usage": "Token Monitor Home shows at most three limit accounts, two windows per account, and five model rows before a drill-down.",
+        "files": [
+          "token-monitor/src/electron/renderer/homeOverview.js:85-142",
+          "token-monitor/src/electron/renderer/homeOverview.js:145-178",
+          "token-monitor/src/electron/renderer/app.js:4105-4145"
+        ]
+      },
+      {
+        "name": "Provider grouping with account identity",
+        "usage": "Token Monitor groups repeated providers and derives stable, disambiguated account labels before rendering account rows.",
+        "files": [
+          "token-monitor/src/electron/renderer/app.js:2458-2466",
+          "token-monitor/src/electron/renderer/app.js:3162-3249",
+          "token-monitor/src/electron/renderer/accountIdentity.js:103-152"
+        ]
+      },
+      {
+        "name": "Collapsed configuration",
+        "usage": "Token Monitor settings and provider account forms are closed until requested. The operational display does not begin with the provider catalog.",
+        "files": [
+          "token-monitor/src/electron/renderer/index.html:33-40",
+          "token-monitor/src/electron/renderer/index.html:495-509"
+        ]
+      }
+    ],
+    "relationships": [
+      {
+        "from": "VigilApp",
+        "to": "AppModel",
+        "type": "constructs and injects",
+        "strength": "high",
+        "files": [
+          "apps/apple/Vigil/VigilApp.swift:7-21"
+        ]
+      },
+      {
+        "from": "RootView",
+        "to": "DashboardView, ModelsView, ConnectionsView, SettingsView",
+        "type": "presents as peer tabs",
+        "strength": "high",
+        "files": [
+          "apps/apple/Vigil/RootView.swift:38-77"
+        ]
+      },
+      {
+        "from": "DashboardView and ConnectionsView",
+        "to": "AddAccountView",
+        "type": "duplicate setup entrypoints",
+        "strength": "medium",
+        "files": [
+          "apps/apple/Vigil/Dashboard/DashboardView.swift:77-88",
+          "apps/apple/Vigil/Connections/ConnectionsView.swift:30-41"
+        ]
+      },
+      {
+        "from": "AddAccountView",
+        "to": "ManualEntryView, ClaudeSignInView, CodexSignInView",
+        "type": "routes credential setup",
+        "strength": "high",
+        "files": [
+          "apps/apple/Vigil/Onboarding/AddAccountView.swift:115-209"
+        ]
+      },
+      {
+        "from": "AppModel",
+        "to": "UsageService and VigilKit stores",
+        "type": "coordinates refresh and persistence",
+        "strength": "high",
+        "files": [
+          "apps/apple/Vigil/AppModel.swift:415-431",
+          "apps/apple/Vigil/AppModel.swift:577-690"
+        ]
+      },
+      {
+        "from": "Token Monitor startMode",
+        "to": "local collector",
+        "type": "default route when no hub exists",
+        "strength": "high",
+        "files": [
+          "token-monitor/src/electron/main.js:3280-3316"
+        ]
+      },
+      {
+        "from": "Token Monitor Home module",
+        "to": "full breakdown view",
+        "type": "drill-down",
+        "strength": "high",
+        "files": [
+          "token-monitor/src/electron/renderer/app.js:4105-4145"
+        ]
+      }
+    ],
+    "key_files": [
+      {
+        "path": "apps/apple/Vigil/RootView.swift",
+        "relevance": 0.98,
+        "rationale": "Defines every permanent iOS entrypoint and gives low-frequency destinations equal weight."
+      },
+      {
+        "path": "apps/apple/Vigil/Dashboard/DashboardView.swift",
+        "relevance": 1.0,
+        "rationale": "Contains the copied Limits presentation, account setup entry, summary, full account rows, and refresh action."
+      },
+      {
+        "path": "apps/apple/Vigil/Support/UsagePeriod.swift",
+        "relevance": 0.99,
+        "rationale": "Shows the desktop period control being translated into approximate provider-window categories."
+      },
+      {
+        "path": "apps/apple/Vigil/Onboarding/AddAccountView.swift",
+        "relevance": 0.98,
+        "rationale": "Defines the first-use decision load and the priority between manual and renewing setup."
+      },
+      {
+        "path": "apps/apple/Vigil/AppModel.swift",
+        "relevance": 0.93,
+        "rationale": "Central integration point whose broad responsibilities make presentation changes risky."
+      },
+      {
+        "path": "token-monitor/README.md",
+        "relevance": 0.97,
+        "rationale": "States the reference product's automatic local task model and optional sync path."
+      },
+      {
+        "path": "token-monitor/src/electron/renderer/homeOverview.js",
+        "relevance": 0.96,
+        "rationale": "Pins the reference product's summary limits and progressive disclosure."
+      },
+      {
+        "path": "token-monitor/src/electron/renderer/app.js",
+        "relevance": 0.91,
+        "rationale": "Confirms that reference period selection changes token totals but does not filter provider limit windows."
+      }
+    ]
+  },
+  "insights": [
+    {
+      "id": "IP-001",
+      "observation": "Vigil copies a secondary reference screen while serving a different primary job.",
+      "impact": "critical",
+      "confirming_signals": [
+        "Token Monitor defines itself around live token and cost data from local tool files, then starts local collection with no setup: token-monitor/README.md:27-30,98-101,143-145 and token-monitor/src/electron/main.js:2662-2687.",
+        "Vigil admits desktop transcript totals are unavailable, yet DashboardView and UsagePeriod explicitly copy the reference Limits and period treatments: README.md:156-159, apps/apple/Vigil/Dashboard/DashboardView.swift:4-6,105-133, apps/apple/Vigil/Support/UsagePeriod.swift:4-7."
+      ],
+      "recommendation": "Define Vigil as an iPhone quota and balance companion. Add a separate paired-sync path only if live token and cost totals are required."
+    },
+    {
+      "id": "IP-002",
+      "observation": "The period picker assigns false time semantics to reset windows.",
+      "impact": "high",
+      "confirming_signals": [
+        "UsagePeriod maps Day, Week, Month, Year, and Life onto approximate window identifiers, then falls back to mismatched primary windows: apps/apple/Vigil/Support/UsagePeriod.swift:38-69.",
+        "Token Monitor applies its period to token totals, while renderLimits reads every provider window without state.period: token-monitor/src/electron/renderer/app.js:3371-3434,4712-4779."
+      ],
+      "recommendation": "Remove the date picker from quota presentation. Show current urgency there, and use time ranges only for genuine observed spend history."
+    },
+    {
+      "id": "IP-003",
+      "observation": "Home lacks a summary-detail boundary and repeats model information.",
+      "impact": "high",
+      "confirming_signals": [
+        "Home renders every account, up to five windows, four primary metrics, and two secondary metrics per account: apps/apple/Vigil/Dashboard/DashboardView.swift:177-203,233-269,389-414.",
+        "Models renders the same model-window domain again, while Token Monitor Home caps summaries and opens detail on tap: apps/apple/Vigil/Dashboard/ModelsView.swift:61-97, token-monitor/src/electron/renderer/homeOverview.js:85-178, token-monitor/src/electron/renderer/app.js:4105-4145."
+      ],
+      "recommendation": "Show at most three urgent accounts and two values each. Open a complete account detail screen on tap."
+    },
+    {
+      "id": "IP-004",
+      "observation": "First-run setup puts the largest and least friendly choice first.",
+      "impact": "high",
+      "confirming_signals": [
+        "AddAccountView places the fourteen-provider manual grid before Claude and Codex browser sign-in: apps/apple/Vigil/Onboarding/AddAccountView.swift:24-35,100-209.",
+        "ManualEntryView repeats the full provider choice after the catalog already selected one: apps/apple/Vigil/Onboarding/ManualEntryView.swift:4-5,70-108."
+      ],
+      "recommendation": "Lead with Claude and ChatGPT quick actions. Put a searchable Other provider route below them, and keep the chosen provider fixed in its form."
+    },
+    {
+      "id": "IP-005",
+      "observation": "Permanent tabs mirror implementation categories rather than recurring tasks.",
+      "impact": "high",
+      "confirming_signals": [
+        "RootView gives Home, Models, Connections, and Settings equal permanent tab positions: apps/apple/Vigil/RootView.swift:38-77.",
+        "Models has three expected empty states and often tells the person to return to Home or Connections: apps/apple/Vigil/Dashboard/ModelsView.swift:4-50."
+      ],
+      "recommendation": "Keep Home primary. Move Models to a conditional drill-down, Connections to account management, and Settings to a toolbar destination."
+    },
+    {
+      "id": "IP-006",
+      "observation": "Technical account identity is stronger than user-facing account identity.",
+      "impact": "medium",
+      "confirming_signals": [
+        "AccountRef stores a provider plus optional label and plan, while Connections offers removal but no rename or relink action: apps/apple/Vigil/Support/SharedContainer.swift:198-212 and apps/apple/Vigil/Connections/ConnectionsView.swift:211-281.",
+        "Accounts without provider IDs use a credential fingerprint, and replacement only matches the resulting key. A new manual token can therefore create another row: apps/apple/Vigil/AppModel.swift:240-275."
+      ],
+      "recommendation": "Capture stable provider identity after verification when possible. Otherwise require a display label and let an existing row accept credential replacement."
+    },
+    {
+      "id": "IP-007",
+      "observation": "Parallel presentation components preserve old designs and invite drift.",
+      "impact": "medium",
+      "confirming_signals": [
+        "AccountCardView defines a complete account instrument, but repository-wide symbol search finds no constructor call. DashboardView defines ProviderHomeRow instead: apps/apple/Vigil/Dashboard/AccountCardView.swift:4-61 and apps/apple/Vigil/Dashboard/DashboardView.swift:222-416.",
+        "DashboardView defines StackedLimitBar and CompactResetLabel beside the existing LimitMeterRow and ResetCountdownView family: apps/apple/Vigil/Dashboard/DashboardView.swift:418-499 and apps/apple/Vigil/Dashboard/WindowRows.swift:70-176,243-273."
+      ],
+      "recommendation": "Keep one provider summary, one account detail, and one configurable meter family. Move StatusBannerView into a shared presentation file."
+    },
+    {
+      "id": "IP-008",
+      "observation": "AppModel is an integration hotspot that makes product iteration expensive.",
+      "impact": "medium",
+      "confirming_signals": [
+        "The 922-line type owns UI preferences, account recovery, Keychain writes, snapshots, refresh coordination, notifications, timers, WidgetKit, and error queues: apps/apple/Vigil/AppModel.swift:1-83,114-167,259-393,539-888.",
+        "Its reliability test file is 814 lines, and every major screen reads the same mutable facade directly: apps/apple/VigilTests/AppModelReliabilityTests.swift:1-814 and apps/apple/Vigil/Dashboard/DashboardView.swift:7-20."
+      ],
+      "recommendation": "Keep AppModel as the observable facade. Extract AccountStore and RefreshDriver behind it before another full visual rewrite."
+    }
+  ],
+  "reference_product": {
+    "repository": "https://github.com/Javis603/token-monitor",
+    "reviewed_commit": "2d63b7a6445f474531d49c56a0648478cb84cb48",
+    "true_task_model": "Glance at automatically collected token totals, cost, and nearest limits. Open a focused breakdown only when more detail is needed.",
+    "zero_setup_path": "Local mode starts live file collection on launch. Hub sync and manual provider credentials are optional additions.",
+    "information_hierarchy": "Persistent total and cost, short Home modules, then full tool, model, device, session, project, limits, and trend views.",
+    "provider_account_model": "Usage tools and quota providers are separate concepts. Auto-detected sources are preferred, while repeated provider accounts are grouped and disambiguated.",
+    "progressive_disclosure": "Home caps its rows, modules open detail, settings sections start collapsed, and advanced sync remains opt-in.",
+    "portable_principles": [
+      "Make the first useful result the shortest path.",
+      "Keep the recurring glance task above setup and administration.",
+      "Summarize first, then reveal complete account detail.",
+      "Use time filters only where the underlying data has time-range meaning.",
+      "Group by provider, but identify and manage accounts as distinct objects.",
+      "Keep unsupported or advanced paths out of the default route."
+    ],
+    "non_portable_affordances": [
+      "Desktop file-system auto-discovery",
+      "Menu bar and system tray controls",
+      "Floating widget window behavior",
+      "Global keyboard shortcuts",
+      "Direct local switching of a desktop Codex account"
+    ]
+  },
+  "refactor_impact": [
+    {
+      "proposal": "Extract AccountStore and RefreshDriver while retaining AppModel as the observable facade.",
+      "current_importers": [
+        "apps/apple/Vigil/VigilApp.swift",
+        "apps/apple/Vigil/Background/BackgroundRefresh.swift",
+        "apps/apple/Vigil/Dashboard/DashboardView.swift",
+        "apps/apple/Vigil/Dashboard/ModelsView.swift",
+        "apps/apple/Vigil/Connections/ConnectionsView.swift",
+        "apps/apple/Vigil/Onboarding/AddAccountView.swift",
+        "apps/apple/Vigil/Settings/SettingsView.swift",
+        "apps/apple/VigilTests/AppModelReliabilityTests.swift"
+      ],
+      "new_dependencies": [
+        "AppModel -> AccountStore",
+        "AppModel -> RefreshDriver",
+        "AccountStore -> CredentialsStore and AccountIndex",
+        "RefreshDriver -> UsageService, FetchScheduler, SnapshotStore, PendingEventStore"
+      ],
+      "import_updates": "None if AppModel keeps its current public API. XcodeGen includes new files through apps/apple/project.yml:29-35.",
+      "test_updates": "Move persistence cases into AccountStoreTests and refresh cases into RefreshDriverTests. Keep facade and lifecycle coverage in AppModelReliabilityTests."
+    },
+    {
+      "proposal": "Split DashboardView into screen orchestration, ProviderSummaryRow, AccountDetailView, and EmptyHomeView.",
+      "current_importers": [
+        "apps/apple/Vigil/RootView.swift:40-46",
+        "apps/apple/Vigil/Dashboard/DashboardView.swift:184-203",
+        "apps/apple/Vigil/Dashboard/DashboardView.swift:546-555"
+      ],
+      "new_dependencies": [
+        "DashboardView -> ProviderSummaryRow",
+        "ProviderSummaryRow -> shared LimitMeterRow",
+        "ProviderSummaryRow -> AccountDetailView through NavigationLink"
+      ],
+      "import_updates": "None inside the Vigil target. RootView remains the only external constructor of DashboardView.",
+      "test_updates": "Add navigation-state tests because the current test target has no RootView or tab-routing coverage."
+    },
+    {
+      "proposal": "Consolidate meter and status components, then retire the unused AccountCardView implementation.",
+      "current_importers": [
+        "StatusBannerView: apps/apple/Vigil/Dashboard/DashboardView.swift, apps/apple/Vigil/Dashboard/AccountCardView.swift, apps/apple/Vigil/Onboarding/ManualEntryView.swift",
+        "LimitMeterRow: apps/apple/Vigil/Dashboard/ModelsView.swift, apps/apple/Vigil/Dashboard/WindowRows.swift",
+        "LimitReservoirBar and UsageTint: apps/apple/Vigil/Dashboard/DashboardView.swift, apps/apple/Vigil/Dashboard/WindowRows.swift"
+      ],
+      "new_dependencies": [
+        "Dashboard and onboarding screens -> Dashboard/Components/StatusBannerView.swift",
+        "Home, Models, and account detail -> one LimitMeterRow implementation"
+      ],
+      "import_updates": "Swift call sites need no module import changes. Preserve symbol names during the move, then remove StackedLimitBar and CompactResetLabel.",
+      "test_updates": "Keep UsagePresentationTests and SurfaceHonestyTests. Add component-level state cases for current, stale, and degraded meters."
+    },
+    {
+      "proposal": "Split AddAccountView into QuickStartSetup and ProviderCatalog, and make ManualEntryView accept an immutable ProviderSpec.",
+      "current_importers": [
+        "apps/apple/Vigil/Dashboard/DashboardView.swift:86-88",
+        "apps/apple/Vigil/Connections/ConnectionsView.swift:39-41",
+        "apps/apple/Vigil/Onboarding/AddAccountView.swift:115-209"
+      ],
+      "new_dependencies": [
+        "AddAccountView -> QuickStartSetup",
+        "AddAccountView -> ProviderCatalogView",
+        "ProviderCatalogView -> ManualEntryView(provider: ProviderSpec)"
+      ],
+      "import_updates": "Only AddAccountView constructs ManualEntryView today, so its initializer change has one production call site.",
+      "test_updates": "Add onboarding routing tests for Claude, Codex, search, experimental labeling, cancellation, and verification failure."
+    }
+  ],
+  "move_guards": [
+    "Do not move AccountRef, AccountIndex, SharedContainer, UsageService, or UsagePresentation during the first UI refactor. The widget target lists those shared files explicitly at apps/apple/project.yml:98-113.",
+    "Do not rename persisted account keys or UserDefaults keys as part of presentation work.",
+    "Do not add desktop-only file scanning, tray behavior, or account switching to the iOS product."
+  ],
+  "_metadata": {
+    "exploration_angle": "integration-points",
+    "exploration_index": 4,
+    "report_type": "comprehensive",
+    "timestamp": "2026-07-26T20:12:53Z",
+    "review_mode": "read-only",
+    "vigil_commit": "35fadf1",
+    "reference_commit": "2d63b7a6445f474531d49c56a0648478cb84cb48"
+  }
+}

@@ -83,7 +83,7 @@ A successful response becomes `schemaChanged` when parsing fails or the provider
 - Provider failures stay isolated. One account must not stop another account's refresh.
 - Missing required windows or metrics mean provider drift, even when an unrelated value mapped.
 - VigilKit remains UI-free. Browser presentation, account forms, notifications, widgets, and view copy belong in the app target.
-- Models shows only genuine model-specific or special quota lanes. Plan-wide session and weekly windows remain on Home.
+- Home shows one decisive plan-wide limit per account. Account detail shows every genuine plan-wide, model-specific, and special quota lane without inventing missing limits.
 
 ## Key documents
 

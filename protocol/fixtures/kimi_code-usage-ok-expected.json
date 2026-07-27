@@ -1,7 +1,7 @@
 {
   "planLabel": "LEVEL_INTERMEDIATE",
   "windows": [
-    { "id": "session", "utilization": 15, "resetsAt": "2026-02-07T12:32:50Z", "windowSeconds": 18000, "secondary": false },
-    { "id": "weekly", "utilization": 26, "resetsAt": "2026-02-11T17:32:50Z", "windowSeconds": 604800, "secondary": false }
+    { "id": "session", "utilization": 15, "used": 15, "limit": 100, "remaining": 85, "resetsAt": "2026-02-07T12:32:50Z", "windowSeconds": 18000, "secondary": false },
+    { "id": "weekly", "utilization": 26, "used": 26, "limit": 100, "remaining": 74, "resetsAt": "2026-02-11T17:32:50Z", "windowSeconds": 604800, "secondary": false }
   ]
 }

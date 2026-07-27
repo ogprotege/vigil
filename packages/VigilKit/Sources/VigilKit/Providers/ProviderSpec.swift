@@ -18,17 +18,20 @@ public struct WindowFieldOverride: Sendable, Equatable {
     public let resetsAt: String
     public let used: String?
     public let limit: String?
+    public let remaining: String?
 
     public init(
         utilization: String? = nil,
         resetsAt: String,
         used: String? = nil,
-        limit: String? = nil
+        limit: String? = nil,
+        remaining: String? = nil
     ) {
         self.utilization = utilization
         self.resetsAt = resetsAt
         self.used = used
         self.limit = limit
+        self.remaining = remaining
     }
 }
 
@@ -667,8 +670,8 @@ public enum ProviderRegistry {
             // limits[] entries carry `percent`, NOT the top-level
             // `utilization` key — verified against the live endpoint
             // 2026-07-21. Without this override every model-scoped window is
-            // silently dropped, which is why the Models tab was empty while
-            // session and weekly mapped fine.
+            // silently dropped from account detail while session and weekly
+            // windows still map correctly.
             fields: WindowFieldOverride(utilization: "percent", resetsAt: "resets_at"),
             requiredWhenPresent: true,
             conditions: [FieldCondition(
@@ -1038,7 +1041,7 @@ public enum ProviderRegistry {
         metricMappings: [
             MetricMapping(id: "spend_month", label: "Spend (month to date)", sourceKey: "data[].results[].amount.value", kind: .spend, unit: "USD", secondary: false, aggregate: .sum, aggregateUnitKey: "data[].results[].amount.currency", aggregateExpectedUnit: "usd"),
         ],
-        manualEntryHint: "Create a read-only Admin API key at platform.openai.com -> Settings -> Organization -> Admin keys and paste it. Regular project keys (sk-proj-...) are rejected by the billing endpoint."
+        manualEntryHint: "OpenAI API-platform Admin API keys are broad organization-owner credentials, not read-only keys. Vigil sends only documented GET requests to the organization Usage and Costs APIs. Regular project keys (sk-proj-...) cannot access those endpoints. Create a dedicated key for Vigil, store it only on this iPhone, and revoke it when you stop using the integration."
     )
 
     public static let gitHub = ProviderSpec(
@@ -1206,6 +1209,8 @@ public enum ProviderRegistry {
         planKey: "membershipType",
         additionalWindows: nil,
         windows: [
+            WindowMapping(id: "plan", sourceKey: "individualUsage.plan", resetFormat: .iso8601, windowSeconds: nil, secondary: false, fields: WindowFieldOverride(utilization: "totalPercentUsed", resetsAt: "$.billingCycleEnd", used: "used", limit: "limit", remaining: "remaining"), requiredWhenPresent: false, fallbackGroup: "plan"),
+            WindowMapping(id: "plan", sourceKey: "individualUsage.plan", resetFormat: .iso8601, windowSeconds: nil, secondary: false, fields: WindowFieldOverride(utilization: "totalPercentUsed", resetsAt: "$.billingCycleEnd", used: "used", limit: "limit"), requiredWhenPresent: false, fallbackGroup: "plan"),
             WindowMapping(id: "plan", sourceKey: "individualUsage.plan", resetFormat: .iso8601, windowSeconds: nil, secondary: false, fields: WindowFieldOverride(utilization: "totalPercentUsed", resetsAt: "$.billingCycleEnd"), requiredWhenPresent: false, fallbackGroup: "plan"),
             WindowMapping(id: "plan", sourceKey: "individualUsage.plan", resetFormat: .iso8601, windowSeconds: nil, secondary: false, fields: WindowFieldOverride(resetsAt: "$.billingCycleEnd", used: "used", limit: "limit"), requiredWhenPresent: false, fallbackGroup: "plan"),
             WindowMapping(id: "plan", sourceKey: "individualUsage.overall", resetFormat: .iso8601, windowSeconds: nil, secondary: false, fields: WindowFieldOverride(resetsAt: "$.billingCycleEnd", used: "used", limit: "limit"), requiredWhenPresent: false, fallbackGroup: "plan"),
@@ -1268,7 +1273,7 @@ public enum ProviderRegistry {
                     FieldCondition(key: "window.duration", equals: "300"),
                     FieldCondition(key: "window.timeUnit", equals: "TIME_UNIT_MINUTE"),
                 ],
-                fields: WindowFieldOverride(resetsAt: "detail.resetTime", used: "detail.used", limit: "detail.limit")
+                fields: WindowFieldOverride(resetsAt: "detail.resetTime", used: "detail.used", limit: "detail.limit", remaining: "detail.remaining")
             ),
             WindowMapping(
                 id: "weekly",
@@ -1276,7 +1281,7 @@ public enum ProviderRegistry {
                 resetFormat: .iso8601,
                 windowSeconds: 604_800,
                 secondary: false,
-                fields: WindowFieldOverride(resetsAt: "resetTime", used: "used", limit: "limit")
+                fields: WindowFieldOverride(resetsAt: "resetTime", used: "used", limit: "limit", remaining: "remaining")
             ),
         ],
         manualEntryHint: "Paste your Kimi Code API key (sk-kimi-...) from kimi.com/code/console. This coding-plan key is separate from a Moonshot open-platform key."
