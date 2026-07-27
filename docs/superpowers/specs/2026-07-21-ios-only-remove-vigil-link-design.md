@@ -1,5 +1,12 @@
 # Design: iOS-only Vigil — remove vigil-link, the QR protocol, and the macOS target
 
+> **Historical and superseded as active instruction.** The iOS-only removal was
+> completed on 2026-07-21. This file preserves the approved design and its
+> original sequencing assumptions. It is not a current implementation plan.
+> See the [documentation index](../../index.md),
+> [product contract](../../product-contract.md), and
+> [development guide](../../development/development.md).
+
 Date: 2026-07-21
 Status: approved (design), pending implementation plan
 

@@ -109,7 +109,6 @@ final class VigilAccessibilityUITests: XCTestCase {
             demo: false,
             contentSizeCategory: scenario.category
         )
-        dismissExpectedUnsignedStorageAlertIfPresent()
 
         for route in routes {
             let action = reachableElement(route.identifier)
@@ -180,6 +179,8 @@ final class VigilAccessibilityUITests: XCTestCase {
         app.launchEnvironment["VIGIL_TAB"] = tab
         app.launchEnvironment["VIGIL_DEMO"] = demo ? "1" : "0"
         app.launchEnvironment["VIGIL_DEMO_CLAUDE_AUTH_EXPIRED"] = claudeAuthExpired ? "1" : "0"
+        app.launchEnvironment["VIGIL_UI_TEST_FORCE_ACTIVE"] = "1"
+        app.launchEnvironment["VIGIL_UI_TEST_SUPPRESS_STORAGE_NOTICE"] = "1"
         if let contentSizeCategory {
             app.launchArguments += [
                 "-UIPreferredContentSizeCategoryName",
@@ -187,16 +188,6 @@ final class VigilAccessibilityUITests: XCTestCase {
             ]
         }
         app.launch()
-    }
-
-    /// CI intentionally disables signing, so the App Group is unavailable.
-    /// The production warning must remain visible, while this first-run layout
-    /// check acknowledges it before testing the setup controls underneath.
-    private func dismissExpectedUnsignedStorageAlertIfPresent() {
-        let alert = app.alerts["Vigil couldn't save data"]
-        if alert.waitForExistence(timeout: 2) {
-            alert.buttons["OK"].tap()
-        }
     }
 
     private func element(_ identifier: String) -> XCUIElement {

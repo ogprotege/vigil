@@ -36,28 +36,68 @@ enum AppLockLaunchConfiguration {
     }
 }
 
+enum AppPrivacyLaunchConfiguration {
+    /// UI automation can present the unsigned-storage alert while SwiftUI
+    /// still reports an inactive scene on older simulator runtimes. Keep the
+    /// privacy cover deterministic for those tests without weakening release
+    /// behavior.
+    static func forcesActiveSceneForUITesting(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        #if DEBUG
+        environment["VIGIL_UI_TEST_FORCE_ACTIVE"] == "1"
+        #else
+        false
+        #endif
+    }
+}
+
+enum AppStorageNoticeLaunchConfiguration {
+    /// Unsigned UI-test processes cannot access the production App Group and
+    /// may queue several expected storage notices. Route and lock automation
+    /// opts out of those notices. Release builds never honor this override.
+    static func suppressesForUITesting(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        #if DEBUG
+        environment["VIGIL_UI_TEST_SUPPRESS_STORAGE_NOTICE"] == "1"
+        #else
+        false
+        #endif
+    }
+}
+
 @main
 struct VigilApp: App {
     @State private var model: AppModel
     @State private var locked: Bool
     @Environment(\.scenePhase) private var scenePhase
     private let holdsLockForUITesting: Bool
+    private let forcesActiveSceneForUITesting: Bool
 
     init() {
         let model = AppModel()
         let holdsLockForUITesting = AppLockLaunchConfiguration.holdsLockForUITesting()
+        let forcesActiveSceneForUITesting =
+            AppPrivacyLaunchConfiguration.forcesActiveSceneForUITesting()
         _model = State(initialValue: model)
         _locked = State(initialValue: model.lockEnabled || holdsLockForUITesting)
         self.holdsLockForUITesting = holdsLockForUITesting
+        self.forcesActiveSceneForUITesting = forcesActiveSceneForUITesting
         BackgroundRefresh.register(model: model)
     }
 
     var body: some Scene {
         WindowGroup {
-            let showsPrivacyCover = AppPrivacyPolicy.showsPrivacyCover(for: scenePhase)
+            let presentationScenePhase: ScenePhase = forcesActiveSceneForUITesting
+                ? .active
+                : scenePhase
+            let showsPrivacyCover = AppPrivacyPolicy.showsPrivacyCover(
+                for: presentationScenePhase
+            )
             let hidesProtectedContent = AppPrivacyPolicy.hidesProtectedContent(
                 locked: locked,
-                scenePhase: scenePhase
+                scenePhase: presentationScenePhase
             )
 
             ZStack {

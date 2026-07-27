@@ -9,6 +9,8 @@ final class VigilPrivacyLockUITests: XCTestCase {
         app.launchEnvironment["VIGIL_DEMO"] = "1"
         app.launchEnvironment["VIGIL_TAB"] = "home"
         app.launchEnvironment["VIGIL_UI_TEST_LOCKED"] = "1"
+        app.launchEnvironment["VIGIL_UI_TEST_FORCE_ACTIVE"] = "1"
+        app.launchEnvironment["VIGIL_UI_TEST_SUPPRESS_STORAGE_NOTICE"] = "1"
         app.launch()
     }
 
@@ -26,7 +28,10 @@ final class VigilPrivacyLockUITests: XCTestCase {
 
         let unlock = app.buttons["vigil.lock.unlock"]
         XCTAssertTrue(unlock.exists)
-        XCTAssertTrue(unlock.isHittable)
+        XCTAssertTrue(
+            waitForHittable(unlock, timeout: 8),
+            "The modal lock's Unlock action must become interactive."
+        )
 
         let protectedAccount = app.descendants(matching: .any)["vigil.home.account.claude"]
         XCTAssertFalse(
@@ -55,5 +60,16 @@ final class VigilPrivacyLockUITests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    private func waitForHittable(
+        _ element: XCUIElement,
+        timeout: TimeInterval
+    ) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "isHittable == true"),
+            object: element
+        )
+        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 }

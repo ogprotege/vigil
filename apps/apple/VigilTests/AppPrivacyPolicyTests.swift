@@ -51,4 +51,40 @@ final class AppPrivacyPolicyTests: XCTestCase {
             AppLockLaunchConfiguration.holdsLockForUITesting(environment: [:])
         )
     }
+
+    func testActiveSceneUITestHookRequiresExactOptIn() {
+        XCTAssertTrue(
+            AppPrivacyLaunchConfiguration.forcesActiveSceneForUITesting(
+                environment: ["VIGIL_UI_TEST_FORCE_ACTIVE": "1"]
+            )
+        )
+        XCTAssertFalse(
+            AppPrivacyLaunchConfiguration.forcesActiveSceneForUITesting(
+                environment: ["VIGIL_UI_TEST_FORCE_ACTIVE": "true"]
+            )
+        )
+        XCTAssertFalse(
+            AppPrivacyLaunchConfiguration.forcesActiveSceneForUITesting(
+                environment: [:]
+            )
+        )
+    }
+
+    func testStorageNoticeUITestHookRequiresExactOptIn() {
+        XCTAssertTrue(
+            AppStorageNoticeLaunchConfiguration.suppressesForUITesting(
+                environment: ["VIGIL_UI_TEST_SUPPRESS_STORAGE_NOTICE": "1"]
+            )
+        )
+        XCTAssertFalse(
+            AppStorageNoticeLaunchConfiguration.suppressesForUITesting(
+                environment: ["VIGIL_UI_TEST_SUPPRESS_STORAGE_NOTICE": "true"]
+            )
+        )
+        XCTAssertFalse(
+            AppStorageNoticeLaunchConfiguration.suppressesForUITesting(
+                environment: [:]
+            )
+        )
+    }
 }

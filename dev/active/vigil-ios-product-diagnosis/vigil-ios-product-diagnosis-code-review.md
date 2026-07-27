@@ -1,5 +1,10 @@
 # Vigil iOS product diagnosis and code review
 
+> **Completed historical evidence.** This report diagnoses the pre-reconstruction
+> product at commit `35fadf1`. It does not describe the current UI or release
+> status. See this directory's [evidence index](README.md) and the canonical
+> [product contract](../../../docs/product-contract.md).
+
 Last Updated: 2026-07-26
 
 Review scope: Vigil commit `35fadf1`, the current iOS simulator build, repository tests, and Token Monitor commit `2d63b7a6445f474531d49c56a0648478cb84cb48`.

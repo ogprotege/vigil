@@ -1,9 +1,9 @@
 import SwiftUI
 import VigilKit
 
-/// Manual providers remain available without competing with guided sign-in.
-/// Claude and ChatGPT/Codex stay on their first-class setup routes; their
-/// direct-entry forms remain available for targeted recovery and re-linking.
+/// Direct-credential providers remain available without competing with guided
+/// sign-in. Claude and ChatGPT/Codex use their first-class guided routes for
+/// both initial setup and re-linking.
 struct ProviderCatalogView: View {
     let onSubmit: (Credentials) -> Void
 

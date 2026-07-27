@@ -1,5 +1,10 @@
 # Vigil iOS implementation code review
 
+> **Completed historical evidence.** This review records an intermediate
+> implementation state and is not a current release approval. See this
+> directory's [evidence index](README.md) and the canonical
+> [0.15.0 (16) release record](../../../docs/releases/0.15.0-16.md).
+
 > Superseded by `vigil-ios-release-0.15-code-review.md`, which reviews the
 > completed history UI, full recovery reset, widget identity migration,
 > notification delivery barrier, legacy network-cache cleanup, and build 16

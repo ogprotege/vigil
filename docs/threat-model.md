@@ -2,6 +2,12 @@
 
 Vigil is an iOS-only local client. It has no collection server. This document states what it protects, where trust changes hands, and what remains outside the design.
 
+> Status: current
+>
+> Last reviewed: 2026-07-26
+>
+> Review again: after any storage, authentication, networking, notification, widget, export, or deletion change
+
 ## Assets
 
 - provider access and refresh credentials;
@@ -17,13 +23,13 @@ Vigil is an iOS-only local client. It has no collection server. This document st
 
 The app stores credentials in Apple Keychain with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. The app and widget share access through the configured Keychain group.
 
-Keychain protects credentials at rest under Apple's platform security model. Vigil does not add application-layer encryption around Keychain values.
+Keychain protects credentials at rest under Apple's platform security model. Vigil does not add application-layer encryption around Keychain values. After the first unlock following a reboot, this accessibility class permits later background access while the device is locked when iOS runs the app or widget.
 
 ### App Group container
 
 The app and widget share snapshots, account metadata, poll leases, normalized history, and notification events through `group.app.vigil.shared`.
 
-These files contain no bearer credential. They can still reveal account relationships, usage, balance, spending, and timing. Apple sandboxing and device data protection guard them.
+These files contain no bearer credential. They can still reveal account relationships, usage, balance, spending, and timing. Apple sandboxing and device data protection guard them. Vigil does not mark them as excluded from Apple-managed device backups.
 
 ### Provider authorization pages
 
@@ -77,12 +83,14 @@ HTTP 429 advances provider-configured backoff. Manual refresh cannot bypass an a
 - Snapshot age remains visible.
 - Countdowns are identified as local projections from the last reset timestamp.
 - Experimental providers remain labeled.
-- Biometric app lock can reduce casual access while the device is unlocked.
+- Device-owner app lock can reduce casual access while the device is unlocked. It does not hide widgets or notification previews.
 - Device observations and provider-imported historical buckets carry different provenance labels.
+
+Local threshold notifications can reveal the provider, quota window, and utilization on the Lock Screen or in Notification Center. The user controls notification permission and preview settings through iOS.
 
 ### Diagnostic export
 
-The export builder accepts normalized state but no credential store or raw provider body. It replaces internal account keys with per-file aliases and allow-lists every encoded field. The user chooses whether and where to save or share the resulting JSON file.
+The export builder accepts normalized state but no credential store or raw provider body. It replaces internal account keys with per-file aliases and allow-lists every encoded field. It exports a bounded recent subset rather than the full retained archive. The user chooses whether and where to save or share the resulting JSON file.
 
 ## Accepted risks
 
@@ -118,7 +126,7 @@ The app lock is a convenience control, not a second hardware-backed credential v
 
 ### Local metadata
 
-Snapshots, history, and observations are not encrypted by Vigil. They rely on iOS sandboxing and data protection. A device compromise can expose usage and billing metadata even when bearer credentials remain in Keychain.
+Snapshots, history, and observations are not separately encrypted by Vigil. They rely on iOS sandboxing and data protection. A device compromise or restored backup can expose usage and billing metadata even when bearer credentials remain in the device-bound Keychain.
 
 An exported diagnostic file is no longer protected by Vigil's App Group container. It contains no credential by design, but its usage and billing metadata can still be sensitive.
 
@@ -149,7 +157,7 @@ Vigil trusts the operating system's TLS validation. It does not pin provider cer
 - exact-time background monitoring;
 - server-side push alerts;
 - protecting data after a user logs, exports, screenshots, or shares it;
-- monitoring desktop transcript token counts unavailable to the phone unless a separate paired collector supplies them.
+- monitoring desktop transcript token counts or reading another app's private cache, database, cookies, or login state.
 
 ## Security reporting
 

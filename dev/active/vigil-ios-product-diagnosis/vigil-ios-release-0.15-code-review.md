@@ -1,5 +1,10 @@
 # Vigil iOS 0.15 release-candidate code review
 
+> **Completed historical evidence, not upload authorization.** This code review
+> covers the reconstruction candidate before later UI-test commits. Current
+> candidate identity, CI, archive, approval, and upload status are controlled by
+> the canonical [0.15.0 (16) release record](../../../docs/releases/0.15.0-16.md).
+
 Last updated: 2026-07-26
 
 ## Decision

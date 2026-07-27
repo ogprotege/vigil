@@ -13,6 +13,8 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Validate documentation
+        run: scripts/check-docs.sh
       - name: Reject tracked signing secrets
         run: |
           if git ls-files | grep -E '\.(p12|p8|mobileprovision)$'; then
