@@ -6,13 +6,19 @@ Anything that changes shipped behavior gets an entry here: TestFlight app builds
 
 ## Unreleased
 
+- Restored Vigil's product identity in the README with the existing gauge mark,
+  a restrained status badge set, clear navigation, and current iOS screenshots.
+  Account values in the Limits image come from the gated demo-data path.
+- Reworked the documentation index around user, data-interpretation, and
+  maintainer routes. Reconciled the build 17 release record after PR #25 merged.
+
 ## 0.15.0 (17) — TestFlight internal candidate, 2026-07-27
 
 - Fixed ChatGPT / Codex linking against OpenAI's current usage response. Vigil now accepts independently optional primary and secondary windows and a valid inactive `spend_control` wrapper instead of rejecting the authorized account as a schema change before saving it.
 - Preserved fail-closed behavior for reached spend controls, concrete individual limits, unknown limit reasons, and malformed spend-control wrappers.
 - Added a live-sanitized fixture and an app-level transaction test proving the verified account is stored and survives model reload.
 
-## 0.15.0 (16) — TestFlight internal candidate, 2026-07-26
+## 0.15.0 (16) — Internal TestFlight, 2026-07-27
 
 **Documentation now has one current source for each claim.** The product contract, user guides, provider support matrix, development references, diagnostic schema, and fail-closed release runbook replace duplicated setup and release instructions. Compatibility paths now route readers to the canonical files. CI checks local documentation links, review metadata, code fences, canonical paths, and release identity.
 

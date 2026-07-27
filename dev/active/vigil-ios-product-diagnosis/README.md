@@ -29,8 +29,10 @@ Current documentation controls:
 
 The `runtime-*-reconstructed.png` files show representative reconstructed UI
 from the reviewed simulator build. Other `runtime-*.png` files show earlier UI
-or diagnosis states. A screenshot proves only the recorded simulator state. It
-does not prove signed entitlements, live provider behavior, App Store Connect
+or diagnosis states. The `legacy-readme-*.png` files are the retired public
+README images that showed the calendar selector and Models tab removed during
+reconstruction. A screenshot proves only the recorded simulator state. It does
+not prove signed entitlements, live provider behavior, App Store Connect
 processing, TestFlight distribution, or physical-device behavior.
 
 ## Archival rule

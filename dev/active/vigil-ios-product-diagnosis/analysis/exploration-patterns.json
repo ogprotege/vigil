@@ -10,8 +10,8 @@
       "dev/active/vigil-ios-product-diagnosis/runtime-empty-home.png",
       "dev/active/vigil-ios-product-diagnosis/runtime-add-account-top.png",
       "dev/active/vigil-ios-product-diagnosis/runtime-add-account-middle.png",
-      "docs/assets/screenshot-dashboard.png",
-      "docs/assets/screenshot-models.png"
+      "dev/active/vigil-ios-product-diagnosis/legacy-readme-dashboard.png",
+      "dev/active/vigil-ios-product-diagnosis/legacy-readme-models.png"
     ]
   },
   "diagnosis": "Vigil feels complicated because the interface is a desktop facsimile wrapped around a different, narrower iPhone data model. The first-run flow exposes the full provider implementation before the primary sign-in choices, the empty shell renders controls that cannot yet do anything, and the connected dashboard shows account detail before establishing an urgency-first scan path. The palette is not the root problem.",
@@ -193,7 +193,7 @@
       "confirming_signals": [
         {
           "type": "documentation_screenshot",
-          "path": "docs/assets/screenshot-dashboard.png",
+          "path": "dev/active/vigil-ios-product-diagnosis/legacy-readme-dashboard.png",
           "finding": "The 23% tightest account appears second, after a 58% account, while later providers and rows extend behind the tab bar."
         },
         {
@@ -242,7 +242,7 @@
         },
         {
           "type": "documentation_screenshot",
-          "path": "docs/assets/screenshot-dashboard.png",
+          "path": "dev/active/vigil-ios-product-diagnosis/legacy-readme-dashboard.png",
           "finding": "The connected screen simultaneously carries navigation title, add button, period control, hero, refresh button, and four-tab bar."
         }
       ],
@@ -279,7 +279,7 @@
       "confirming_signals": [
         {
           "type": "documentation_screenshot",
-          "path": "docs/assets/screenshot-models.png",
+          "path": "dev/active/vigil-ios-product-diagnosis/legacy-readme-models.png",
           "finding": "The slogan and summary consume roughly the first quarter of the usable screen before the first model limit."
         },
         {
@@ -317,8 +317,8 @@
         {
           "type": "screenshot_pair",
           "paths": [
-            "docs/assets/screenshot-dashboard.png",
-            "docs/assets/screenshot-models.png"
+            "dev/active/vigil-ios-product-diagnosis/legacy-readme-dashboard.png",
+            "dev/active/vigil-ios-product-diagnosis/legacy-readme-models.png"
           ],
           "finding": "Home shows human relative resets such as '2 hr, 17 min'; Models shows '119:59:57' and redundantly states both 45% left and 55% used."
         },
@@ -360,7 +360,7 @@
         },
         {
           "type": "documentation_screenshot",
-          "path": "docs/assets/screenshot-dashboard.png",
+          "path": "dev/active/vigil-ios-product-diagnosis/legacy-readme-dashboard.png",
           "finding": "MiniMax Coding Plan truncates in the official dashboard screenshot despite the full-width phone layout."
         },
         {
