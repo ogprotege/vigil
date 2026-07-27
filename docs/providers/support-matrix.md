@@ -24,7 +24,7 @@ Fixture coverage proves deterministic behavior for the committed body. It does n
 | Provider | Setup and credential | Data Vigil accepts | Contract evidence | Status |
 |---|---|---|---|---|
 | Claude (`claude`) | Guided browser approval and pasted authorization code for setup and re-linking. | Five-hour and weekly utilization windows, active provider-scoped weekly limits, and optional extra-usage spend and limit values. Exact token ceilings appear only if the provider supplies them. | Live-sanitized scoped-limit and 429 bodies, plus synthetic success and money cases. The consumer usage endpoint is undocumented. | Established |
-| ChatGPT / Codex (`codex`) | Guided OpenAI device authorization for setup and re-linking. | Primary and secondary subscription rate windows, additional provider-declared metered-feature windows, Flex credit balance, and reset credits. | Synthetic fixtures derived from the upstream Codex response model. The consumer usage endpoint is undocumented. | Established |
+| ChatGPT / Codex (`codex`) | Guided OpenAI device authorization for setup and re-linking. | Any provider-returned primary or secondary subscription rate window, additional provider-declared metered-feature windows, Flex credit balance, and reset credits. | Live-sanitized current response plus synthetic fixtures derived from the upstream Codex response model. The consumer usage endpoint is undocumented. | Established |
 | OpenRouter (`openrouter`) | OpenRouter API key. | USD usage for all-time, day, week, and month periods; the same four BYOK usage periods; optional key spending limit and remaining amount. | Vendor-documented contract with synthetic fixtures. | Established |
 | DeepSeek (`deepseek`) | DeepSeek API key. | One balance metric for each currency returned by the provider. | Vendor-documented contract with synthetic fixtures. | Established |
 | Moonshot (Kimi) (`moonshot`) | Global Moonshot open-platform API key. | Available, cash, and voucher balances in USD. | Vendor example fixture. | Established |
@@ -44,7 +44,7 @@ Fixture coverage proves deterministic behavior for the committed body. It does n
 
 Codex identifies each additional limit with `metered_feature` and may supply a `limit_name`. A returned label can look like a model name, but the contract identifies a metered feature. Vigil must not describe every additional Codex window as a model cap without a separate provider field that proves model scope.
 
-The normal primary and secondary windows also expose percentages and reset times. A ChatGPT subscription name gives allowance context, but it does not supply an exact token or message denominator.
+The normal primary and secondary windows are independently optional. Returned windows expose percentages and reset times. A ChatGPT subscription name gives allowance context, but it does not supply an exact token or message denominator.
 
 ### Z.ai supports two session durations
 

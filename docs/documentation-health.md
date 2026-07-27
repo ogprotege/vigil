@@ -4,13 +4,13 @@ This page records documentation coverage, review triggers, and known debt. It is
 
 > Status: current
 >
-> Last reviewed: 2026-07-26
+> Last reviewed: 2026-07-27
 >
 > Review again: before each release and after any product-boundary change
 
 ## Current health
 
-The current documentation set is aligned with Vigil 0.15.0, build 16. The product contract, user guides, provider references, development guides, and release procedure now have distinct owners and scopes. Legacy public paths remain as short compatibility pointers.
+The current documentation set is aligned with Vigil 0.15.0, build 17. The product contract, user guides, provider references, development guides, and release procedure now have distinct owners and scopes. Legacy public paths remain as short compatibility pointers.
 
 No known critical documentation defect remains open. Historical organization and physical-device release evidence remain explicit debt. Neither item changes the current product claims.
 
@@ -22,7 +22,7 @@ No known critical documentation defect remains open. Historical organization and
 | Architecture and development | [Development architecture](development/architecture.md) | Current | Storage, scheduling, lifecycle, build, or diagnostic change |
 | Security and privacy | [Security policy](../SECURITY.md) and [privacy guide](user-guide/privacy-deletion-notifications.md) | Current | Storage, network, Keychain, notification, widget, export, or deletion change |
 | Release procedure | [iOS release runbook](development/release.md) | Current | Signing, CI, archive, upload, or App Store Connect change |
-| Release evidence | [0.15.0 (16) record](releases/0.15.0-16.md) | In progress | Every completed or failed release gate |
+| Release evidence | [0.15.0 (17) record](releases/0.15.0-17.md) | In progress | Every completed or failed release gate |
 | Decisions | [ADR index](decisions/README.md) | Current | A durable architectural decision is accepted, amended, or superseded |
 
 ## Known documentation debt

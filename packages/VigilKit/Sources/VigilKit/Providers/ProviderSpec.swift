@@ -57,6 +57,30 @@ public struct FieldCondition: Sendable, Equatable {
     }
 }
 
+/// Requires a typed field condition only when its enclosing response object is
+/// present. This keeps optional or nullable provider features optional while
+/// rejecting a partial or malformed object that the provider did return.
+public struct RequiredConditionWhenPresent: Sendable, Equatable {
+    public let presencePath: String
+    public let condition: FieldCondition
+
+    public init(
+        presencePath: String,
+        key: String,
+        equals: String,
+        valueType: String? = nil,
+        allowedNonMatches: [String] = []
+    ) {
+        self.presencePath = presencePath
+        self.condition = FieldCondition(
+            key: key,
+            equals: equals,
+            valueType: valueType,
+            allowedNonMatches: allowedNonMatches
+        )
+    }
+}
+
 /// Converts a provider `(unit, number)` pair into seconds. Optional bounds let
 /// one array hold session and weekly entries without pinning the contract to a
 /// single exact duration.
@@ -544,6 +568,7 @@ public struct ProviderSpec: Sendable, Equatable {
     public let exhaustiveCollections: [ExhaustiveCollection]
     public let incompleteWhen: [FieldCondition]
     public let requiredConditions: [FieldCondition]
+    public let requiredConditionsWhenPresent: [RequiredConditionWhenPresent]
     public let requiredPaths: [String]
     public let absentOrNullPaths: [String]
     public let planKey: String?
@@ -572,6 +597,7 @@ public struct ProviderSpec: Sendable, Equatable {
         exhaustiveCollections: [ExhaustiveCollection] = [],
         incompleteWhen: [FieldCondition] = [],
         requiredConditions: [FieldCondition] = [],
+        requiredConditionsWhenPresent: [RequiredConditionWhenPresent] = [],
         requiredPaths: [String] = [],
         absentOrNullPaths: [String] = [],
         planKey: String?,
@@ -598,6 +624,7 @@ public struct ProviderSpec: Sendable, Equatable {
         self.exhaustiveCollections = exhaustiveCollections
         self.incompleteWhen = incompleteWhen
         self.requiredConditions = requiredConditions
+        self.requiredConditionsWhenPresent = requiredConditionsWhenPresent
         self.requiredPaths = requiredPaths
         self.absentOrNullPaths = absentOrNullPaths
         self.planKey = planKey
@@ -627,6 +654,7 @@ public struct ProviderSpec: Sendable, Equatable {
             && lhs.exhaustiveCollections == rhs.exhaustiveCollections
             && lhs.incompleteWhen == rhs.incompleteWhen
             && lhs.requiredConditions == rhs.requiredConditions
+            && lhs.requiredConditionsWhenPresent == rhs.requiredConditionsWhenPresent
             && lhs.requiredPaths == rhs.requiredPaths
             && lhs.absentOrNullPaths == rhs.absentOrNullPaths
             && lhs.planKey == rhs.planKey
@@ -719,8 +747,20 @@ public enum ProviderRegistry {
         poll: PollPolicy(minSeconds: 300, jitterSeconds: 60, backoff429BaseSeconds: 900, backoffMaxSeconds: 3600),
         responseFields: ResponseFields(utilization: "used_percent", resetsAt: "reset_at", windowSeconds: "limit_window_seconds"),
         requiredOutputs: RequiredOutputs(minimumWindows: 1, minimumPrimaryWindows: 1),
-        requiredPaths: ["plan_type", "rate_limit.primary_window", "rate_limit.secondary_window"],
-        absentOrNullPaths: ["spend_control", "code_review_rate_limit"],
+        requiredConditionsWhenPresent: [
+            RequiredConditionWhenPresent(
+                presencePath: "spend_control",
+                key: "spend_control.reached",
+                equals: "false",
+                valueType: "boolean"
+            ),
+        ],
+        requiredPaths: ["plan_type"],
+        absentOrNullPaths: [
+            "spend_control.individual_limit",
+            "code_review_rate_limit",
+            "rate_limit_reached_type",
+        ],
         planKey: "plan_type",
         additionalWindows: AdditionalWindows(
             sourceKey: "additional_rate_limits",

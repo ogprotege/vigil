@@ -376,8 +376,20 @@
         "minimumWindows": 1,
         "minimumPrimaryWindows": 1
       },
-      "requiredPaths": ["plan_type", "rate_limit.primary_window", "rate_limit.secondary_window"],
-      "absentOrNullPaths": ["spend_control", "code_review_rate_limit"],
+      "requiredConditionsWhenPresent": [
+        {
+          "presencePath": "spend_control",
+          "key": "spend_control.reached",
+          "equals": "false",
+          "valueType": "boolean"
+        }
+      ],
+      "requiredPaths": ["plan_type"],
+      "absentOrNullPaths": [
+        "spend_control.individual_limit",
+        "code_review_rate_limit",
+        "rate_limit_reached_type"
+      ],
       "capabilities": [
         "rate_windows"
       ]

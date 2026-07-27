@@ -4,7 +4,7 @@ This index is the entry point for current Vigil documentation.
 
 > Status: current documentation
 >
-> Last reviewed: 2026-07-26
+> Last reviewed: 2026-07-27
 >
 > Review again: before each release
 
@@ -40,7 +40,7 @@ Older links remain available and point to the canonical guides:
 - [Provider contribution](development/provider-contribution.md)
 - [Diagnostic schema](development/diagnostic-schema.md)
 - [iOS release runbook](development/release.md)
-- [Current 0.15.0 (16) release record](releases/0.15.0-16.md)
+- [Current 0.15.0 (17) release record](releases/0.15.0-17.md)
 - [Architecture decisions](decisions/README.md)
 - [Documentation health and debt](documentation-health.md)
 

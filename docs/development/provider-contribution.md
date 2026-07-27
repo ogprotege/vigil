@@ -98,6 +98,7 @@ Use the narrowest complete contract:
 - Required window IDs
 - Minimum metrics and required metric IDs
 - Required paths or conditions
+- Typed conditions required only when an optional wrapper is present
 - Paths that must be absent or null
 - Recognized empty states for a valid unlimited or empty account
 

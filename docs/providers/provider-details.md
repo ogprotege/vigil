@@ -31,9 +31,11 @@ The current UI uses this guided flow for both first setup and re-linking. Claude
 
 The primary setup uses OpenAI device authorization. The user must enable device-code authorization in ChatGPT security settings. Vigil receives its own refreshable token pair and the account ID required by the usage request.
 
-Codex returns primary and secondary rate windows. Their duration decides whether Vigil calls them session or weekly windows. Additional entries are keyed by a provider `metered_feature` value and labeled from `limit_name` when available. These are metered-feature limits. A label that resembles a model does not make the whole collection a model-cap API.
+Codex can return either or both of its primary and secondary rate windows. Their duration decides whether Vigil calls them session or weekly windows. Additional entries are keyed by a provider `metered_feature` value and labeled from `limit_name` when available. These are metered-feature limits. A label that resembles a model does not make the whole collection a model-cap API.
 
 Flex credits appear only when the provider reports a finite balance. Reset credits appear as a count of resets available. Neither metric supplies an exact denominator for a percentage-only rate window.
+
+OpenAI can also return an optional workspace spend-control object. An inactive wrapper with an explicit Boolean `reached: false` does not invalidate otherwise complete usage data. A malformed wrapper, reached control, or concrete individual monthly limit remains unsupported until Vigil maps it, so the app reports provider drift instead of silently presenting incomplete data as live.
 
 The current UI uses device authorization for both first setup and re-linking. ChatGPT / Codex is excluded from the Other Provider catalog, so there is no user-facing manual-token route.
 

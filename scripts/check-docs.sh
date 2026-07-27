@@ -13,7 +13,7 @@ docs/documentation-health.md
 docs/threat-model.md
 docs/decisions/README.md
 docs/release.md
-docs/releases/0.15.0-16.md
+docs/releases/0.15.0-17.md
 docs/user-guide/setup.md
 docs/user-guide/reading-limits.md
 docs/user-guide/history-and-imports.md
@@ -29,7 +29,7 @@ docs/development/provider-contribution.md
 docs/development/diagnostic-schema.md
 docs/development/release.md
 dev/archive/README.md
-dev/releases/0.15.0-16/README.md'
+dev/releases/0.15.0-17/README.md'
 
 printf '%s\n' "$VIGIL_CURRENT_DOCS" | while IFS= read -r VIGIL_DOC_PATH; do
   if test ! -f "$VIGIL_DOC_PATH"; then
