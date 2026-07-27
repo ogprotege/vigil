@@ -6,6 +6,16 @@ final class OpenAIAdminHistoryClientTests: XCTestCase {
     private let start = Date(timeIntervalSince1970: 1_730_419_200)
     private let retrievedAt = Date(timeIntervalSince1970: 1_730_678_400)
 
+    func testDefaultTransportCannotReuseCacheOrCookies() {
+        let transport = OpenAIAdminURLSessionTransport()
+        let configuration = transport.session.configuration
+
+        XCTAssertEqual(configuration.requestCachePolicy, .reloadIgnoringLocalCacheData)
+        XCTAssertNil(configuration.urlCache)
+        XCTAssertFalse(configuration.httpShouldSetCookies)
+        XCTAssertNil(configuration.httpCookieStorage)
+    }
+
     func testPaginatesDailyUsageAndCostsWithTypedProvenance() async throws {
         let transport = OpenAIHistoryStubTransport(responses: [
             .json(Self.usagePageOne),

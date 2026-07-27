@@ -1,170 +1,89 @@
-<p align="center">
-  <img src="docs/assets/icon-256.png" width="128" alt="Vigil app icon" />
-</p>
+# Vigil
 
-<h1 align="center">Vigil</h1>
+Vigil answers one question: **which AI limit needs your attention next?**
 
-<p align="center"><b>Know where you stand against your AI limits, spend, and balances on your iPhone.</b><br/>
-Vigil reads provider usage directly, stores credentials in Keychain, and has no collection server.</p>
+It is an iPhone app for viewing provider-reported limits, reset times, balances, spend, and retained observations. The Home screen ranks linked accounts by urgency. Account detail shows every accepted limit and metric returned for that account.
 
-<p align="center">
-  <a href="https://github.com/ogprotege/vigil/actions/workflows/apple.yml"><img src="https://github.com/ogprotege/vigil/actions/workflows/apple.yml/badge.svg" alt="Apple CI" /></a>
-  <img src="https://img.shields.io/badge/platform-iOS%2017%2B-blue" alt="iOS 17 or later" />
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT" /></a>
-</p>
+> Current documentation
+>
+> Last reviewed: 2026-07-26
+>
+> Review again: before each release
 
-## What is Vigil?
+## What Vigil does
 
-Vigil is an iOS limits and balance monitor for AI subscriptions and API accounts. It shows which limit needs attention next, then provides complete reset-based limits, model-specific caps, balances, spend, and overage credits when providers expose them.
+- Connects Claude and ChatGPT/Codex through guided sign-in on the iPhone.
+- Connects supported API and coding-plan providers with the credential they issue.
+- Shows percentages, exact amounts, balances, and spend only when the provider returns them.
+- Keeps successful observations in a protected local history archive.
+- Imports official OpenAI API organization completion usage and costs when an OpenAI Admin API account is linked.
+- Provides Home Screen and Lock Screen widgets.
+- Sends local alerts when an observed quota crosses 80% or 95% utilization.
+- Exports bounded, credential-free diagnostic JSON when the user asks.
 
-There is no Vigil account and no Vigil server. The app talks directly to each activated provider. Claude and ChatGPT/Codex use phone-native sign-in. Other providers use a key or session credential pasted into the app. Credentials remain in the device Keychain and do not sync through iCloud Keychain.
+Vigil has no Vigil account, collection server, analytics SDK, advertising SDK, or cloud synchronization service. Provider requests go from the app to providers the user activates.
 
-Vigil is built around three principles:
+## What Vigil does not do
 
-1. **Phone-first setup.** Claude, ChatGPT/Codex, and ordinary provider keys can be connected on the iPhone. Experimental browser-session integrations may require obtaining a credential elsewhere first.
-2. **Honest freshness.** The app respects provider poll floors, keeps countdowns moving locally, and labels stale or structurally incompatible data.
-3. **On-device storage.** Credentials stay in Keychain. Snapshots and poll metadata stay in the shared App Group container used by the app and widgets.
+Vigil is not a universal token counter. It cannot:
 
-## Getting started
+- read the private cache, database, cookies, or login state of another iPhone app;
+- recover Claude, ChatGPT, Codex, or other subscription history that a provider does not expose;
+- convert a subscription name into a fixed token or message ceiling;
+- guarantee a background sample every five minutes, because iOS controls background execution;
+- treat OpenAI API organization history as ChatGPT or Codex subscription history; or
+- monitor Perplexity usage credits in the current release.
 
-1. Install Vigil from TestFlight.
-2. Open Vigil. First launch offers Claude, ChatGPT/Codex, and Other provider.
-3. Choose one path:
-   - **Sign in with Claude:** approve access in the browser, copy the returned code, and finish in Vigil.
-   - **Sign in with Codex:** open the approval page, enter the short code Vigil shows, and wait for completion.
-   - **Paste a provider key:** choose a provider and enter the requested key, account identifier, or session credential.
-4. Read the most urgent current limit on **Limits**, then open an account for every real window, provider metric, and observed history.
+## Set up an account
 
-See [docs/getting-started.md](docs/getting-started.md) for the full walkthrough.
+Vigil requires iOS 17 or later.
 
-## Features
+1. Open Vigil.
+2. Choose **Connect Claude**, **Connect ChatGPT / Codex**, or **Other provider**.
+3. Finish the provider's guided sign-in or enter the requested credential.
+4. Open an account from **Limits** to inspect all current data and retained history.
 
-- Claude and ChatGPT/Codex subscription-window tracking.
-- Genuine model-specific caps in complete account detail.
-- Provider balances, spend, limits, and overage credits when available.
-- Home-screen and lock-screen widgets.
-- Reset countdowns computed locally between provider fetches.
-- Shared, account-level poll leases across the app and widgets.
-- Threshold notifications at 80% and 95% utilization.
-- Protected on-device history for every retained successful reading, segmented by the provider's real reset window.
-- Official OpenAI completion-token and organization-cost import for linked Admin API accounts.
-- Credential-free JSON diagnostics export.
-- Optional Face ID or Touch ID app lock.
-- Explicit states for stale data, rate limits, expired authentication, provider drift, and network failures.
-- Keychain credential storage with no Vigil server or analytics.
+Claude and ChatGPT/Codex use their guided routes. The current interface does not offer manual Claude or Codex token entry.
 
-## Provider support
+See the [setup guide](docs/user-guide/setup.md) for provider requirements and recovery behavior.
 
-Fourteen providers ship in the registry. Claude and ChatGPT/Codex are the primary subscription integrations. All other providers are opt-in.
+## Read the result honestly
 
-| Provider | What Vigil shows | How to connect |
-|---|---|---|
-| **Claude** | 5-hour, weekly, and model-scoped weekly caps; extra-usage spend and limit | Sign in with Claude |
-| **ChatGPT / Codex** | Session, weekly, nested model lanes, Flex credits, and reset credits | Sign in with Codex |
-| OpenRouter | Lifetime, daily, weekly, monthly, and BYOK usage; optional key limit and remaining amount | Paste an OpenRouter API key |
-| DeepSeek | Balance by returned currency | Paste a DeepSeek API key |
-| Moonshot (Kimi) | Available, cash, and voucher balances | Paste a global Moonshot key |
-| Moonshot (Kimi) China | Available, cash, and voucher balances | Paste a China-platform Moonshot key |
-| Kimi K3 coding plan | Session and weekly coding-plan windows | Paste a Kimi Code key |
-| MiniMax Coding Plan | General and video session and weekly windows | Paste a global MiniMax coding-plan key |
-| MiniMax Coding Plan China | General and video session and weekly windows | Paste a China-platform MiniMax coding-plan key |
-| OpenAI API | Month-to-date organization spend; optional import of up to 365 days of completion-token and organization-cost buckets | Paste a dedicated API-platform organization Admin API key. It is a broad organization-owner credential. Vigil sends only documented GET requests. Regular project keys cannot access the Usage and Costs APIs. |
-| GitHub Copilot | Credits consumed, included and billable credits, and billable spend | Paste a fine-grained token and username |
-| xAI API | Prepaid balance | Paste a Management Key and team ID |
-| Z.ai / GLM Coding Plan | 5-hour and weekly token windows; web-search counters | Paste a GLM Coding Plan key |
-| Cursor | Plan and model-lane usage; on-demand spend and limit | Paste a `WorkosCursorSessionToken` cookie |
+- **Percent left** is derived from a utilization percentage returned by the provider.
+- **Used, limit, or remaining** appears only when the provider returns the needed amount fields.
+- A **plan label** gives context. It is not proof of a fixed token allowance.
+- **Observed by Vigil** means the app retained a successful reading after the account was connected.
+- **Imported from provider** means a supported provider returned historical administrative buckets.
+- A passed reset is not assumed to mean zero use. Vigil hides the old quota until a provider update confirms the new value.
 
-MiniMax, MiniMax China, Z.ai, Cursor, and Kimi K3 are marked **experimental**. Their endpoints lack both a stable vendor contract and a sanitized Vigil production capture. The label remains visible during setup and on in-app account and model surfaces.
+Read [How to read limits](docs/user-guide/reading-limits.md) and [History and imports](docs/user-guide/history-and-imports.md) for the full rules.
 
-Committed fixtures carry explicit evidence classifications in [protocol/fixture-provenance.json](protocol/fixture-provenance.json). A fixture proves deterministic mapping. It does not, by itself, prove that a provider still returns that shape. See the [provider support matrix](docs/provider-spec.md#support-and-stability-matrix).
+## Privacy boundaries
 
-## Reading the app
+Credentials are stored in the device-bound Keychain. Normalized snapshots, history, and polling metadata live in Vigil's App Group container for the app and widget. The optional app lock does not hide widgets. Notification previews can show a provider name, quota window, and utilization on the Lock Screen.
 
-- **Limits** ranks linked accounts by required action and remaining quota. Each account opens complete detail.
-- **Account detail** contains every real provider window, balance, spend value, and genuine model-specific cap.
-- **Plan labels** identify the provider's allowance tier. Vigil shows an exact used and limit amount only when the provider returns both values. Claude and Codex subscription capacity can vary by workload, so a tier name alone is not converted into a fictional token or message ceiling.
-- **Observed by Vigil** means the value came from a successful provider reading archived on this device. Gaps can occur because iOS schedules background work opportunistically.
-- **Imported from provider** identifies historical buckets returned by a documented administrative API. The OpenAI import covers completion tokens and organization costs, not ChatGPT or Codex subscription activity.
-- **Live** means the latest accepted response satisfied that provider's required-output contract.
-- **Provider changed** means a successful response no longer mapped completely enough to trust.
-- **Cooling down** means the provider rate-limited a request.
-- **Re-link needed** means the provider rejected the credential.
+**On this iPhone** means Vigil does not run a sync service. It does not mean every local file is excluded from Apple-managed device backups. Read [Privacy, deletion, and notifications](docs/user-guide/privacy-deletion-notifications.md) before linking a broad administrative credential.
 
-## How it works
+## Documentation
 
-```text
-┌──────────────────────────── iPhone ─────────────────────────────┐
-│ Vigil app                                                       │
-│  ├─ Guided phone-native account setup                           │
-│  │   ├─ Claude OAuth                                            │
-│  │   ├─ Codex device authorization                              │
-│  │   └─ Manual provider credential entry                        │
-│  ├─ VigilKit                                                    │
-│  │   ├─ ProviderRegistry ───────────────────▶ provider APIs      │
-│  │   ├─ UsageClient and UsageMapper                             │
-│  │   ├─ FetchScheduler and locked poll ledger                   │
-│  │   ├─ Keychain credential vault                               │
-│  │   └─ SnapshotStore, UsageHistoryStore, and threshold engine  │
-│  └─ Widgets read shared snapshots and tick countdowns locally   │
-└─────────────────────────────────────────────────────────────────┘
-```
+- [Documentation index](docs/index.md)
+- [Product contract](docs/product-contract.md)
+- [Setup](docs/user-guide/setup.md)
+- [Reading limits](docs/user-guide/reading-limits.md)
+- [History and imports](docs/user-guide/history-and-imports.md)
+- [Privacy, deletion, and notifications](docs/user-guide/privacy-deletion-notifications.md)
+- [Troubleshooting](docs/user-guide/troubleshooting.md)
 
-`protocol/providers.json` is the reviewable provider contract. Swift's `ProviderRegistry` mirrors the runtime fields, and `SpecParityTests` keep the mirror aligned. Fixture tests validate mapping and required-output behavior in the sole shipped implementation.
+## Project status
 
-See [docs/architecture.md](docs/architecture.md) for the reliability model and [docs/provider-contribution.md](docs/provider-contribution.md) before changing a provider.
+These docs describe Vigil 0.15.0, build 16. Runtime provider behavior can change outside Vigil's control. Experimental integrations are marked during setup because their vendor contracts or production evidence are incomplete.
 
-## Repository map
-
-| Path | Purpose |
-|---|---|
-| [`protocol/`](protocol/) | Provider registry, fixtures, expected normalized outputs, and fixture provenance |
-| [`packages/VigilKit/`](packages/VigilKit/) | Swift core for authentication, provider requests, mapping, scheduling, storage, and refresh |
-| [`apps/apple/`](apps/apple/) | iOS 17+ SwiftUI app, widgets, tests, and XcodeGen manifest |
-| [`docs/`](docs/) | Setup, architecture, provider support, privacy, troubleshooting, release notes, and decisions |
-
-## Development
-
-```sh
-# Swift core
-swift test --package-path packages/VigilKit
-
-# Generate and build the iOS app
-cd apps/apple
-xcodegen generate
-xcodebuild -project Vigil.xcodeproj -scheme Vigil \
-  -destination 'generic/platform=iOS Simulator' \
-  build CODE_SIGNING_ALLOWED=NO
-
-# Run the app test target on an available iPhone simulator
-DEVICE_UDID=$(xcrun simctl list devices available \
-  | awk -F '[()]' '/^[[:space:]]+iPhone/ { print $2; exit }')
-test -n "$DEVICE_UDID"
-echo "Testing on simulator: $DEVICE_UDID"
-xcodebuild -project Vigil.xcodeproj -scheme Vigil \
-  -destination "platform=iOS Simulator,id=$DEVICE_UDID" \
-  test CODE_SIGNING_ALLOWED=NO
-```
-
-The Swift package retains a macOS host platform declaration so package tests can run on macOS CI. That declaration is build infrastructure, not a macOS Vigil product.
-
-See [docs/release.md](docs/release.md) for TestFlight and App Store delivery.
-
-## Privacy
-
-Vigil sends credentials and usage requests only to providers the user activates. It has no collection server, analytics, advertising SDK, or cloud synchronization service. Normalized history stays in the protected App Group container. User-initiated diagnostics exports exclude credentials and raw provider bodies. Read [docs/privacy.md](docs/privacy.md) and [docs/threat-model.md](docs/threat-model.md) for the precise boundaries.
-
-## Acknowledgments
-
-- [token-monitor](https://github.com/Javis603/token-monitor) by Javis603 inspired Vigil's provider and model-limit presentation. Desktop transcript-derived token counts are not available to an iPhone-only app, so Vigil shows only values returned by provider APIs.
-
----
+Vigil was inspired by [token-monitor](https://github.com/Javis603/token-monitor). Desktop transcript and cache access do not carry over to an iOS-only app, so Vigil reports only data it can obtain and label honestly.
 
 ## Funding
 
-<a href="https://www.buymeacoffee.com/thebiscuit" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" style="height: 60px !important;width: 217px !important;" ></a>
-
----
+<a href="https://www.buymeacoffee.com/thebiscuit"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="60" width="217"></a>
 
 ## License
 
-[MIT](LICENSE)
+Vigil is licensed under the [MIT License](LICENSE).

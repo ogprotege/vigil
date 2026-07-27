@@ -69,4 +69,22 @@ final class AppPrivacyPolicyTests: XCTestCase {
             )
         )
     }
+
+    func testStorageNoticeUITestHookRequiresExactOptIn() {
+        XCTAssertTrue(
+            AppStorageNoticeLaunchConfiguration.suppressesForUITesting(
+                environment: ["VIGIL_UI_TEST_SUPPRESS_STORAGE_NOTICE": "1"]
+            )
+        )
+        XCTAssertFalse(
+            AppStorageNoticeLaunchConfiguration.suppressesForUITesting(
+                environment: ["VIGIL_UI_TEST_SUPPRESS_STORAGE_NOTICE": "true"]
+            )
+        )
+        XCTAssertFalse(
+            AppStorageNoticeLaunchConfiguration.suppressesForUITesting(
+                environment: [:]
+            )
+        )
+    }
 }

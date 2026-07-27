@@ -1,5 +1,12 @@
 # iOS-only Vigil: remove vigil-link, the QR protocol, and the macOS target — Implementation Plan
 
+> **Historical completed plan. Do not execute these tasks.** The iOS-only
+> removal was completed on 2026-07-21. Paths, branch ordering, and validation
+> notes below describe that migration, not the current repository workflow. See
+> the [documentation index](../../index.md),
+> [testing guide](../../development/testing.md), and
+> [release runbook](../../development/release.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Collapse Vigil to a single phone-native platform — an iOS app that sets up every account on the device — by deleting the `vigil-link` CLI, the `vigil1` QR protocol, the computer-handoff UI, and the macOS target.

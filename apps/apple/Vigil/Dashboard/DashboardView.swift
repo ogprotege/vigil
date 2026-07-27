@@ -48,7 +48,10 @@ struct DashboardView: View {
         .alert(
             "Vigil couldn't save data",
             isPresented: Binding(
-                get: { model.storageErrorMessage != nil },
+                get: {
+                    model.storageErrorMessage != nil
+                        && !AppStorageNoticeLaunchConfiguration.suppressesForUITesting()
+                },
                 set: { if !$0 { model.dismissStorageError() } }
             )
         ) {

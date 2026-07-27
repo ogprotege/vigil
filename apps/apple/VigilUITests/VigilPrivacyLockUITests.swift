@@ -10,16 +10,8 @@ final class VigilPrivacyLockUITests: XCTestCase {
         app.launchEnvironment["VIGIL_TAB"] = "home"
         app.launchEnvironment["VIGIL_UI_TEST_LOCKED"] = "1"
         app.launchEnvironment["VIGIL_UI_TEST_FORCE_ACTIVE"] = "1"
+        app.launchEnvironment["VIGIL_UI_TEST_SUPPRESS_STORAGE_NOTICE"] = "1"
         app.launch()
-
-        let storageAlert = app.alerts["Vigil couldn't save data"]
-        if storageAlert.waitForExistence(timeout: 2) {
-            storageAlert.buttons["OK"].tap()
-            XCTAssertTrue(
-                waitForDisappearance(storageAlert, timeout: 5),
-                "The acknowledged storage alert must stop blocking the lock surface."
-            )
-        }
     }
 
     override func tearDownWithError() throws {
@@ -68,17 +60,6 @@ final class VigilPrivacyLockUITests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
-    }
-
-    private func waitForDisappearance(
-        _ element: XCUIElement,
-        timeout: TimeInterval
-    ) -> Bool {
-        let expectation = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "exists == false"),
-            object: element
-        )
-        return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
     private func waitForHittable(

@@ -61,6 +61,9 @@ expect_equal \
   "$(plist_value "$archive_path/Info.plist" ApplicationProperties.Architectures.0)" \
   arm64
 
+expect_equal "$(lipo -archs "$app_path/Vigil")" arm64
+expect_equal "$(lipo -archs "$widget_path/VigilWidgets")" arm64
+
 codesign --verify --deep --strict --verbose=2 "$app_path"
 codesign --verify --strict --verbose=2 "$widget_path"
 

@@ -52,6 +52,21 @@ enum AppPrivacyLaunchConfiguration {
     }
 }
 
+enum AppStorageNoticeLaunchConfiguration {
+    /// Unsigned UI-test processes cannot access the production App Group and
+    /// may queue several expected storage notices. Route and lock automation
+    /// opts out of those notices. Release builds never honor this override.
+    static func suppressesForUITesting(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        #if DEBUG
+        environment["VIGIL_UI_TEST_SUPPRESS_STORAGE_NOTICE"] == "1"
+        #else
+        false
+        #endif
+    }
+}
+
 @main
 struct VigilApp: App {
     @State private var model: AppModel

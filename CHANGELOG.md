@@ -6,12 +6,16 @@ Anything that changes shipped behavior gets an entry here: TestFlight app builds
 
 ## 0.15.0 (16) — TestFlight internal candidate, 2026-07-26
 
+**Documentation now has one current source for each claim.** The product contract, user guides, provider support matrix, development references, diagnostic schema, and fail-closed release runbook replace duplicated setup and release instructions. Compatibility paths now route readers to the canonical files. CI checks local documentation links, review metadata, code fences, canonical paths, and release identity.
+
 **Vigil now answers one question first: which AI limit needs attention next.**
 Home ranks provider failures that require action first, then current finite quotas
 by least remaining allowance. Stale, reset-pending, and unknown accounts no
 longer outrank a fresh critical limit. Account detail holds every genuine
-provider window, exact amount the provider supplied, balance, model-specific
-lane, reset time, source explanation, and history action.
+provider window, exact amount the provider supplied, balance, provider-declared
+special lane, reset time, source explanation, and history action. Codex
+additional limits remain metered features unless a separate provider field
+proves model scope.
 
 **Observed history is now a real normalized SQLite archive.** The app and widget
 share it through the App Group, and every distinct successful fetch time remains
