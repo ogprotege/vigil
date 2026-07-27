@@ -29,6 +29,62 @@ final class AppModelReliabilityTests: XCTestCase {
         XCTAssertEqual(AppModel.accountKey(for: before), AppModel.accountKey(for: after))
     }
 
+    func testCodexLiveUsageShapeVerifiesPersistsAndReloadsLinkedAccount() async throws {
+        let directory = try makeTemporaryDirectory()
+        StubURLProtocol.reset()
+        defer { StubURLProtocol.reset() }
+        StubURLProtocol.respond(
+            statusCode: 200,
+            body: Data(Self.codexLiveSpendControlBody.utf8)
+        )
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let vault = InMemoryCredentialsStore()
+        let credentials = Credentials(
+            providerId: "codex",
+            accessToken: "live-shape-access",
+            refreshToken: "live-shape-refresh",
+            accountId: "acct-live-shape",
+            source: TokenRefresher.mintSource
+        )
+        let accountKey = AppModel.accountKey(for: credentials)
+        let model = AppModel(
+            vault: vault,
+            directory: directory,
+            notifications: RecordingNotificationManager(),
+            usageSession: session
+        )
+
+        try await model.addAccount(credentials: credentials)
+
+        XCTAssertEqual(model.accounts.map(\.key), [accountKey])
+        XCTAssertEqual(try vault.load(accountKey: accountKey), credentials)
+        XCTAssertEqual(model.snapshots[accountKey]?.status, .ok)
+        XCTAssertEqual(model.snapshots[accountKey]?.windows.map(\.id), ["session"])
+        XCTAssertEqual(StubURLProtocol.requestCount, 1)
+        let linkedAccount = try XCTUnwrap(model.accounts.first)
+        let historyReloaded = await waitForHistoryCount(
+            1,
+            account: linkedAccount,
+            model: model
+        )
+        XCTAssertTrue(
+            historyReloaded,
+            "The verified reading should finish its asynchronous archive reload before teardown"
+        )
+
+        let reloaded = AppModel(
+            vault: vault,
+            directory: directory,
+            notifications: RecordingNotificationManager(),
+            usageSession: session
+        )
+        XCTAssertEqual(reloaded.accounts.map(\.key), [accountKey])
+        XCTAssertEqual(reloaded.snapshots[accountKey]?.status, .ok)
+        XCTAssertEqual(try vault.load(accountKey: accountKey), credentials)
+    }
+
     func testRelinkRoutesClaudeCodexAndManualProvidersToTargetedFlows() {
         XCTAssertEqual(AddAccountView.relinkRoute(forProviderId: "claude"), .claude)
         XCTAssertEqual(AddAccountView.relinkRoute(forProviderId: "codex"), .codex)
@@ -2907,6 +2963,27 @@ final class AppModelReliabilityTests: XCTestCase {
         "limit_remaining": 37.5,
         "rate_limit": { "requests": 200, "interval": "10s" }
       }
+    }
+    """#
+
+    private static let codexLiveSpendControlBody = #"""
+    {
+      "plan_type": "pro",
+      "rate_limit": {
+        "allowed": true,
+        "limit_reached": false,
+        "primary_window": {
+          "used_percent": 23.5,
+          "reset_at": 1785268800,
+          "limit_window_seconds": 18000
+        },
+        "secondary_window": null
+      },
+      "spend_control": {
+        "reached": false,
+        "individual_limit": null
+      },
+      "code_review_rate_limit": null
     }
     """#
 }

@@ -157,7 +157,23 @@ final class CodexAuthTests: XCTestCase {
         XCTAssertEqual(creds.refreshToken, "ref")
         XCTAssertEqual(creds.source, TokenRefresher.mintSource)
         // Codex minted tokens are refreshable via the shared refresher.
-        XCTAssertNotNil(TokenRefresher.refreshRequest(spec: ProviderRegistry.codex, credentials: creds))
+        let refresh = try XCTUnwrap(
+            TokenRefresher.refreshRequest(spec: ProviderRegistry.codex, credentials: creds)
+        )
+        XCTAssertEqual(refresh.url?.absoluteString, "https://auth.openai.com/oauth/token")
+        XCTAssertEqual(refresh.value(forHTTPHeaderField: "Content-Type"), "application/json")
+        let refreshBody = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: try XCTUnwrap(refresh.httpBody))
+                as? [String: String]
+        )
+        XCTAssertEqual(
+            refreshBody,
+            [
+                "grant_type": "refresh_token",
+                "refresh_token": "ref",
+                "client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
+            ]
+        )
     }
 }
 

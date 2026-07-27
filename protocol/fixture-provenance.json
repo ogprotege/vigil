@@ -27,6 +27,11 @@
       "checkedOn": "2026-07-22",
       "notes": "OpenAI Codex source model for primary, secondary, additional, credit, and spend-control fields."
     },
+    "codex-wham-live-2026-07-27": {
+      "url": "https://chatgpt.com/backend-api/wham/usage",
+      "checkedOn": "2026-07-27",
+      "notes": "Authenticated production response used to confirm the current top-level usage, optional-window, and inactive spend-control structure."
+    },
     "cursor-community-client": {
       "url": "https://github.com/steipete/CodexBar/blob/cc8da27cec92029a6435bfee4a703a719290234e/Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift",
       "checkedOn": "2026-07-22",
@@ -152,6 +157,14 @@
       "sourceIds": ["codex-upstream-model"],
       "verifiedOn": "2026-07-22",
       "notes": "Hand-authored hostile-value and sanitization case."
+    },
+    {
+      "input": "codex-usage-live-spend-control.json",
+      "expected": "codex-usage-live-spend-control-expected.json",
+      "evidenceClass": "live_sanitized",
+      "sourceIds": ["codex-wham-live-2026-07-27", "codex-upstream-model"],
+      "verifiedOn": "2026-07-27",
+      "notes": "Reduced and sanitized live response. Identifiers and distinctive values were removed or changed while keys, nesting, object presence, and nullability were retained."
     },
     {
       "input": "codex-usage-ok.json",

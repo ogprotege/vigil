@@ -916,6 +916,10 @@ public enum UsageMapper {
         var resolvedFallbackGroups = Set<String>()
         var incomplete = spec.incompleteWhen.contains { matches(root, conditions: [$0]) }
             || spec.requiredConditions.contains { !matches(root, conditions: [$0]) }
+            || spec.requiredConditionsWhenPresent.contains {
+                isPresent(value(at: $0.presencePath, in: root))
+                    && !matches(root, conditions: [$0.condition])
+            }
             || spec.requiredPaths.contains { value(at: $0, in: root) == nil }
             || spec.absentOrNullPaths.contains { isPresent(value(at: $0, in: root)) }
             || !exhaustiveCollectionsAreValid(spec: spec, root: root)

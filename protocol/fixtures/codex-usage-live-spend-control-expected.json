@@ -1,0 +1,39 @@
+{
+  "planLabel": "pro",
+  "incomplete": false,
+  "windows": [
+    {
+      "id": "session",
+      "utilization": 23.5,
+      "resetsAt": "2026-07-28T20:00:00Z",
+      "windowSeconds": 18000,
+      "secondary": false
+    },
+    {
+      "id": "codex_sanitized_session",
+      "label": "Sanitized metered feature · 5 hours",
+      "utilization": 7,
+      "resetsAt": "2026-07-28T21:00:00Z",
+      "windowSeconds": 18000,
+      "secondary": true
+    }
+  ],
+  "metrics": [
+    {
+      "id": "credits_balance",
+      "label": "Flex credits",
+      "kind": "balance",
+      "value": 42.5,
+      "unit": "credits",
+      "secondary": false
+    },
+    {
+      "id": "reset_credits",
+      "label": "Reset credits available",
+      "kind": "remaining",
+      "value": 1,
+      "unit": "resets",
+      "secondary": true
+    }
+  ]
+}

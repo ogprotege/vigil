@@ -5,7 +5,7 @@ import XCTest
 final class ProviderClassifierTests: XCTestCase {
     private let canonicalBodies: [(providerID: String, fixture: String)] = [
         ("claude", "claude-usage-spend-canonical.json"),
-        ("codex", "codex-usage-ok.json"),
+        ("codex", "codex-usage-live-spend-control.json"),
         ("openrouter", "openrouter-usage-ok.json"),
         ("deepseek", "deepseek-balance-ok.json"),
         ("moonshot", "moonshot-balance-ok.json"),
@@ -37,6 +37,150 @@ final class ProviderClassifierTests: XCTestCase {
             XCTAssertEqual(outcome.status, .ok, testCase.providerID)
             XCTAssertGreaterThan(outcome.windows.count + outcome.metrics.count, 0, testCase.providerID)
         }
+    }
+
+    func testCodexCurrentSpendControlAndOptionalWindowContractIsAccepted() throws {
+        let liveBody = try TestSupport.protocolFile(
+            "fixtures/codex-usage-live-spend-control.json"
+        )
+        var outcome = UsageClient.classify(
+            data: liveBody,
+            statusCode: 200,
+            spec: ProviderRegistry.codex
+        )
+        XCTAssertEqual(outcome.status, .ok)
+        XCTAssertEqual(outcome.windows.map(\.id), ["session", "codex_sanitized_session"])
+
+        let decodedLiveRoot = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: liveBody) as? [String: Any]
+        )
+        var optionalRoot = decodedLiveRoot
+        optionalRoot.removeValue(forKey: "spend_control")
+        outcome = UsageClient.classify(
+            data: try JSONSerialization.data(withJSONObject: optionalRoot),
+            statusCode: 200,
+            spec: ProviderRegistry.codex
+        )
+        XCTAssertEqual(outcome.status, .ok, "OpenAI models spend_control as optional")
+
+        optionalRoot["spend_control"] = NSNull()
+        outcome = UsageClient.classify(
+            data: try JSONSerialization.data(withJSONObject: optionalRoot),
+            statusCode: 200,
+            spec: ProviderRegistry.codex
+        )
+        XCTAssertEqual(outcome.status, .ok, "OpenAI models spend_control as nullable")
+
+        var guardedRoot = decodedLiveRoot
+        guardedRoot["spend_control"] = [
+            "reached": true,
+            "individual_limit": NSNull(),
+        ]
+        outcome = UsageClient.classify(
+            data: try JSONSerialization.data(withJSONObject: guardedRoot),
+            statusCode: 200,
+            spec: ProviderRegistry.codex
+        )
+        XCTAssertEqual(
+            outcome.status,
+            .schemaChanged,
+            "A reached spend control must not be hidden behind otherwise valid windows"
+        )
+
+        guardedRoot["spend_control"] = [:]
+        outcome = UsageClient.classify(
+            data: try JSONSerialization.data(withJSONObject: guardedRoot),
+            statusCode: 200,
+            spec: ProviderRegistry.codex
+        )
+        XCTAssertEqual(
+            outcome.status,
+            .schemaChanged,
+            "A present spend control must declare its reached state"
+        )
+
+        guardedRoot["spend_control"] = [
+            "reached": "false",
+            "individual_limit": NSNull(),
+        ]
+        outcome = UsageClient.classify(
+            data: try JSONSerialization.data(withJSONObject: guardedRoot),
+            statusCode: 200,
+            spec: ProviderRegistry.codex
+        )
+        XCTAssertEqual(
+            outcome.status,
+            .schemaChanged,
+            "The spend-control reached state must remain a Boolean"
+        )
+
+        guardedRoot["spend_control"] = [
+            "reached": false,
+            "individual_limit": ["used_percent": 50],
+        ]
+        outcome = UsageClient.classify(
+            data: try JSONSerialization.data(withJSONObject: guardedRoot),
+            statusCode: 200,
+            spec: ProviderRegistry.codex
+        )
+        XCTAssertEqual(
+            outcome.status,
+            .schemaChanged,
+            "An unmodeled individual monthly limit must not be reported as Live"
+        )
+
+        guardedRoot = decodedLiveRoot
+        guardedRoot["rate_limit_reached_type"] = ["type": "rate_limit_reached"]
+        outcome = UsageClient.classify(
+            data: try JSONSerialization.data(withJSONObject: guardedRoot),
+            statusCode: 200,
+            spec: ProviderRegistry.codex
+        )
+        XCTAssertEqual(
+            outcome.status,
+            .schemaChanged,
+            "An unmodeled provider limit reason must not be reported as Live"
+        )
+
+        var root = decodedLiveRoot
+        var rateLimit = try XCTUnwrap(root["rate_limit"] as? [String: Any])
+        rateLimit.removeValue(forKey: "secondary_window")
+        root["rate_limit"] = rateLimit
+        outcome = UsageClient.classify(
+            data: try JSONSerialization.data(withJSONObject: root),
+            statusCode: 200,
+            spec: ProviderRegistry.codex
+        )
+        XCTAssertEqual(outcome.status, .ok, "OpenAI models secondary_window as optional")
+
+        rateLimit["primary_window"] = NSNull()
+        rateLimit["secondary_window"] = [
+            "used_percent": 31,
+            "reset_at": 1_785_697_200,
+            "limit_window_seconds": 604_800,
+        ]
+        root["rate_limit"] = rateLimit
+        outcome = UsageClient.classify(
+            data: try JSONSerialization.data(withJSONObject: root),
+            statusCode: 200,
+            spec: ProviderRegistry.codex
+        )
+        XCTAssertEqual(outcome.status, .ok, "OpenAI models primary_window as nullable")
+        XCTAssertEqual(outcome.windows.first?.id, "weekly")
+
+        rateLimit["secondary_window"] = NSNull()
+        root["rate_limit"] = rateLimit
+        root["additional_rate_limits"] = []
+        outcome = UsageClient.classify(
+            data: try JSONSerialization.data(withJSONObject: root),
+            statusCode: 200,
+            spec: ProviderRegistry.codex
+        )
+        XCTAssertEqual(
+            outcome.status,
+            .schemaChanged,
+            "A valid plan without any usable top-level window must still fail closed"
+        )
     }
 
     func testOpenAIPaginationAndUnsafeAggregateSubsetsFailClosed() throws {

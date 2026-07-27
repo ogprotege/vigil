@@ -1,0 +1,43 @@
+{
+  "plan_type": "pro",
+  "rate_limit": {
+    "allowed": true,
+    "limit_reached": false,
+    "primary_window": {
+      "used_percent": 23.5,
+      "reset_at": 1785268800,
+      "limit_window_seconds": 18000
+    },
+    "secondary_window": null
+  },
+  "additional_rate_limits": [
+    {
+      "limit_name": "Sanitized metered feature",
+      "metered_feature": "codex_sanitized",
+      "rate_limit": {
+        "allowed": true,
+        "limit_reached": false,
+        "primary_window": {
+          "used_percent": 7,
+          "reset_at": 1785272400,
+          "limit_window_seconds": 18000
+        },
+        "secondary_window": null
+      }
+    }
+  ],
+  "credits": {
+    "has_credits": true,
+    "unlimited": false,
+    "balance": "42.5000000000"
+  },
+  "spend_control": {
+    "reached": false,
+    "individual_limit": null
+  },
+  "code_review_rate_limit": null,
+  "rate_limit_reached_type": null,
+  "rate_limit_reset_credits": {
+    "available_count": 1
+  }
+}

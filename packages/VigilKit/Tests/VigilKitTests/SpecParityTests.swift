@@ -25,6 +25,7 @@ final class SpecParityTests: XCTestCase {
         let exhaustiveCollections: [SpecExhaustiveCollection]?
         let incompleteWhen: [SpecCondition]?
         let requiredConditions: [SpecCondition]?
+        let requiredConditionsWhenPresent: [SpecRequiredConditionWhenPresent]?
         let requiredPaths: [String]?
         let absentOrNullPaths: [String]?
         let planKey: String?
@@ -102,6 +103,14 @@ final class SpecParityTests: XCTestCase {
     }
 
     private struct SpecCondition: Decodable {
+        let key: String
+        let equals: String
+        let valueType: String?
+        let allowedNonMatches: [String]?
+    }
+
+    private struct SpecRequiredConditionWhenPresent: Decodable {
+        let presencePath: String
         let key: String
         let equals: String
         let valueType: String?
@@ -223,6 +232,14 @@ final class SpecParityTests: XCTestCase {
         "\(condition.key)|\(condition.equals)|\(condition.valueType ?? "")|\((condition.allowedNonMatches ?? []).joined(separator: ","))"
     }
 
+    private func conditionSignature(_ condition: RequiredConditionWhenPresent) -> String {
+        "\(condition.presencePath)|\(conditionSignature(condition.condition))"
+    }
+
+    private func conditionSignature(_ condition: SpecRequiredConditionWhenPresent) -> String {
+        "\(condition.presencePath)|\(condition.key)|\(condition.equals)|\(condition.valueType ?? "")|\((condition.allowedNonMatches ?? []).joined(separator: ","))"
+    }
+
     private func assertMatches(_ swift: ProviderSpec, _ json: SpecProvider, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertEqual(swift.displayName, json.displayName, file: file, line: line)
         XCTAssertEqual(swift.experimental, json.experimental ?? false, file: file, line: line)
@@ -314,6 +331,12 @@ final class SpecParityTests: XCTestCase {
         XCTAssertEqual(
             swift.requiredConditions.map(conditionSignature),
             (json.requiredConditions ?? []).map(conditionSignature),
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            swift.requiredConditionsWhenPresent.map(conditionSignature),
+            (json.requiredConditionsWhenPresent ?? []).map(conditionSignature),
             file: file,
             line: line
         )

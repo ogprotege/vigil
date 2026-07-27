@@ -145,7 +145,11 @@ final class FixtureProvenanceTests: XCTestCase {
 
         XCTAssertEqual(
             liveInputs,
-            ["claude-429.json", "claude-usage-scoped-limits.json"]
+            [
+                "claude-429.json",
+                "claude-usage-scoped-limits.json",
+                "codex-usage-live-spend-control.json",
+            ]
         )
     }
 
