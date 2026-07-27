@@ -2,7 +2,7 @@
 
 This is the current release handoff, not a desktop setup guide.
 
-## Where the project stands on 2026-07-22
+## Where the project stands on 2026-07-26
 
 | Area | State |
 |---|---|
@@ -10,10 +10,10 @@ This is the current release handoff, not a desktop setup guide.
 | Account setup | Phone-native Claude and Codex sign-in, plus pasted provider credentials |
 | Provider registry | 14 providers with explicit required-output contracts and fixture provenance |
 | Provider hardening | Build 12 corrected Claude fractional timestamps and model-scoped percentages and removed false Models fallbacks; build 13 preserved those fixes and added strict required-output detection plus broader provider corrections |
-| Current release target | Version 0.14.0, build 15 |
-| Reliability | Shared account-level poll leases, visible persistence failures, honest freshness, and fail-closed provider drift |
+| Current release target | Version 0.15.0, build 16 |
+| Reliability | Shared account-level poll leases, visible persistence failures, reset-safe presentation and notifications, protected history, and fail-closed provider drift |
 
-## Before releasing 0.14.0 (15)
+## Before releasing 0.15.0 (16)
 
 1. Run VigilKit and iOS Simulator tests.
 2. Confirm `apps/apple/project.yml` supports only iOS destinations.
@@ -21,7 +21,7 @@ This is the current release handoff, not a desktop setup guide.
 4. Confirm only phone-native account paths remain in onboarding.
 5. Verify Claude and Codex sign-in on a physical phone.
 6. Add at least one pasted-key provider.
-7. Verify Home, Models, Connections, notifications, and widgets against real snapshots.
+7. Verify Home urgency order, complete account detail, observed history, Accounts, notifications, and widgets against real snapshots.
 8. Archive, export, and upload with [Release runbook](release.md).
 9. Install the processed TestFlight build and repeat the critical on-device walk.
 
@@ -39,7 +39,7 @@ The experimental providers are MiniMax, MiniMax China, Z.ai, Cursor, and Kimi K3
 - Never auto-refresh a credential Vigil did not mint.
 - Never label a partial required-output result Live.
 - Never treat an expected fixture as independent upstream evidence.
-- Keep plan-wide windows on Home and genuine model-specific lanes on Models.
+- Keep one decisive, most urgent provider window on Home and complete genuine provider lanes in account detail.
 - Keep VigilKit UI-free.
 - Keep signing credentials outside the repository.
 

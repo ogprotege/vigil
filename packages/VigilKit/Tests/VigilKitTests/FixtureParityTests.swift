@@ -9,6 +9,9 @@ final class FixtureParityTests: XCTestCase {
         let id: String
         let label: String?
         let utilization: Double
+        let used: Double?
+        let limit: Double?
+        let remaining: Double?
         let resetsAt: String?
         let windowSeconds: Int?
         let secondary: Bool
@@ -71,6 +74,9 @@ final class FixtureParityTests: XCTestCase {
                 XCTAssertEqual(got.id, want.id, expectedName)
                 XCTAssertEqual(got.label, want.label, expectedName)
                 XCTAssertEqual(got.utilization, want.utilization, accuracy: 0.0001, expectedName)
+                XCTAssertEqual(got.used, want.used, expectedName)
+                XCTAssertEqual(got.limit, want.limit, expectedName)
+                XCTAssertEqual(got.remaining, want.remaining, expectedName)
                 XCTAssertEqual(got.windowSeconds, want.windowSeconds, expectedName)
                 XCTAssertEqual(got.secondary, want.secondary, expectedName)
                 if let wantReset = want.resetsAt {
@@ -435,6 +441,9 @@ final class FixtureParityTests: XCTestCase {
         XCTAssertEqual(claude.value(forHTTPHeaderField: "anthropic-beta"), "oauth-2025-04-20")
         XCTAssertNotNil(claude.value(forHTTPHeaderField: "User-Agent"))
         XCTAssertEqual(claude.timeoutInterval, RequestBuilder.timeoutInterval)
+        XCTAssertEqual(claude.cachePolicy, .reloadIgnoringLocalCacheData)
+        XCTAssertEqual(claude.value(forHTTPHeaderField: "Cache-Control"), "no-cache, no-store")
+        XCTAssertEqual(claude.value(forHTTPHeaderField: "Pragma"), "no-cache")
 
         let codexNoAccount = try XCTUnwrap(RequestBuilder.usageRequest(
             spec: ProviderRegistry.codex,
@@ -462,6 +471,21 @@ final class FixtureParityTests: XCTestCase {
         XCTAssertTrue(githubURL.contains("/users/octo%20cat/settings/billing/ai_credit/usage"), githubURL)
         XCTAssertTrue(githubURL.contains("year=2026"), githubURL)
         XCTAssertTrue(githubURL.contains("month=7"), githubURL)
+
+        let singleSegment = try XCTUnwrap(RequestBuilder.usageRequest(
+            spec: ProviderRegistry.gitHub,
+            credentials: Credentials(
+                providerId: "github",
+                accessToken: "tok",
+                accountId: "octo/cat?tab#frag%raw"
+            ),
+            now: now
+        ))
+        let singleSegmentURL = try XCTUnwrap(singleSegment.url?.absoluteString)
+        XCTAssertTrue(
+            singleSegmentURL.contains("/users/octo%2Fcat%3Ftab%23frag%25raw/settings/"),
+            singleSegmentURL
+        )
 
         let openai = try XCTUnwrap(RequestBuilder.usageRequest(
             spec: ProviderRegistry.openAI,

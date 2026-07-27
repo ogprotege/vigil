@@ -4,8 +4,8 @@ import VigilKit
 /// Screenshot-only sample data, gated behind the `VIGIL_DEMO=1` launch
 /// environment so a real launch never sees it. A fresh install has no
 /// credentials in the Keychain, so it can only ever render the empty state —
-/// which cannot show the Watchline, the stacked limit meters, or the Models
-/// view. This seeds one representative account per surface so the README / App
+/// which cannot show the urgency stack or complete account detail. This seeds
+/// one representative account per surface so the README / App
 /// Store screenshots reflect the shipping UI. The numbers are internally
 /// consistent (percentages and resets a real account could report), never
 /// inflated to look busier than the product is.
@@ -16,8 +16,15 @@ enum DemoData {
         environment["VIGIL_DEMO"] == "1"
     }
 
+    /// UI-test-only state for exercising the expired-credential recovery flow.
+    /// It has no effect unless demo mode is also enabled by the caller.
+    static func claudeAuthExpiredRequested(in environment: [String: String]) -> Bool {
+        environment["VIGIL_DEMO_CLAUDE_AUTH_EXPIRED"] == "1"
+    }
+
     static func seed(
-        now: Date = Date()
+        now: Date = Date(),
+        claudeStatus: SnapshotStatus = .ok
     ) -> (accounts: [AccountRef], snapshots: [String: ProviderSnapshot]) {
         var accounts: [AccountRef] = []
         var snapshots: [String: ProviderSnapshot] = [:]
@@ -50,40 +57,46 @@ enum DemoData {
         let session = 18_000
         let weekly = 604_800
 
-        // Claude, Max plan — session + weekly plus model-scoped weeklies and an
-        // overage-credits metric. Drives the Watchline and the Models view.
-        let claude = AccountRef(key: "claude:demo", providerId: "claude", label: nil, plan: "Max")
+        // Claude's committed live-shaped fixture reports no plan field. Keep
+        // the screenshot seed within that contract instead of inventing Max.
+        let claude = AccountRef(key: "claude:demo", providerId: "claude", label: nil, plan: nil)
         add(claude, ProviderSnapshot(
             providerId: "claude",
             accountKey: claude.key,
             accountLabel: nil,
-            planLabel: "Max",
+            planLabel: nil,
             fetchedAt: now.addingTimeInterval(-90),
-            status: .ok,
+            status: claudeStatus,
             windows: [
                 window("session", 42, resetsIn: 2.3 * hour, windowSeconds: session),
                 window("weekly", 68, resetsIn: 4.2 * day, windowSeconds: weekly),
-                window("weekly_scoped_fable", 55, resetsIn: 5 * day, windowSeconds: weekly, secondary: true, label: "Fable"),
-                window("weekly_scoped_opus", 33, resetsIn: 5 * day, windowSeconds: weekly, secondary: true, label: "Opus"),
+                window("weekly_sonnet", 41, resetsIn: 4.2 * day, windowSeconds: weekly, secondary: true),
+                window("weekly_opus", 24, resetsIn: 5 * day, windowSeconds: weekly, secondary: true),
             ],
             metrics: [
                 UsageMetric(id: "extra_used", label: "Overage credits", kind: .spend, value: 4.20, unit: "USD", secondary: true),
             ]
         ))
 
-        // ChatGPT / Codex, Plus plan — session + weekly plus a per-model lane.
-        let codex = AccountRef(key: "codex:demo", providerId: "codex", label: nil, plan: "Plus")
+        // ChatGPT / Codex mirrors the committed fixture's plan and named
+        // additional rate-limit lane.
+        let codex = AccountRef(key: "codex:demo", providerId: "codex", label: nil, plan: "pro")
         add(codex, ProviderSnapshot(
             providerId: "codex",
             accountKey: codex.key,
             accountLabel: nil,
-            planLabel: "Plus",
+            planLabel: "pro",
             fetchedAt: now.addingTimeInterval(-120),
             status: .ok,
             windows: [
                 window("session", 77, resetsIn: 3.1 * hour, windowSeconds: session),
                 window("weekly", 44, resetsIn: 5 * day, windowSeconds: weekly),
-                window("gpt-5-codex-spark", 21, resetsIn: 5 * day, windowSeconds: weekly, secondary: true, label: "GPT-5.6 Sol"),
+                window("codex_bengalfox_session", 12, resetsIn: 3.1 * hour, windowSeconds: session, secondary: true, label: "GPT-5.3-Codex-Spark · 5 hours"),
+                window("codex_bengalfox_weekly", 20, resetsIn: 5 * day, windowSeconds: weekly, secondary: true, label: "GPT-5.3-Codex-Spark · Weekly"),
+            ],
+            metrics: [
+                UsageMetric(id: "credits_balance", label: "Flex credits", kind: .balance, value: 81.16351, unit: "credits", secondary: false),
+                UsageMetric(id: "reset_credits", label: "Reset credits available", kind: .remaining, value: 2, unit: "resets", secondary: true),
             ]
         ))
 

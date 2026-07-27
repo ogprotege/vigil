@@ -1,15 +1,35 @@
 import SwiftUI
 import VigilKit
 
-/// Phone-native account setup. Paste a provider key or use the browser-backed
-/// Claude and Codex sign-in flows to mint Vigil-owned renewing credentials.
+enum SetupRoute: String, Hashable, Identifiable {
+    case claude
+    case codex
+    case other
+
+    var id: String { rawValue }
+}
+
+/// Guided sign-in is the default. Manual credentials remain one disclosed path
+/// for providers that do not offer a phone-native authorization flow.
 struct AddAccountView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
+    @State private var path: [SetupRoute]
     @State private var pending: PendingAction?
     @State private var isLinking = false
     @State private var linkingTask: Task<Void, Never>?
+    @State private var activeLinkAttemptID: UUID?
+    private let relinkTarget: AccountRef?
+
+    init(initialRoute: SetupRoute? = nil, relinkTarget: AccountRef? = nil) {
+        self.relinkTarget = relinkTarget
+        let route = initialRoute ?? relinkTarget.map {
+            Self.relinkRoute(forProviderId: $0.providerId)
+        }
+        _path = State(initialValue: route.map { [$0] } ?? [])
+    }
 
     private enum PendingAction {
         case failed(String)
@@ -22,233 +42,171 @@ struct AddAccountView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                VigilScreenBackground()
-
-                ScrollView {
-                    VStack(alignment: .leading, spacing: VigilSpacing.large) {
-                        intro
-                        directProviderSection
-                        renewingSignInSection
-                        privacyNote
-                    }
-                    .frame(maxWidth: 820, alignment: .leading)
-                    .padding(VigilSpacing.medium)
-                    .padding(.bottom, VigilSpacing.xLarge)
-                    .frame(maxWidth: .infinity)
+        NavigationStack(path: $path) {
+            setupOverview
+                .navigationDestination(for: SetupRoute.self) { route in
+                    destination(for: route)
+                        .toolbar { closeToolbar }
                 }
-            }
-            .navigationTitle("Add account")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(VigilPalette.canvas.opacity(0.96), for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
-                }
-            }
-            .overlay {
-                if isLinking {
-                    linkingOverlay
-                }
-            }
-            .alert(
-                alertTitle,
-                isPresented: .init(
-                    get: { pending != nil },
-                    set: { if !$0 { pending = nil } }
-                )
-            ) {
-                switch pending {
-                case .confirmUnverified(let source, _):
-                    Button("Save anyway") {
-                        run(source, allowUnverified: true, allowReplace: true)
-                    }
-                    Button("Cancel", role: .cancel) {}
-                case .confirmReplace(let source, _):
-                    Button("Replace") {
-                        run(source, allowUnverified: false, allowReplace: true)
-                    }
-                    Button("Cancel", role: .cancel) {}
-                default:
-                    Button("OK", role: .cancel) {}
-                }
-            } message: {
-                Text(alertMessage)
-            }
+                .toolbar { closeToolbar }
         }
+        .toolbarBackground(VigilPalette.canvas.opacity(0.97), for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .overlay { if isLinking { linkingOverlay } }
+        .alert(
+            alertTitle,
+            isPresented: .init(
+                get: { pending != nil },
+                set: { if !$0 { pending = nil } }
+            )
+        ) {
+            alertActions
+        } message: {
+            Text(alertMessage)
+        }
+        .onDisappear { cancelLinking() }
         .preferredColorScheme(.dark)
     }
 
-    private var intro: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            VigilEyebrow(text: "Connections")
-            Text("Bring an account under watch.")
-                .font(.system(.largeTitle, design: .rounded).weight(.bold))
-                .foregroundStyle(VigilPalette.ink)
-            Text(introDetail)
-                .font(.subheadline)
-                .foregroundStyle(VigilPalette.inkMuted)
+    @ToolbarContentBuilder
+    private var closeToolbar: some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) {
+            Button("Close") {
+                cancelLinking()
+                dismiss()
+            }
+            .accessibilityIdentifier("vigil.addAccount.close")
         }
     }
 
-    private var introDetail: String {
-        "Paste a provider key, or sign in with Claude or Codex on this phone. No computer required."
-    }
-
-    private var renewingSignInSection: some View {
-        VStack(alignment: .leading, spacing: VigilSpacing.medium) {
-            VigilSectionHeading(
-                "Mint a renewing token",
-                eyebrow: "Optional",
-                detail: "OAuth"
-            )
-            Text("Only needed if you want Vigil to own a refreshable sign-in. Pasting a provider key is enough to watch limits.")
-                .font(.caption)
-                .foregroundStyle(VigilPalette.inkMuted)
-            claudeSignInCard
-            codexSignInCard
-        }
-    }
-
-    private var claudeSignInCard: some View {
-        VStack(alignment: .leading, spacing: VigilSpacing.medium) {
-            HStack(alignment: .top, spacing: 12) {
-                VigilProviderMark(providerId: "claude", displayName: "Claude", size: 48)
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Sign in with Claude")
-                            .font(.title3.weight(.semibold))
+    private var setupOverview: some View {
+        ZStack {
+            VigilScreenBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: VigilSpacing.large) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Connect an account")
+                            .font(.title2.weight(.bold))
                             .foregroundStyle(VigilPalette.ink)
-                        Spacer()
-                        VigilStatusPill(text: "Renewing", color: VigilPalette.inkMuted)
-                    }
-                    Text("Approve access in your browser and paste the code back. Vigil refreshes its own token while the provider permits it.")
-                        .font(.caption)
-                        .foregroundStyle(VigilPalette.inkMuted)
-                }
-            }
-            NavigationLink {
-                ClaudeSignInView { credentials in
-                    attempt(.credentials(credentials))
-                }
-            } label: {
-                Label("Sign in with Claude", systemImage: "person.badge.key")
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 46)
-            }
-            .buttonStyle(.bordered)
-            .tint(VigilPalette.ink)
-            .foregroundStyle(VigilPalette.ink)
-        }
-        .vigilCard(padding: VigilSpacing.large)
-    }
-
-    private var codexSignInCard: some View {
-        VStack(alignment: .leading, spacing: VigilSpacing.medium) {
-            HStack(alignment: .top, spacing: 12) {
-                VigilProviderMark(providerId: "codex", displayName: "ChatGPT / Codex", size: 48)
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Sign in with Codex")
-                            .font(.title3.weight(.semibold))
-                            .foregroundStyle(VigilPalette.ink)
-                        Spacer()
-                        VigilStatusPill(text: "Renewing", color: VigilPalette.inkMuted)
-                    }
-                    Text("Open ChatGPT's sign-in and enter the code Vigil shows you. Vigil refreshes its own token while the provider permits it.")
-                        .font(.caption)
-                        .foregroundStyle(VigilPalette.inkMuted)
-                }
-            }
-            NavigationLink {
-                CodexSignInView { credentials in
-                    attempt(.credentials(credentials))
-                }
-            } label: {
-                Label("Sign in with Codex", systemImage: "person.badge.key")
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 46)
-            }
-            .buttonStyle(.bordered)
-            .tint(VigilPalette.ink)
-            .foregroundStyle(VigilPalette.ink)
-        }
-        .vigilCard(padding: VigilSpacing.large)
-    }
-
-    private var directProviderSection: some View {
-        VStack(alignment: .leading, spacing: VigilSpacing.medium) {
-            VigilSectionHeading(
-                "Paste a provider key",
-                eyebrow: "Local",
-                detail: "\(ProviderRegistry.all.count) available"
-            )
-            Text("The simplest path: paste an API key or token. Claude and Codex tokens pasted here do not auto-renew, so use browser sign-in when you want renewing credentials.")
-                .font(.caption)
-                .foregroundStyle(VigilPalette.inkMuted)
-
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 250), spacing: 10)],
-                alignment: .leading,
-                spacing: 10
-            ) {
-                ForEach(ProviderRegistry.all, id: \.id) { spec in
-                    NavigationLink {
-                        ManualEntryView(providerId: spec.id) { credentials in
-                            attempt(.credentials(credentials))
+                        if !dynamicTypeSize.isAccessibilitySize {
+                            Text("Choose the provider you want Vigil to watch.")
+                                .font(.subheadline)
+                                .foregroundStyle(VigilPalette.inkMuted)
                         }
-                    } label: {
-                        ProviderSetupRow(spec: spec)
+                    }
+
+                    VStack(spacing: 12) {
+                        NavigationLink(value: SetupRoute.claude) {
+                            SetupChoiceRow(
+                                symbol: "sparkles",
+                                title: "Connect Claude",
+                                detail: "Sign in through Claude and keep the connection renewable.",
+                                tone: .primary
+                            )
+                        }
+                        NavigationLink(value: SetupRoute.codex) {
+                            SetupChoiceRow(
+                                symbol: "terminal",
+                                title: "Connect ChatGPT / Codex",
+                                detail: "Use OpenAI's device authorization on this iPhone."
+                            )
+                        }
+                        NavigationLink(value: SetupRoute.other) {
+                            SetupChoiceRow(
+                                symbol: "key.horizontal",
+                                title: "Other provider",
+                                detail: "Choose a provider and enter its API key or token.",
+                                tone: .quiet
+                            )
+                        }
                     }
                     .buttonStyle(.plain)
+
+                    privacyNote
                 }
+                .frame(maxWidth: 680, alignment: .leading)
+                .padding(VigilSpacing.medium)
+                .padding(.bottom, VigilSpacing.xLarge)
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .navigationTitle("Add account")
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+    }
+
+    @ViewBuilder
+    private func destination(for route: SetupRoute) -> some View {
+        switch route {
+        case .claude:
+            ClaudeSignInView { attempt(.credentials($0)) }
+        case .codex:
+            CodexSignInView { attempt(.credentials($0)) }
+        case .other:
+            if let relinkTarget {
+                ManualEntryView(
+                    providerId: relinkTarget.providerId,
+                    submitTitle: "Verify and re-link account",
+                    locksProvider: true
+                ) { attempt(.credentials($0)) }
+            } else {
+                ProviderCatalogView { attempt(.credentials($0)) }
             }
         }
     }
 
     private var privacyNote: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "lock.shield")
-                .foregroundStyle(VigilPalette.signal)
-            Text("Credentials stay in this device's Keychain. Vigil sends usage requests directly to the provider. There is no Vigil server.")
-                .font(.caption)
-                .foregroundStyle(VigilPalette.inkMuted)
-        }
+        Label(
+            "Credentials stay in this iPhone's Keychain. Vigil contacts providers directly.",
+            systemImage: "lock.shield"
+        )
+        .font(.caption)
+        .foregroundStyle(VigilPalette.inkMuted)
+        .fixedSize(horizontal: false, vertical: true)
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .vigilInsetSurface()
+        .accessibilityElement(children: .combine)
     }
 
     private var linkingOverlay: some View {
         ZStack {
-            Color.black.opacity(0.48)
-                .ignoresSafeArea()
+            Color.black.opacity(0.58).ignoresSafeArea()
             VStack(spacing: 12) {
-                ProgressView()
-                    .controlSize(.large)
-                    .tint(VigilPalette.signal)
-                Text("Verifying with the provider…")
+                ProgressView().controlSize(.large).tint(VigilPalette.signal)
+                Text("Checking with the provider")
                     .font(.headline)
                     .foregroundStyle(VigilPalette.ink)
-                Text("Nothing is saved until this check finishes.")
+                Text("Nothing is saved until verification finishes.")
                     .font(.caption)
                     .foregroundStyle(VigilPalette.inkMuted)
+                    .multilineTextAlignment(.center)
                 Button("Cancel") {
-                    linkingTask?.cancel()
-                    linkingTask = nil
-                    isLinking = false
+                    cancelLinking()
                 }
                 .buttonStyle(.bordered)
                 .tint(VigilPalette.inkMuted)
-                .padding(.top, 4)
             }
             .padding(24)
             .vigilCard(padding: VigilSpacing.large)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Verifying account with the provider")
+    }
+
+    @ViewBuilder
+    private var alertActions: some View {
+        switch pending {
+        case .confirmUnverified(let source, _):
+            Button("Save anyway") { run(source, allowUnverified: true, allowReplace: true) }
+            Button("Cancel", role: .cancel) {}
+        case .confirmReplace(let source, _):
+            Button("Replace") { run(source, allowUnverified: false, allowReplace: true) }
+            Button("Cancel", role: .cancel) {}
+        default:
+            Button("OK", role: .cancel) {}
+        }
     }
 
     private var alertTitle: String {
@@ -275,81 +233,77 @@ struct AddAccountView: View {
 
     private func run(_ source: LinkSource, allowUnverified: Bool, allowReplace: Bool) {
         linkingTask?.cancel()
+        pending = nil
+        let attemptID = UUID()
+        activeLinkAttemptID = attemptID
         linkingTask = Task {
             isLinking = true
             defer {
-                isLinking = false
-                linkingTask = nil
+                // A canceled attempt may unwind after the user has already
+                // started another one. It must not clear the newer overlay or
+                // task handle.
+                if activeLinkAttemptID == attemptID {
+                    activeLinkAttemptID = nil
+                    isLinking = false
+                    linkingTask = nil
+                }
             }
             do {
                 try Task.checkCancellation()
+                guard activeLinkAttemptID == attemptID else { return }
                 switch source {
                 case .credentials(let credentials):
-                    try await model.addAccount(
-                        credentials: credentials,
-                        allowUnverified: allowUnverified,
-                        allowReplace: allowReplace
-                    )
+                    if let relinkTarget {
+                        try await model.replaceCredentials(
+                            for: relinkTarget,
+                            with: credentials,
+                            allowUnverified: allowUnverified
+                        )
+                    } else {
+                        try await model.addAccount(
+                            credentials: credentials,
+                            allowUnverified: allowUnverified,
+                            allowReplace: allowReplace
+                        )
+                    }
                 }
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, activeLinkAttemptID == attemptID else { return }
                 dismiss()
             } catch is CancellationError {
-                // User cancelled the verify overlay.
+                return
             } catch AppModel.LinkError.verifyFailed(.network) {
-                guard !Task.isCancelled else { return }
-                pending = .confirmUnverified(
-                    source,
-                    "Network problem while verifying. Save and verify later?"
-                )
+                guard !Task.isCancelled, activeLinkAttemptID == attemptID else { return }
+                pending = .confirmUnverified(source, "Network problem while verifying. Save and verify later?")
             } catch AppModel.LinkError.verificationDeferred(_) {
-                guard !Task.isCancelled else { return }
-                pending = .confirmUnverified(
-                    source,
-                    "Vigil's polling safety cooldown deferred this check. Save now and verify on the next allowed refresh?"
-                )
+                guard !Task.isCancelled, activeLinkAttemptID == attemptID else { return }
+                pending = .confirmUnverified(source, "A provider cooldown deferred verification. Save now and verify at the next allowed check?")
             } catch AppModel.LinkError.wouldReplace(let labels) {
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, activeLinkAttemptID == attemptID else { return }
                 pending = .confirmReplace(source, labels)
             } catch {
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, activeLinkAttemptID == attemptID else { return }
                 pending = .failed(error.localizedDescription)
             }
         }
     }
-}
 
-private struct ProviderSetupRow: View {
-    let spec: ProviderSpec
+    /// Invalidate the attempt identity before canceling its Task. URLSession
+    /// and provider bookkeeping can unwind asynchronously, but every completion
+    /// path will now refuse to present an alert or dismiss this view later.
+    private func cancelLinking() {
+        activeLinkAttemptID = nil
+        let task = linkingTask
+        linkingTask = nil
+        isLinking = false
+        pending = nil
+        task?.cancel()
+    }
 
-    var body: some View {
-        HStack(spacing: 12) {
-            VigilProviderMark(
-                providerId: spec.id,
-                displayName: spec.displayName,
-                size: 40
-            )
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(spec.displayName)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(VigilPalette.ink)
-                        .lineLimit(1)
-                    if spec.experimental {
-                        ExperimentalBadge()
-                    }
-                }
-                Text(ProviderPresentation.setupLabel(for: spec))
-                    .font(.caption)
-                    .foregroundStyle(VigilPalette.inkMuted)
-            }
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(VigilPalette.inkFaint)
+    static func relinkRoute(forProviderId providerId: String) -> SetupRoute {
+        switch providerId {
+        case "claude": return .claude
+        case "codex": return .codex
+        default: return .other
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-        .vigilInsetSurface()
-        .contentShape(Rectangle())
     }
 }

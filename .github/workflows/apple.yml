@@ -48,5 +48,6 @@ jobs:
       - name: Validate property lists and entitlements
         run: |
           plutil -lint Vigil/Info.plist VigilWidgets/Info.plist
+          plutil -lint Vigil/Resources/PrivacyInfo.xcprivacy VigilWidgets/PrivacyInfo.xcprivacy
           plutil -lint Entitlements/*.entitlements
         working-directory: apps/apple

@@ -50,12 +50,18 @@ struct SmallUsageView: View {
             status: snapshot.status,
             fetchedAt: snapshot.fetchedAt,
             at: entry.date
-        )
+        ) || SnapshotFreshness.hasUnconfirmedReset(in: snapshot, at: entry.date)
     }
 
     var body: some View {
         if let snapshot = entry.snapshot {
-            let windows = UsagePresentation.sortedWindows(snapshot.windows)
+            let resetPending = SnapshotFreshness.hasUnconfirmedReset(
+                in: snapshot,
+                at: entry.date
+            )
+            let windows = UsagePresentation.sortedWindows(
+                SnapshotFreshness.confirmedWindows(in: snapshot, at: entry.date)
+            )
             let tightest = windows.min(by: {
                 UsagePresentation.remainingPercent(for: $0)
                     < UsagePresentation.remainingPercent(for: $1)
@@ -109,6 +115,19 @@ struct SmallUsageView: View {
                             }
                         }
                     }
+                } else if resetPending {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.clockwise.circle")
+                            .foregroundStyle(.orange)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Limit reset")
+                                .font(.caption.weight(.semibold))
+                            Text("Awaiting provider update")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
                 } else if let metric = snapshot.metrics.first(where: { !$0.secondary })
                     ?? snapshot.metrics.first {
                     HStack {
@@ -200,7 +219,7 @@ struct CircularUsageView: View {
             status: snapshot.status,
             fetchedAt: snapshot.fetchedAt,
             at: entry.date
-        )
+        ) || SnapshotFreshness.hasUnconfirmedReset(in: snapshot, at: entry.date)
     }
 
     private var degradedSuffix: String {
@@ -208,7 +227,11 @@ struct CircularUsageView: View {
     }
 
     var body: some View {
-        if let tightest = entry.snapshot?.windows.min(by: {
+        if let snapshot = entry.snapshot,
+           let tightest = SnapshotFreshness.confirmedWindows(
+               in: snapshot,
+               at: entry.date
+           ).min(by: {
             UsagePresentation.remainingPercent(for: $0)
                 < UsagePresentation.remainingPercent(for: $1)
         }) {
@@ -240,6 +263,20 @@ struct CircularUsageView: View {
                         + "\(Int(UsagePresentation.remainingPercent(for: tightest).rounded())) percent left"
                         + degradedSuffix
                 )
+            )
+        } else if let snapshot = entry.snapshot,
+                  SnapshotFreshness.hasUnconfirmedReset(in: snapshot, at: entry.date) {
+            VStack(spacing: 1) {
+                Text(providerLetter)
+                    .font(.caption2.weight(.semibold))
+                Image(systemName: "arrow.clockwise")
+                    .font(.caption.weight(.bold))
+            }
+            .foregroundStyle(.orange)
+            .widgetAccentable()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(
+                Text("\(entry.account?.displayName ?? "Vigil"), limit reset, awaiting provider update")
             )
         } else if let metric = entry.snapshot?.metrics.first(where: { !$0.secondary })
             ?? entry.snapshot?.metrics.first {

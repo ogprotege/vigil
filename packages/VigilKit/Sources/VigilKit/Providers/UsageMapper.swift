@@ -688,15 +688,48 @@ public enum UsageMapper {
         let lenient = fields.allowStringNumbers
 
         let utilization: Double
+        let used: Double?
+        let limit: Double?
+        let remaining: Double?
         if let usedKey = fieldOverride?.used,
            let limitKey = fieldOverride?.limit {
-            guard let used = windowNumber(fieldValue(at: usedKey, bucket: bucket, root: root), lenient: lenient),
-                  let limit = windowNumber(fieldValue(at: limitKey, bucket: bucket, root: root), lenient: lenient),
-                  used >= 0,
-                  limit > 0
+            guard let rawUsed = windowNumber(fieldValue(at: usedKey, bucket: bucket, root: root), lenient: lenient),
+                  let rawLimit = windowNumber(fieldValue(at: limitKey, bucket: bucket, root: root), lenient: lenient),
+                  rawUsed >= 0,
+                  rawLimit > 0
             else { return nil }
-            utilization = used / limit * 100
+            used = rawUsed
+            limit = rawLimit
+            let exactRemaining = max(0, rawLimit - rawUsed)
+            if let remainingKey = fieldOverride?.remaining {
+                guard let providerRemaining = windowNumber(
+                    fieldValue(at: remainingKey, bucket: bucket, root: root),
+                    lenient: lenient
+                ), providerRemaining >= 0 else { return nil }
+                let scale = max(1, abs(exactRemaining), abs(providerRemaining))
+                guard abs(providerRemaining - exactRemaining) <= scale * 1e-9 else {
+                    return nil
+                }
+                remaining = providerRemaining
+            } else {
+                remaining = exactRemaining
+            }
+            if let explicitUtilizationKey = fieldOverride?.utilization {
+                guard let rawUtilization = windowNumber(
+                    fieldValue(at: explicitUtilizationKey, bucket: bucket, root: root),
+                    lenient: lenient
+                ), (0...100).contains(rawUtilization)
+                else { return nil }
+                utilization = fields.utilizationKind == .remaining
+                    ? 100 - rawUtilization
+                    : rawUtilization
+            } else {
+                utilization = rawUsed / rawLimit * 100
+            }
         } else {
+            used = nil
+            limit = nil
+            remaining = nil
             guard let rawUtilization = windowNumber(
                 fieldValue(at: utilizationKey, bucket: bucket, root: root),
                 lenient: lenient
@@ -748,7 +781,10 @@ public enum UsageMapper {
             resetsAt: resetsAt,
             windowSeconds: windowSeconds,
             secondary: secondary,
-            label: label
+            label: label,
+            used: used,
+            limit: limit,
+            remaining: remaining
         )
     }
 
@@ -836,6 +872,30 @@ public enum UsageMapper {
             let used = fieldValue(at: usedKey, bucket: bucket, root: root)
             let limit = fieldValue(at: limitKey, bucket: bucket, root: root)
             if !isPresent(used) || !isPresent(limit) { return true }
+            if let utilizationKey = fieldOverride?.utilization,
+               isPresent(fieldValue(at: utilizationKey, bucket: bucket, root: root)) {
+                let rawUtilization = windowNumber(
+                    fieldValue(at: utilizationKey, bucket: bucket, root: root),
+                    lenient: fields.allowStringNumbers
+                )
+                // Exact amounts are optional enrichment when the provider's
+                // primary percentage is healthy. A stale amount must not turn
+                // that usable percentage into schemaChanged. A malformed
+                // percentage remains drift, even when exact amounts can be
+                // used as a fallback, because it is the provider's declared
+                // primary field.
+                if let rawUtilization, (0...100).contains(rawUtilization),
+                   windowNumber(used, lenient: fields.allowStringNumbers) == nil
+                    || windowNumber(limit, lenient: fields.allowStringNumbers) == nil {
+                    return true
+                }
+            } else if fieldOverride?.utilization != nil {
+                return true
+            }
+            if let remainingKey = fieldOverride?.remaining,
+               !isPresent(fieldValue(at: remainingKey, bucket: bucket, root: root)) {
+                return true
+            }
             return windowNumber(limit, lenient: fields.allowStringNumbers) == 0
         }
         let utilizationKey = fieldOverride?.utilization ?? fields.utilization
@@ -1052,7 +1112,10 @@ public enum UsageMapper {
                             secondary: window.secondary,
                             label: label.flatMap { base in
                                 durationLabel.map { "\(base) · \($0)" }
-                            } ?? window.label
+                            } ?? window.label,
+                            used: window.used,
+                            limit: window.limit,
+                            remaining: window.remaining
                         )
                     }
                     if windowIDs.insert(window.id).inserted {

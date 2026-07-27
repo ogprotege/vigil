@@ -29,6 +29,14 @@ public struct LedgerEntry: Codable, Equatable, Sendable {
     }
 }
 
+/// Opaque ownership token for one scheduler acquisition. Every completion or
+/// abandonment path must present this token so a stale request cannot mutate a
+/// newer lifecycle's lease under the same stable account key.
+public struct FetchLease: Equatable, Hashable, Sendable {
+    fileprivate let accountKey: String
+    fileprivate let owner: String
+}
+
 public enum LedgerStoreError: Error, LocalizedError, Sendable {
     case prepareDirectory(String)
     case openLock(path: String, code: Int32)
@@ -68,6 +76,30 @@ public protocol LedgerStore: Sendable {
     /// app process using this store. Implementations must not return until the
     /// mutation is saved or an error is thrown.
     func update(_ mutation: (inout [String: LedgerEntry]) -> Void) throws
+
+    /// Explicit destructive recovery. Implementations may bypass decoding a
+    /// damaged prior value, but must still serialize and durably persist the
+    /// empty ledger before returning.
+    func reset() throws
+}
+
+public extension LedgerStore {
+    func reset() throws {
+        try update { $0.removeAll() }
+    }
+}
+
+/// A synchronous cross-process guard for scheduler ledger mutations. The
+/// scheduler actor is entered before this guard is acquired, so its file lock
+/// is never held while a task is suspended waiting for actor isolation.
+public protocol SchedulerLifecycleGuard: Sendable {
+    associatedtype Generation: Sendable
+
+    func withCurrentGeneration<T>(
+        _ generation: Generation,
+        accountKey: String,
+        _ body: () throws -> T
+    ) throws -> T
 }
 
 /// Persists the ledger as JSON in a directory shared between the app and the
@@ -100,6 +132,13 @@ public struct FileLedgerStore: LedgerStore {
             mutation(&ledger)
             guard ledger != original else { return }
             try saveUnlocked(ledger)
+        }
+    }
+
+    public func reset() throws {
+        try prepareDirectory()
+        try withFileLock(LOCK_EX) {
+            try saveUnlocked([:])
         }
     }
 
@@ -268,13 +307,22 @@ public actor FetchScheduler {
         lastStoreError[accountKey]
     }
 
+    /// Captures the current process-local owner for a deliberate lifecycle
+    /// rotation. The returned token is safe to retire later: it cannot match a
+    /// replacement owner created under the same account key.
+    public func activeLease(accountKey: String) -> FetchLease? {
+        inFlight[accountKey].map {
+            FetchLease(accountKey: accountKey, owner: $0)
+        }
+    }
+
     /// True if a fetch may start now. The check and lease write happen in one
     /// locked transaction shared by the app and widget processes. Callers MUST
     /// follow with recordResult (or release on abandonment).
-    public func acquire(accountKey: String, policy: PollPolicy) -> Bool {
+    public func acquireLease(accountKey: String, policy: PollPolicy) -> FetchLease? {
         guard inFlight[accountKey] == nil else {
             lastStoreError[accountKey] = nil
-            return false
+            return nil
         }
 
         let owner = UUID().uuidString
@@ -303,38 +351,95 @@ public actor FetchScheduler {
             lastStoreError[accountKey] = nil
         } catch {
             lastStoreError[accountKey] = error.localizedDescription
-            return false
+            return nil
         }
 
         if acquired {
             inFlight[accountKey] = owner
+            return FetchLease(accountKey: accountKey, owner: owner)
         }
-        return acquired
+        return nil
+    }
+
+    public func acquire(accountKey: String, policy: PollPolicy) -> Bool {
+        acquireLease(accountKey: accountKey, policy: policy) != nil
+    }
+
+    /// Generation-guarded variant used by app and widget fetches. Validation
+    /// and the ledger write share one synchronous critical section after the
+    /// scheduler actor has been entered.
+    public func acquire<Guard: SchedulerLifecycleGuard>(
+        accountKey: String,
+        policy: PollPolicy,
+        lifecycle: Guard,
+        generation: Guard.Generation
+    ) throws -> Bool {
+        try lifecycle.withCurrentGeneration(generation, accountKey: accountKey) {
+            acquire(accountKey: accountKey, policy: policy)
+        }
+    }
+
+    public func acquireLease<Guard: SchedulerLifecycleGuard>(
+        accountKey: String,
+        policy: PollPolicy,
+        lifecycle: Guard,
+        generation: Guard.Generation
+    ) throws -> FetchLease? {
+        try lifecycle.withCurrentGeneration(generation, accountKey: accountKey) {
+            acquireLease(accountKey: accountKey, policy: policy)
+        }
     }
 
     /// Releases only the lease created by this scheduler. A late cancellation
     /// from an expired owner cannot clear a replacement process's lease.
     @discardableResult
     public func release(accountKey: String) -> Bool {
-        guard let owner = inFlight.removeValue(forKey: accountKey) else {
-            return false
-        }
+        guard let owner = inFlight[accountKey] else { return false }
+        return release(FetchLease(accountKey: accountKey, owner: owner))
+    }
+
+    @discardableResult
+    public func release(_ lease: FetchLease) -> Bool {
+        guard inFlight[lease.accountKey] == lease.owner else { return false }
+        inFlight[lease.accountKey] = nil
         var released = false
         do {
             try store.update { ledger in
-                guard var entry = ledger[accountKey],
-                      entry.leaseOwner == owner
+                guard var entry = ledger[lease.accountKey],
+                      entry.leaseOwner == lease.owner
                 else { return }
                 entry.leaseOwner = nil
                 entry.leaseExpiresAt = nil
-                ledger[accountKey] = entry
+                ledger[lease.accountKey] = entry
                 released = true
             }
-            lastStoreError[accountKey] = nil
+            lastStoreError[lease.accountKey] = nil
             return released
         } catch {
-            lastStoreError[accountKey] = error.localizedDescription
+            lastStoreError[lease.accountKey] = error.localizedDescription
             return false
+        }
+    }
+
+    @discardableResult
+    public func release<Guard: SchedulerLifecycleGuard>(
+        accountKey: String,
+        lifecycle: Guard,
+        generation: Guard.Generation
+    ) throws -> Bool {
+        try lifecycle.withCurrentGeneration(generation, accountKey: accountKey) {
+            release(accountKey: accountKey)
+        }
+    }
+
+    @discardableResult
+    public func release<Guard: SchedulerLifecycleGuard>(
+        _ lease: FetchLease,
+        lifecycle: Guard,
+        generation: Guard.Generation
+    ) throws -> Bool {
+        try lifecycle.withCurrentGeneration(generation, accountKey: lease.accountKey) {
+            release(lease)
         }
     }
 
@@ -356,6 +461,48 @@ public actor FetchScheduler {
         }
     }
 
+    /// Invalidates every process-local owner and replaces the shared ledger
+    /// with an empty value. This exists only for an explicit user-confirmed
+    /// full local-data recovery after the lifecycle registry is unavailable.
+    public func resetAll() throws {
+        inFlight.removeAll()
+        do {
+            try store.reset()
+            lastStoreError.removeAll()
+        } catch {
+            lastStoreError.removeAll()
+            throw error
+        }
+    }
+
+    /// Retires a request owned by an account generation that was deliberately
+    /// replaced during re-link. The old lifecycle can no longer pass guarded
+    /// result recording, so leaving its process-local owner behind would make
+    /// every later acquire fail forever in this process. If a request was
+    /// actually in flight, charge the ordinary provider floor before releasing
+    /// it. A completed verification has already removed its owner and is left
+    /// untouched.
+    @discardableResult
+    public func retireInFlightForLifecycleRotation(
+        accountKey: String,
+        policy: PollPolicy
+    ) -> Bool {
+        guard inFlight[accountKey] != nil else { return true }
+        return chargeFloor(accountKey: accountKey, policy: policy)
+    }
+
+    /// Token-scoped stale-generation cleanup. If the account key has already
+    /// been cleared and acquired by a new lifecycle, this is a no-op and leaves
+    /// that new owner and its shared ledger lease untouched.
+    @discardableResult
+    public func retireInFlightForLifecycleRotation(
+        _ lease: FetchLease,
+        policy: PollPolicy
+    ) -> Bool {
+        guard inFlight[lease.accountKey] == lease.owner else { return true }
+        return chargeFloor(lease, policy: policy)
+    }
+
     /// Releases the lease **and** advances the poll floor, for an attempt whose
     /// request was already dispatched but whose outcome is unknown — a
     /// cancelled in-flight fetch.
@@ -372,17 +519,20 @@ public actor FetchScheduler {
     /// outcome is not evidence of rate limiting in either direction.
     @discardableResult
     public func chargeFloor(accountKey: String, policy: PollPolicy) -> Bool {
-        let owner = inFlight.removeValue(forKey: accountKey)
+        if let owner = inFlight[accountKey] {
+            return chargeFloor(
+                FetchLease(accountKey: accountKey, owner: owner),
+                policy: policy
+            )
+        }
         let recordedAt = now()
         var charged = false
         do {
             try store.update { ledger in
                 var entry = ledger[accountKey]
                     ?? LedgerEntry(nextAllowedAt: .distantPast, consecutive429: 0)
-                if let owner {
-                    guard entry.leaseOwner == owner else { return }
-                } else if entry.leaseOwner != nil,
-                          (entry.leaseExpiresAt ?? .distantFuture) > recordedAt {
+                if entry.leaseOwner != nil,
+                   (entry.leaseExpiresAt ?? .distantFuture) > recordedAt {
                     return
                 }
                 let minimum = policy.minSeconds.isFinite ? max(0, policy.minSeconds) : 0
@@ -402,12 +552,71 @@ public actor FetchScheduler {
         }
     }
 
+    @discardableResult
+    public func chargeFloor(_ lease: FetchLease, policy: PollPolicy) -> Bool {
+        guard inFlight[lease.accountKey] == lease.owner else { return false }
+        inFlight[lease.accountKey] = nil
+        let recordedAt = now()
+        var charged = false
+        do {
+            try store.update { ledger in
+                guard var entry = ledger[lease.accountKey],
+                      entry.leaseOwner == lease.owner
+                else { return }
+                let minimum = policy.minSeconds.isFinite ? max(0, policy.minSeconds) : 0
+                let floor = recordedAt.addingTimeInterval(
+                    minimum + boundedJitter(policy.jitterSeconds)
+                )
+                entry.nextAllowedAt = max(entry.nextAllowedAt, floor)
+                entry.leaseOwner = nil
+                entry.leaseExpiresAt = nil
+                ledger[lease.accountKey] = entry
+                charged = true
+            }
+            lastStoreError[lease.accountKey] = nil
+            return charged
+        } catch {
+            lastStoreError[lease.accountKey] = error.localizedDescription
+            return false
+        }
+    }
+
+    @discardableResult
+    public func chargeFloor<Guard: SchedulerLifecycleGuard>(
+        accountKey: String,
+        policy: PollPolicy,
+        lifecycle: Guard,
+        generation: Guard.Generation
+    ) throws -> Bool {
+        try lifecycle.withCurrentGeneration(generation, accountKey: accountKey) {
+            chargeFloor(accountKey: accountKey, policy: policy)
+        }
+    }
+
+    @discardableResult
+    public func chargeFloor<Guard: SchedulerLifecycleGuard>(
+        _ lease: FetchLease,
+        policy: PollPolicy,
+        lifecycle: Guard,
+        generation: Guard.Generation
+    ) throws -> Bool {
+        try lifecycle.withCurrentGeneration(generation, accountKey: lease.accountKey) {
+            chargeFloor(lease, policy: policy)
+        }
+    }
+
     /// Records only the result belonging to this scheduler's current lease.
     /// Calls without a preceding acquire remain supported for administrative
     /// and test use, but never overwrite another process's active lease.
     @discardableResult
     public func recordResult(accountKey: String, policy: PollPolicy, status: SnapshotStatus) -> Bool {
-        let owner = inFlight.removeValue(forKey: accountKey)
+        if let owner = inFlight[accountKey] {
+            return recordResult(
+                FetchLease(accountKey: accountKey, owner: owner),
+                policy: policy,
+                status: status
+            )
+        }
         let recordedAt = now()
         var recorded = false
         do {
@@ -415,12 +624,8 @@ public actor FetchScheduler {
                 var entry = ledger[accountKey]
                     ?? LedgerEntry(nextAllowedAt: .distantPast, consecutive429: 0)
 
-                if let owner {
-                    // The lease may have expired, but the result is still ours
-                    // if no newer process replaced its owner token.
-                    guard entry.leaseOwner == owner else { return }
-                } else if entry.leaseOwner != nil,
-                          (entry.leaseExpiresAt ?? .distantFuture) > recordedAt {
+                if entry.leaseOwner != nil,
+                   (entry.leaseExpiresAt ?? .distantFuture) > recordedAt {
                     return
                 }
 
@@ -464,6 +669,102 @@ public actor FetchScheduler {
         } catch {
             lastStoreError[accountKey] = error.localizedDescription
             return false
+        }
+    }
+
+    @discardableResult
+    public func recordResult(
+        _ lease: FetchLease,
+        policy: PollPolicy,
+        status: SnapshotStatus
+    ) -> Bool {
+        guard inFlight[lease.accountKey] == lease.owner else { return false }
+        inFlight[lease.accountKey] = nil
+        let recordedAt = now()
+        var recorded = false
+        do {
+            try store.update { ledger in
+                guard var entry = ledger[lease.accountKey],
+                      entry.leaseOwner == lease.owner
+                else { return }
+
+                applyResult(
+                    to: &entry,
+                    policy: policy,
+                    status: status,
+                    recordedAt: recordedAt
+                )
+                entry.leaseOwner = nil
+                entry.leaseExpiresAt = nil
+                ledger[lease.accountKey] = entry
+                recorded = true
+            }
+            lastStoreError[lease.accountKey] = nil
+            return recorded
+        } catch {
+            lastStoreError[lease.accountKey] = error.localizedDescription
+            return false
+        }
+    }
+
+    @discardableResult
+    public func recordResult<Guard: SchedulerLifecycleGuard>(
+        accountKey: String,
+        policy: PollPolicy,
+        status: SnapshotStatus,
+        lifecycle: Guard,
+        generation: Guard.Generation
+    ) throws -> Bool {
+        try lifecycle.withCurrentGeneration(generation, accountKey: accountKey) {
+            recordResult(accountKey: accountKey, policy: policy, status: status)
+        }
+    }
+
+    @discardableResult
+    public func recordResult<Guard: SchedulerLifecycleGuard>(
+        _ lease: FetchLease,
+        policy: PollPolicy,
+        status: SnapshotStatus,
+        lifecycle: Guard,
+        generation: Guard.Generation
+    ) throws -> Bool {
+        try lifecycle.withCurrentGeneration(generation, accountKey: lease.accountKey) {
+            recordResult(lease, policy: policy, status: status)
+        }
+    }
+
+    private func applyResult(
+        to entry: inout LedgerEntry,
+        policy: PollPolicy,
+        status: SnapshotStatus,
+        recordedAt: Date
+    ) {
+        if status == .rateLimited {
+            entry.consecutive429 = min(
+                max(0, entry.consecutive429),
+                Self.maximumConsecutive429
+            )
+            if entry.consecutive429 < Self.maximumConsecutive429 {
+                entry.consecutive429 += 1
+            }
+            let exponent = Double(entry.consecutive429 - 1)
+            let base = policy.backoff429BaseSeconds.isFinite
+                ? max(0, policy.backoff429BaseSeconds)
+                : 0
+            let cap = policy.backoffMaxSeconds.isFinite
+                ? max(0, policy.backoffMaxSeconds)
+                : base
+            let calculated = base * pow(2, exponent)
+            let backoff = calculated.isFinite ? min(calculated, cap) : cap
+            entry.nextAllowedAt = recordedAt.addingTimeInterval(
+                backoff + boundedJitter(policy.jitterSeconds)
+            )
+        } else {
+            entry.consecutive429 = 0
+            let minimum = policy.minSeconds.isFinite ? max(0, policy.minSeconds) : 0
+            entry.nextAllowedAt = recordedAt.addingTimeInterval(
+                minimum + boundedJitter(policy.jitterSeconds)
+            )
         }
     }
 

@@ -23,4 +23,34 @@ enum SnapshotFreshness {
     ) -> Bool {
         status != .ok || isStale(fetchedAt: fetchedAt, at: now)
     }
+
+    /// A provider reset boundary invalidates the old reading for that window.
+    /// It does not prove the new utilization is zero. Glanceable surfaces must
+    /// hide that pre-reset value until a provider fetch confirms the new one.
+    static func resetIsUnconfirmed(
+        for window: UsageWindow,
+        fetchedAt: Date,
+        at now: Date = Date()
+    ) -> Bool {
+        guard let resetsAt = window.resetsAt else { return false }
+        return resetsAt > fetchedAt && resetsAt <= now
+    }
+
+    static func hasUnconfirmedReset(
+        in snapshot: ProviderSnapshot,
+        at now: Date = Date()
+    ) -> Bool {
+        snapshot.windows.contains {
+            resetIsUnconfirmed(for: $0, fetchedAt: snapshot.fetchedAt, at: now)
+        }
+    }
+
+    static func confirmedWindows(
+        in snapshot: ProviderSnapshot,
+        at now: Date = Date()
+    ) -> [UsageWindow] {
+        snapshot.windows.filter {
+            !resetIsUnconfirmed(for: $0, fetchedAt: snapshot.fetchedAt, at: now)
+        }
+    }
 }

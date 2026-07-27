@@ -5,6 +5,7 @@ struct ConnectionsView: View {
     @Environment(AppModel.self) private var model
     @State private var showAddAccount = false
     @State private var accountPendingRemoval: AccountRef?
+    @State private var accountPendingHistoryRecovery: AccountRef?
     @State private var removalError: String?
 
     var body: some View {
@@ -12,33 +13,47 @@ struct ConnectionsView: View {
             VigilScreenBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: VigilSpacing.large) {
-                    header
-                    addAccountCard
-                    linkedAccounts
-                    coverageCard
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Accounts on this iPhone")
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(VigilPalette.ink)
+                        Text("Add, inspect, or remove the accounts Vigil watches.")
+                            .font(.subheadline)
+                            .foregroundStyle(VigilPalette.inkMuted)
+                    }
+
+                    Button { showAddAccount = true } label: {
+                        SetupChoiceRow(
+                            symbol: "person.badge.plus",
+                            title: "Add an account",
+                            detail: "Use guided sign-in or choose another provider.",
+                            tone: .primary
+                        )
+                    }
+                    .buttonStyle(.plain)
+
+                    accountList
                 }
-                .frame(maxWidth: 960, alignment: .leading)
+                .frame(maxWidth: 760, alignment: .leading)
                 .padding(VigilSpacing.medium)
-                .padding(.bottom, 44)
+                .padding(.bottom, VigilSpacing.xLarge)
                 .frame(maxWidth: .infinity)
             }
         }
-        .navigationTitle("Connections")
+        .navigationTitle("Accounts")
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(VigilPalette.canvas.opacity(0.96), for: .navigationBar)
+        #endif
+        .toolbarBackground(VigilPalette.canvas.opacity(0.97), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showAddAccount = true
-                } label: {
+                Button { showAddAccount = true } label: {
                     Label("Add account", systemImage: "plus")
                 }
             }
         }
-        .sheet(isPresented: $showAddAccount) {
-            AddAccountView()
-        }
+        .sheet(isPresented: $showAddAccount) { AddAccountView() }
         .confirmationDialog(
             "Remove \(accountPendingRemoval?.displayName ?? "account")?",
             isPresented: .init(
@@ -48,13 +63,31 @@ struct ConnectionsView: View {
             titleVisibility: .visible
         ) {
             Button("Remove account", role: .destructive) {
-                removePendingAccount()
+                Task { await removePendingAccount() }
             }
-            Button("Cancel", role: .cancel) {
-                accountPendingRemoval = nil
-            }
+            Button("Cancel", role: .cancel) { accountPendingRemoval = nil }
         } message: {
             Text("This deletes the credential and saved usage from this device.")
+        }
+        .confirmationDialog(
+            "Delete all local Vigil history?",
+            isPresented: .init(
+                get: { accountPendingHistoryRecovery != nil },
+                set: { if !$0 { accountPendingHistoryRecovery = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete all history and finish removal", role: .destructive) {
+                Task { await finishRemovalWithHistoryRecovery() }
+            }
+            Button("Keep history and account entry", role: .cancel) {
+                accountPendingHistoryRecovery = nil
+            }
+        } message: {
+            Text(
+                "The account credential is already gone, but damaged local history blocked cleanup. "
+                    + "This permanently deletes observed and imported history for every Vigil account, then finishes removing this account."
+            )
         }
         .alert(
             "Account removal needs attention",
@@ -63,86 +96,39 @@ struct ConnectionsView: View {
                 set: { if !$0 { removalError = nil } }
             )
         ) {
-            Button("OK", role: .cancel) {
-                removalError = nil
-            }
+            Button("OK", role: .cancel) { removalError = nil }
         } message: {
             Text(removalError ?? "")
         }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            VigilEyebrow(text: "Accounts and providers")
-            Text("Choose what Vigil watches.")
-                .font(.system(.largeTitle, design: .rounded).weight(.bold))
-                .foregroundStyle(VigilPalette.ink)
-            Text("Paste a provider key, or sign in with Claude or Codex directly on this phone.")
-                .font(.subheadline)
-                .foregroundStyle(VigilPalette.inkMuted)
-        }
-    }
-
-    private var addAccountCard: some View {
-        HStack(alignment: .center, spacing: 14) {
-            Image(systemName: "person.badge.key")
-                .font(.system(size: 26, weight: .medium))
-                .foregroundStyle(VigilPalette.signal)
-                .frame(width: 52, height: 52)
-                .background(
-                    VigilPalette.signal.opacity(0.11),
-                    in: RoundedRectangle(cornerRadius: 16)
-                )
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Add an account")
+    private var accountList: some View {
+        VStack(alignment: .leading, spacing: VigilSpacing.medium) {
+            HStack {
+                Text("Linked accounts")
                     .font(.headline)
                     .foregroundStyle(VigilPalette.ink)
-                Text("Paste any supported provider key, or use browser sign-in for renewing Claude and Codex credentials.")
-                    .font(.caption)
+                Spacer()
+                Text("\(model.accounts.count)")
+                    .font(.caption.monospacedDigit())
                     .foregroundStyle(VigilPalette.inkMuted)
-                    .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer()
-            Button("Add") {
-                showAddAccount = true
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(VigilPalette.signal)
-            .foregroundStyle(VigilPalette.canvas)
-            .frame(minHeight: 44)
-        }
-        .vigilCard(padding: VigilSpacing.medium)
-    }
-
-    private var linkedAccounts: some View {
-        VStack(alignment: .leading, spacing: VigilSpacing.medium) {
-            VigilSectionHeading(
-                "Linked accounts",
-                eyebrow: "This device",
-                detail: "\(model.accounts.count)"
-            )
 
             if model.accounts.isEmpty {
-                HStack(spacing: 12) {
-                    Image(systemName: "link.badge.plus")
-                        .foregroundStyle(VigilPalette.inkMuted)
-                    Text("No accounts are linked yet.")
-                        .font(.callout)
-                        .foregroundStyle(VigilPalette.inkMuted)
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .vigilInsetSurface()
+                Label("No accounts are linked yet.", systemImage: "link.badge.plus")
+                    .font(.subheadline)
+                    .foregroundStyle(VigilPalette.inkMuted)
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .vigilInsetSurface()
             } else {
-                LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 300), spacing: 12)],
-                    alignment: .leading,
-                    spacing: 12
-                ) {
+                LazyVStack(spacing: 12) {
                     ForEach(model.accounts) { account in
                         ConnectionAccountRow(
                             account: account,
                             snapshot: model.snapshots[account.key],
+                            nextAllowed: model.nextAllowed[account.key],
+                            isRemoving: model.isRemovingAccount(account.key),
                             remove: { accountPendingRemoval = account }
                         )
                     }
@@ -151,133 +137,137 @@ struct ConnectionsView: View {
         }
     }
 
-    private var coverageCard: some View {
-        VStack(alignment: .leading, spacing: VigilSpacing.medium) {
-            VigilSectionHeading(
-                "Provider coverage",
-                eyebrow: "Available today",
-                detail: "\(ProviderRegistry.all.count)"
-            )
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 190), spacing: 8)],
-                alignment: .leading,
-                spacing: 8
-            ) {
-                ForEach(ProviderRegistry.all, id: \.id) { spec in
-                    let linked = model.accounts.contains { $0.providerId == spec.id }
-                    HStack(spacing: 10) {
-                        VigilProviderMark(
-                            providerId: spec.id,
-                            displayName: spec.displayName,
-                            size: 34
-                        )
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(spec.displayName)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(VigilPalette.ink)
-                                .lineLimit(1)
-                            Text(linked ? "Linked" : ProviderPresentation.setupLabel(for: spec))
-                                .font(.caption2)
-                                .foregroundStyle(
-                                    linked ? VigilPalette.safe : VigilPalette.inkMuted
-                                )
-                        }
-                        Spacer()
-                        if linked {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(VigilPalette.safe)
-                                .accessibilityLabel("Linked")
-                        }
-                    }
-                    .padding(10)
-                    .vigilInsetSurface(cornerRadius: VigilRadius.small)
-                }
-            }
-        }
-        .vigilCard(padding: VigilSpacing.medium)
-    }
-
-    private func removePendingAccount() {
+    private func removePendingAccount() async {
         guard let account = accountPendingRemoval else { return }
         do {
-            try model.removeAccount(account)
+            try await model.removeAccount(account)
+        } catch AppModel.LinkError.historyRecoveryRequired(_) {
+            accountPendingHistoryRecovery = account
         } catch {
             removalError = error.localizedDescription
         }
         accountPendingRemoval = nil
+    }
+
+    private func finishRemovalWithHistoryRecovery() async {
+        guard let account = accountPendingHistoryRecovery else { return }
+        do {
+            try await model.finishRemovalByDeletingAllHistory(account)
+        } catch {
+            removalError = error.localizedDescription
+        }
+        accountPendingHistoryRecovery = nil
     }
 }
 
 private struct ConnectionAccountRow: View {
     let account: AccountRef
     let snapshot: ProviderSnapshot?
+    let nextAllowed: Date?
+    let isRemoving: Bool
     let remove: () -> Void
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                VigilProviderMark(
-                    providerId: account.providerId,
-                    displayName: account.displayName
+            NavigationLink {
+                AccountDetailView(
+                    account: account,
+                    snapshot: snapshot,
+                    nextAllowed: nextAllowed
                 )
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(account.displayName)
-                        .font(.headline)
-                        .foregroundStyle(VigilPalette.ink)
-                    if let label = account.label, !label.isEmpty {
-                        Text(label)
-                            .font(.caption)
-                            .foregroundStyle(VigilPalette.inkMuted)
-                    }
-                }
-                Spacer()
-                if let snapshot {
-                    // "Stale" only for an OK-but-old snapshot. Testing
-                    // `isDegraded` (status != ok OR old) meant every non-ok
-                    // status rendered as a benign yellow "Stale", so
-                    // "Re-link needed" and "Provider changed" were unreachable
-                    // on the very screen you go to in order to re-link.
-                    // AccountCardView already gets this right; match it.
-                    if snapshot.status == .ok,
-                       SnapshotFreshness.isStale(fetchedAt: snapshot.fetchedAt) {
-                        VigilStatusPill(
-                            text: "Stale",
-                            color: VigilPalette.caution,
-                            symbol: "clock.badge.exclamationmark"
-                        )
+            } label: {
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 10) {
+                            identity
+                            status
+                            openCue
+                        }
                     } else {
-                        VigilStatusPill(
-                            text: UsagePresentation.statusTitle(snapshot.status),
-                            color: VigilPalette.statusColor(snapshot.status),
-                            symbol: UsagePresentation.statusSymbol(snapshot.status)
-                        )
+                        HStack(alignment: .top, spacing: 12) {
+                            identity
+                            Spacer(minLength: 6)
+                            status
+                            openCue
+                        }
                     }
-                } else {
-                    VigilStatusPill(
-                        text: "Waiting",
-                        color: VigilPalette.inkMuted,
-                        symbol: "clock"
-                    )
                 }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens all provider limits and account details")
 
-            HStack {
-                Label(
-                    "\(snapshot?.windows.count ?? 0) limit\(snapshot?.windows.count == 1 ? "" : "s")",
-                    systemImage: "gauge.with.dots.needle.50percent"
-                )
-                if let plan = snapshot?.planLabel ?? account.plan, !plan.isEmpty {
-                    Text("· \(plan.capitalized)")
-                }
-                Spacer()
-                Button("Remove", role: .destructive, action: remove)
-                    .buttonStyle(.borderless)
-                    .frame(minHeight: 44)
-            }
-            .font(.caption)
-            .foregroundStyle(VigilPalette.inkMuted)
+            Button(isRemoving ? "Removing account..." : "Remove account", role: .destructive, action: remove)
+                .font(.caption.weight(.semibold))
+                .frame(minHeight: 44)
+                .disabled(isRemoving)
+                .accessibilityIdentifier("vigil.accounts.remove.\(account.providerId)")
         }
         .padding(14)
         .vigilInsetSurface()
+    }
+
+    private var identity: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VigilProviderMark(providerId: account.providerId, displayName: account.displayName)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(UsagePresentation.accountTitle(account))
+                    .font(.headline)
+                    .foregroundStyle(VigilPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(limitSummary)
+                    .font(.caption)
+                    .foregroundStyle(VigilPalette.inkMuted)
+            }
+        }
+    }
+
+    private var limitSummary: String {
+        guard let snapshot else { return "Waiting for first check" }
+        let count = SnapshotFreshness.confirmedWindows(in: snapshot).count
+        if snapshot.status == .ok,
+           SnapshotFreshness.hasUnconfirmedReset(in: snapshot) {
+            return count == 0
+                ? "Reset passed · awaiting update"
+                : "\(count) current limit\(count == 1 ? "" : "s") · reset awaiting update"
+        }
+        if snapshot.status == .ok {
+            return "\(count) reported limit\(count == 1 ? "" : "s")"
+        }
+        guard count > 0 else { return "No accepted limits yet" }
+        return "\(count) last accepted limit\(count == 1 ? "" : "s")"
+    }
+
+    @ViewBuilder
+    private var status: some View {
+        if let snapshot {
+            if snapshot.status == .ok,
+               SnapshotFreshness.hasUnconfirmedReset(in: snapshot) {
+                VigilStatusPill(
+                    text: "Awaiting update",
+                    color: VigilPalette.caution,
+                    symbol: "arrow.clockwise.circle"
+                )
+            } else if snapshot.status == .ok, SnapshotFreshness.isStale(fetchedAt: snapshot.fetchedAt) {
+                VigilStatusPill(text: "Stale", color: VigilPalette.caution, symbol: "clock.badge.exclamationmark")
+            } else {
+                VigilStatusPill(
+                    text: UsagePresentation.statusTitle(snapshot.status),
+                    color: VigilPalette.statusColor(snapshot.status),
+                    symbol: UsagePresentation.statusSymbol(snapshot.status)
+                )
+            }
+        } else {
+            VigilStatusPill(text: "Waiting", color: VigilPalette.inkMuted, symbol: "clock")
+        }
+    }
+
+    private var openCue: some View {
+        Image(systemName: "chevron.right")
+            .font(.caption.weight(.bold))
+            .foregroundStyle(VigilPalette.inkFaint)
+            .accessibilityHidden(true)
     }
 }

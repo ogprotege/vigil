@@ -20,11 +20,16 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    CURRENT_PROJECT_VERSION: 15
-    MARKETING_VERSION: 0.14.0
+    CURRENT_PROJECT_VERSION: 16
+    MARKETING_VERSION: 0.15.0
     # Local simulator builds need no team. Distribution settings below provide
     # the team and profiles for device and App Store builds.
     CODE_SIGN_STYLE: Automatic
+  configs:
+    Release:
+      # Run Xcode's product validation during every distribution archive, not
+      # only when an operator remembers a command-line override.
+      VALIDATE_PRODUCT: YES
 
 targets:
   Vigil:
@@ -81,6 +86,7 @@ targets:
     scheme:
       testTargets:
         - VigilTests
+        - VigilUITests
       gatherCoverageData: true
 
   VigilTests:
@@ -93,6 +99,18 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.vigil.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+  VigilUITests:
+    type: bundle.ui-testing
+    supportedDestinations: [iOS]
+    sources:
+      - path: VigilUITests
+    dependencies:
+      - target: Vigil
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.vigil.uitests
         GENERATE_INFOPLIST_FILE: YES
 
   VigilWidgets:

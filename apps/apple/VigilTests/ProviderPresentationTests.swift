@@ -14,12 +14,28 @@ final class ProviderPresentationTests: XCTestCase {
     func testRegistryExposesAllFourteenProvidersWithDistinctIds() {
         XCTAssertEqual(
             ProviderRegistry.all.count, 14,
-            "The manual-entry picker renders ProviderRegistry.all — a missing provider cannot be added by hand"
+            "The registry must retain every supported guided and direct-entry provider"
         )
         XCTAssertEqual(
             Set(ProviderRegistry.all.map(\.id)).count,
             ProviderRegistry.all.count,
             "Duplicate ids would collapse picker rows and account keys"
+        )
+    }
+
+    func testOtherProviderCatalogExcludesGuidedSetupWithoutRemovingRecoverySpecs() {
+        let catalogIDs = Set(ProviderCatalogView.availableProviders.map(\.id))
+
+        XCTAssertEqual(catalogIDs.count, ProviderRegistry.all.count - 2)
+        XCTAssertFalse(catalogIDs.contains("claude"))
+        XCTAssertFalse(catalogIDs.contains("codex"))
+        XCTAssertNotNil(
+            ProviderRegistry.spec(for: "claude"),
+            "Claude direct entry must remain available to targeted recovery flows"
+        )
+        XCTAssertNotNil(
+            ProviderRegistry.spec(for: "codex"),
+            "Codex direct entry must remain available to targeted recovery flows"
         )
     }
 
@@ -104,5 +120,40 @@ final class ProviderPresentationTests: XCTestCase {
 
         XCTAssertEqual(ProviderPresentation.pickerTitle(for: cursor), "Cursor (Experimental)")
         XCTAssertEqual(ProviderPresentation.pickerTitle(for: claude), "Claude")
+    }
+
+    func testOpenAIAdminCredentialDisclosureStatesAuthorityAndActualUse() throws {
+        let openAI = try XCTUnwrap(ProviderRegistry.spec(for: "openai"))
+        let hint = try XCTUnwrap(openAI.manualEntryHint)
+        let warning = try XCTUnwrap(
+            ProviderPresentation.credentialWarning(for: openAI)
+        )
+
+        for copy in [
+            hint,
+            ProviderPresentation.openAIAdminCredentialDisclosure,
+            warning,
+        ] {
+            let normalized = copy.lowercased()
+            XCTAssertTrue(normalized.contains("broad organization-owner"))
+            XCTAssertTrue(
+                normalized.contains("not read-only")
+                    || normalized.contains("not a read-only")
+            )
+            XCTAssertTrue(normalized.contains("vigil sends only documented get requests"))
+            XCTAssertTrue(normalized.contains("usage and costs"))
+            XCTAssertTrue(normalized.contains("regular project keys"))
+            XCTAssertTrue(normalized.contains("cannot access"))
+            XCTAssertFalse(normalized.contains("create a read-only"))
+            XCTAssertFalse(normalized.contains("paste a read-only"))
+        }
+        XCTAssertEqual(openAI.usageMethod, "GET")
+        XCTAssertTrue(hint.localizedCaseInsensitiveContains("dedicated"))
+        XCTAssertTrue(hint.localizedCaseInsensitiveContains("revoke"))
+        XCTAssertNil(
+            ProviderPresentation.credentialWarning(
+                for: try XCTUnwrap(ProviderRegistry.spec(for: "openrouter"))
+            )
+        )
     }
 }

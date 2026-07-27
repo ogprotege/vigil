@@ -1,0 +1,13 @@
+{
+  "type": "comprehensive",
+  "depth": "deep-dive",
+  "scope": "full project, with emphasis on the shipped iOS product and comparison to Javis603/token-monitor",
+  "focus_areas": [
+    "product positioning and task model",
+    "onboarding and credential setup",
+    "information architecture and visual hierarchy",
+    "state management and provider data flow",
+    "runtime behavior and accessibility",
+    "refactor boundaries and implementation sequence"
+  ]
+}

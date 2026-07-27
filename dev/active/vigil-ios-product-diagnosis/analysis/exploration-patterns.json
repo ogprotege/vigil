@@ -1,0 +1,443 @@
+{
+  "analysis_area": "iOS visual design, onboarding, and information architecture",
+  "scope": {
+    "product": "Vigil iOS",
+    "audience": "An iPhone user with one to three AI subscriptions or API accounts who needs a five-second answer about remaining quota and required action.",
+    "single_job": "Show which connected account is closest to a real provider limit, when it resets, whether the reading is trustworthy, and what the user should do next.",
+    "reference": "https://github.com/Javis603/token-monitor",
+    "inspected_runtime_evidence": [
+      "dev/active/vigil-ios-product-diagnosis/runtime-first-launch.png",
+      "dev/active/vigil-ios-product-diagnosis/runtime-empty-home.png",
+      "dev/active/vigil-ios-product-diagnosis/runtime-add-account-top.png",
+      "dev/active/vigil-ios-product-diagnosis/runtime-add-account-middle.png",
+      "docs/assets/screenshot-dashboard.png",
+      "docs/assets/screenshot-models.png"
+    ]
+  },
+  "diagnosis": "Vigil feels complicated because the interface is a desktop facsimile wrapped around a different, narrower iPhone data model. The first-run flow exposes the full provider implementation before the primary sign-in choices, the empty shell renders controls that cannot yet do anything, and the connected dashboard shows account detail before establishing an urgency-first scan path. The palette is not the root problem.",
+  "patterns": [
+    {
+      "id": "UX-01",
+      "severity": "critical",
+      "name": "Desktop period controls were transplanted onto incompatible quota semantics",
+      "root_cause": "The design copied token-monitor's desktop Day/Month/Total control, then expanded it to five segments even though Vigil lacks desktop transcript totals and mostly receives provider-defined rolling windows.",
+      "primary_evidence": [
+        {
+          "path": "apps/apple/Vigil/Support/UsagePeriod.swift",
+          "lines": "4-7",
+          "finding": "The source explicitly says the filter copies token-monitor and maps calendar labels approximately onto provider windows."
+        },
+        {
+          "path": "apps/apple/Vigil/Support/UsagePeriod.swift",
+          "lines": "37-69",
+          "finding": "Day, Week, Month, Year, and Life classify window identifiers and durations; when a period has no match, the code displays primary windows from another period."
+        }
+      ],
+      "confirming_signals": [
+        {
+          "type": "test",
+          "path": "apps/apple/VigilTests/UsagePeriodTests.swift",
+          "lines": "34-37",
+          "finding": "The test locks in that selecting Day may show a weekly window."
+        },
+        {
+          "type": "history",
+          "reference": "commit 6d918dd",
+          "finding": "The commit is titled 'Redesign Home like token-monitor' and acknowledges that absolute token totals require local logs unavailable on the phone."
+        },
+        {
+          "type": "reference_screenshot",
+          "reference": "https://github.com/Javis603/token-monitor/raw/main/.github/assets/limits-view.png",
+          "finding": "The desktop control filters actual token totals and cost. Vigil instead places five calendar labels over instantaneous reset windows."
+        }
+      ],
+      "user_impact": "The selected label cannot be trusted as a filter. A weekly quota can appear under Day, and the hero can call a five-hour rolling limit a 'day' value. The control adds cognitive work without adding a stable user decision.",
+      "direction": "Remove the calendar picker from Limits. Show provider windows by their real names and reset times. Put genuinely observed spend history in a separate view whose date control filters observations rather than reclassifying quota windows."
+    },
+    {
+      "id": "UX-02",
+      "severity": "critical",
+      "name": "First launch presents the finished-app shell before the first required task",
+      "root_cause": "The app has no first-run route. It always renders four tabs, a period picker, and a hero before checking whether an account exists.",
+      "primary_evidence": [
+        {
+          "path": "apps/apple/Vigil/RootView.swift",
+          "lines": "38-77",
+          "finding": "Home, Models, Connections, and Settings are always present as equal top-level destinations."
+        },
+        {
+          "path": "apps/apple/Vigil/Dashboard/DashboardView.swift",
+          "lines": "26-47",
+          "finding": "The period picker and hero render before the no-account branch."
+        }
+      ],
+      "confirming_signals": [
+        {
+          "type": "runtime_screenshot",
+          "path": "dev/active/vigil-ios-product-diagnosis/runtime-empty-home.png",
+          "finding": "A fresh user sees five inactive period choices, an empty Limits hero, two Add controls, and four mostly empty tabs before completing setup."
+        },
+        {
+          "type": "another_file",
+          "path": "apps/apple/Vigil/VigilApp.swift",
+          "lines": "18-27",
+          "finding": "The app enters RootView directly; there is no onboarding gate or first-account state machine."
+        }
+      ],
+      "user_impact": "The first screen asks the user to interpret an empty analytics product instead of completing one clear setup task. It makes the app look unfinished and teaches navigation before value.",
+      "direction": "Route an accountless installation to a focused connection screen. After one verified account succeeds, reveal the normal Limits shell and explain the first reading in place."
+    },
+    {
+      "id": "UX-03",
+      "severity": "critical",
+      "name": "The setup hierarchy promotes the brittle path and buries the recommended path",
+      "root_cause": "Phone-native sign-in was appended below an existing manual-provider catalog. Removing the Mac and CLI paths did not reorder the flow around the iPhone user's likely choice.",
+      "primary_evidence": [
+        {
+          "path": "apps/apple/Vigil/Onboarding/AddAccountView.swift",
+          "lines": "29-35",
+          "finding": "The fourteen-provider direct-entry section appears before Claude and Codex sign-in."
+        },
+        {
+          "path": "apps/apple/Vigil/Onboarding/AddAccountView.swift",
+          "lines": "100-112",
+          "finding": "Browser sign-in is labeled 'Mint a renewing token,' 'Optional,' and 'OAuth,' using implementation language."
+        },
+        {
+          "path": "apps/apple/Vigil/Onboarding/AddAccountView.swift",
+          "lines": "181-207",
+          "finding": "The UI calls manual entry 'The simplest path' and renders all fourteen providers before sign-in cards."
+        }
+      ],
+      "confirming_signals": [
+        {
+          "type": "runtime_screenshot",
+          "path": "dev/active/vigil-ios-product-diagnosis/runtime-add-account-top.png",
+          "finding": "Claude and ChatGPT/Codex first appear as manual access-token rows, which directs a novice toward non-renewing credentials."
+        },
+        {
+          "type": "runtime_screenshot",
+          "path": "dev/active/vigil-ios-product-diagnosis/runtime-add-account-middle.png",
+          "finding": "The recommended sign-in section does not begin until after more than two screens of provider rows."
+        },
+        {
+          "type": "documentation_contradiction",
+          "path": "docs/getting-started.md",
+          "lines": "60-66",
+          "finding": "The guide recommends Sign in with Claude/Codex and describes manual access-token entry as recovery or non-renewing."
+        },
+        {
+          "type": "history",
+          "reference": "commits 912c467 and 35fadf1",
+          "finding": "The former made paste/import lead for a multiplatform product; the latter removed desktop handoff but retained that ordering in the iOS-only app."
+        }
+      ],
+      "user_impact": "The fastest visible choice is not the easiest durable setup. Users must understand access tokens, renewal ownership, OAuth, provider regions, and experimental endpoints before seeing the two mainstream sign-in buttons.",
+      "direction": "Lead with two plain actions: 'Connect Claude' and 'Connect ChatGPT.' Put 'Other provider' below them, searchable and grouped. Say 'Vigil keeps this connection signed in' instead of 'mint a renewing token.'"
+    },
+    {
+      "id": "UX-04",
+      "severity": "high",
+      "name": "The product comparison implies token monitoring that the iPhone product cannot provide",
+      "root_cause": "Vigil borrows token-monitor's presentation and category language, but its iOS-only data source is provider usage APIs, not local coding-session transcripts.",
+      "primary_evidence": [
+        {
+          "path": "README.md",
+          "lines": "16-20",
+          "finding": "Vigil is positioned broadly as an iOS usage monitor, while the actual output is provider-exposed limits, balances, and spend."
+        },
+        {
+          "path": "README.md",
+          "lines": "156-158",
+          "finding": "The acknowledgment concedes that desktop transcript-derived token counts are unavailable and Vigil only shows provider API values."
+        }
+      ],
+      "confirming_signals": [
+        {
+          "type": "runtime_copy",
+          "path": "apps/apple/Vigil/Support/UsagePeriod.swift",
+          "lines": "187-196",
+          "finding": "The hero explicitly says token totals need local session logs when it falls back to a live provider value."
+        },
+        {
+          "type": "reference_product",
+          "reference": "https://github.com/Javis603/token-monitor",
+          "finding": "The reference product's primary value is live token tracking from local tool logs, session detail, cost, trends, and automatic first-run discovery."
+        }
+      ],
+      "user_impact": "A user expecting a simpler mobile Token Monitor receives a quota and balance reader. The interface repeats the reference's calendar controls and visual shape, which strengthens the wrong expectation instead of clarifying the narrower, useful job.",
+      "direction": "Name and market the shipped product as an AI limit monitor. Make 'provider-reported limits and balances' the first sentence. Treat token totals as out of scope unless a real mobile-accessible data source is added."
+    },
+    {
+      "id": "UX-05",
+      "severity": "high",
+      "name": "The dashboard computes urgency but displays account inventory",
+      "root_cause": "The hero finds the tightest limit, but the list remains in account insertion order and expands every account into up to five bars plus metrics.",
+      "primary_evidence": [
+        {
+          "path": "apps/apple/Vigil/Support/UsagePeriod.swift",
+          "lines": "98-148",
+          "finding": "The hero selects the lowest remaining percentage across accounts."
+        },
+        {
+          "path": "apps/apple/Vigil/Dashboard/DashboardView.swift",
+          "lines": "177-203",
+          "finding": "The provider list iterates model.accounts without urgency ordering."
+        },
+        {
+          "path": "apps/apple/Vigil/Dashboard/DashboardView.swift",
+          "lines": "233-240, 389-414",
+          "finding": "Each account can show five windows, four primary metrics, and two secondary metrics in the main list."
+        }
+      ],
+      "confirming_signals": [
+        {
+          "type": "documentation_screenshot",
+          "path": "docs/assets/screenshot-dashboard.png",
+          "finding": "The 23% tightest account appears second, after a 58% account, while later providers and rows extend behind the tab bar."
+        },
+        {
+          "type": "demo_data",
+          "path": "apps/apple/Vigil/Support/DemoData.swift",
+          "lines": "53-137",
+          "finding": "The official screenshot seed loads five heterogeneous accounts simultaneously to exercise every surface."
+        }
+      ],
+      "user_impact": "The largest number tells the right story, but the list immediately abandons it. The user must scan a long account ledger to locate the urgent row and cannot distinguish glance information from detail.",
+      "direction": "Order by action: expired or changed first, then lowest remaining percentage, then stale, then healthy balance-only accounts. Show one compact summary per account and expand additional windows on demand."
+    },
+    {
+      "id": "UX-06",
+      "severity": "high",
+      "name": "Navigation and actions are duplicated around a one-screen core task",
+      "root_cause": "Each added feature became permanent chrome instead of a secondary route or contextual action.",
+      "primary_evidence": [
+        {
+          "path": "apps/apple/Vigil/RootView.swift",
+          "lines": "38-77",
+          "finding": "Models and Connections receive the same top-level weight as the core Limits screen."
+        },
+        {
+          "path": "apps/apple/Vigil/Dashboard/DashboardView.swift",
+          "lines": "55-69, 77-88, 105-133",
+          "finding": "Home has pull-to-refresh, a persistent refresh floating button, and an Add account toolbar action."
+        },
+        {
+          "path": "apps/apple/Vigil/Connections/ConnectionsView.swift",
+          "lines": "30-40, 86-115",
+          "finding": "Connections repeats Add account in both the toolbar and a full card."
+        }
+      ],
+      "confirming_signals": [
+        {
+          "type": "another_file",
+          "path": "README.md",
+          "lines": "84-87",
+          "finding": "Home already includes a subset of model lanes while Models is the complete list, so the permanent destinations overlap."
+        },
+        {
+          "type": "runtime_screenshot",
+          "path": "dev/active/vigil-ios-product-diagnosis/runtime-empty-home.png",
+          "finding": "The empty screen visibly repeats a toolbar plus and full-width Add account button while preserving four tabs."
+        },
+        {
+          "type": "documentation_screenshot",
+          "path": "docs/assets/screenshot-dashboard.png",
+          "finding": "The connected screen simultaneously carries navigation title, add button, period control, hero, refresh button, and four-tab bar."
+        }
+      ],
+      "user_impact": "Controls compete with data and imply more product complexity than the core task requires. Models can be empty for valid providers, while account management occupies a permanent tab and three Add entry points.",
+      "direction": "Use three destinations at most: Limits, Accounts, and Settings. Make model caps a filter or section inside Limits. Keep one contextual Add action in Accounts and one refresh gesture or button, not both."
+    },
+    {
+      "id": "UX-07",
+      "severity": "medium",
+      "name": "Marketing-style headers repeat where task labels should lead",
+      "root_cause": "The redesign standardized an eyebrow, large rounded slogan, and explanatory subhead across utility screens. This consumes the first viewport without encoding state or action.",
+      "primary_evidence": [
+        {
+          "path": "apps/apple/Vigil/Dashboard/ModelsView.swift",
+          "lines": "114-127",
+          "finding": "Models opens with 'The special model limits' in large title type before data."
+        },
+        {
+          "path": "apps/apple/Vigil/Connections/ConnectionsView.swift",
+          "lines": "74-83",
+          "finding": "Connections opens with 'Choose what Vigil watches' above a second Add account card."
+        },
+        {
+          "path": "apps/apple/Vigil/Settings/SettingsView.swift",
+          "lines": "131-140",
+          "finding": "Settings opens with 'Quiet controls. Clear promises' before settings."
+        },
+        {
+          "path": "apps/apple/Vigil/Onboarding/AddAccountView.swift",
+          "lines": "84-98",
+          "finding": "Add account spends the top of the sheet on 'Bring an account under watch' before choices."
+        }
+      ],
+      "confirming_signals": [
+        {
+          "type": "documentation_screenshot",
+          "path": "docs/assets/screenshot-models.png",
+          "finding": "The slogan and summary consume roughly the first quarter of the usable screen before the first model limit."
+        },
+        {
+          "type": "runtime_screenshot",
+          "path": "dev/active/vigil-ios-product-diagnosis/runtime-add-account-top.png",
+          "finding": "The large setup slogan pushes already-buried sign-in actions farther below the fold."
+        }
+      ],
+      "user_impact": "Every screen looks decorated but none feels faster. The repeated composition weakens hierarchy because the same visual weight is applied to marketing copy, settings, setup, and live data.",
+      "direction": "Use the navigation title as the screen title. Reserve large type for the one urgent quota or a true empty-state action. Let section labels describe real content, not the app's internal metaphor."
+    },
+    {
+      "id": "UX-08",
+      "severity": "high",
+      "name": "Quota components diverged, so the same fact reads differently across screens",
+      "root_cause": "Successive redesigns left separate Home, Models, and legacy account-card meter implementations instead of one quota row with size variants.",
+      "primary_evidence": [
+        {
+          "path": "apps/apple/Vigil/Dashboard/DashboardView.swift",
+          "lines": "418-499",
+          "finding": "Home uses StackedLimitBar with percent left and a relative CompactResetLabel."
+        },
+        {
+          "path": "apps/apple/Vigil/Dashboard/WindowRows.swift",
+          "lines": "73-175, 249-273",
+          "finding": "Models uses LimitMeterRow with both percent left and percent used plus a second-level timer interval."
+        },
+        {
+          "path": "apps/apple/Vigil/Dashboard/AccountCardView.swift",
+          "lines": "7-60",
+          "finding": "A third complete account instrument remains in source but has no call site in the shipped presentation tree."
+        }
+      ],
+      "confirming_signals": [
+        {
+          "type": "screenshot_pair",
+          "paths": [
+            "docs/assets/screenshot-dashboard.png",
+            "docs/assets/screenshot-models.png"
+          ],
+          "finding": "Home shows human relative resets such as '2 hr, 17 min'; Models shows '119:59:57' and redundantly states both 45% left and 55% used."
+        },
+        {
+          "type": "repository_search",
+          "finding": "A repository-wide initializer search finds no AccountCardView(...) call site; the other symbol occurrences are its declaration and comments, while active Home and Models use different components."
+        }
+      ],
+      "user_impact": "Users must relearn the same metric on each screen. Developers must fix spacing, freshness, copy, and accessibility in multiple implementations, which explains repeated visual regressions.",
+      "direction": "Create one semantic quota-row component with compact, standard, and expanded layouts. Share title, remaining value, reset formatting, freshness, and accessibility output across Home, model filtering, widgets, and account detail."
+    },
+    {
+      "id": "UX-09",
+      "severity": "high",
+      "name": "The layout truncates at normal size and has no rendering-level accessibility guard",
+      "root_cause": "Dense horizontal headers use one-line limits for provider, plan, badge, and account text. Tests validate data selection and copy values, but not SwiftUI layout under Dynamic Type.",
+      "primary_evidence": [
+        {
+          "path": "apps/apple/Vigil/Dashboard/DashboardView.swift",
+          "lines": "282-314",
+          "finding": "Provider name, optional badge, plan, account label, and update line share a compact header; key fields use lineLimit(1)."
+        },
+        {
+          "path": "apps/apple/Vigil/Dashboard/WindowRows.swift",
+          "lines": "97-153",
+          "finding": "Model title, account name, badge, percentage, reset status, and used percentage are forced into two horizontal rows with one-line truncation."
+        },
+        {
+          "path": "apps/apple/Vigil/Onboarding/AddAccountView.swift",
+          "lines": "321-354",
+          "finding": "Provider name and Experimental badge compete in one row and the name is limited to one line."
+        }
+      ],
+      "confirming_signals": [
+        {
+          "type": "runtime_screenshot",
+          "path": "dev/active/vigil-ios-product-diagnosis/runtime-add-account-middle.png",
+          "finding": "MiniMax Coding Plan China truncates at the default text size before any accessibility enlargement."
+        },
+        {
+          "type": "documentation_screenshot",
+          "path": "docs/assets/screenshot-dashboard.png",
+          "finding": "MiniMax Coding Plan truncates in the official dashboard screenshot despite the full-width phone layout."
+        },
+        {
+          "type": "test_gap",
+          "path": "apps/apple/VigilTests/DemoDataTests.swift",
+          "lines": "23-77",
+          "finding": "Screenshot tests assert that data populates surfaces, not that text fits, controls remain reachable, or Dynamic Type reflows."
+        }
+      ],
+      "user_impact": "Provider identity is lost at the point regional variants matter most. Larger accessibility sizes will amplify collisions between names, plans, badges, status, and percentages.",
+      "direction": "Allow provider and model headers to reflow vertically. Keep status and plan on a separate line, remove redundant used percentage, and add snapshot tests at default, XXXL, and an accessibility category."
+    },
+    {
+      "id": "UX-10",
+      "severity": "environment-dependent high",
+      "name": "The observed simulator first launch is blocked by a technical storage alert",
+      "root_cause": "A shared-container fallback is surfaced through the global storage-error alert before onboarding, with an inaccurate title and implementation-heavy message.",
+      "primary_evidence": [
+        {
+          "path": "apps/apple/Vigil/AppModel.swift",
+          "lines": "96-110",
+          "finding": "Outside tests, previews, and demo mode, missing App Group storage emits a long signing and polling-ledger message at startup."
+        },
+        {
+          "path": "apps/apple/Vigil/Dashboard/DashboardView.swift",
+          "lines": "92-102",
+          "finding": "Every storage fallback uses the alert title 'Vigil couldn't save data,' even though the message says private storage is active."
+        }
+      ],
+      "confirming_signals": [
+        {
+          "type": "runtime_screenshot",
+          "path": "dev/active/vigil-ios-product-diagnosis/runtime-first-launch.png",
+          "finding": "The local simulator's first interaction is a large technical modal covering the Add account state."
+        },
+        {
+          "type": "scope_note",
+          "finding": "This was observed in the current simulator environment. Signed TestFlight behavior requires separate entitlement verification before treating it as universal."
+        }
+      ],
+      "user_impact": "In affected builds, the product's first impression is failure and internal implementation detail before value. The title overstates data loss while the body asks the user to reason about signing, App Groups, widgets, and poll ledgers.",
+      "direction": "Fix entitlement state at build time. If fallback remains possible, show a concise nonblocking diagnostic after setup, with a precise title such as 'Widgets unavailable in this build' and a developer-only detail route."
+    }
+  ],
+  "positive_findings": [
+    {
+      "name": "Color contrast is not the primary failure",
+      "evidence": "The defined ink, muted ink, signal, caution, and critical colors generally maintain readable contrast against canvas and surface. The only near-threshold pair measured was faint ink on the raised surface at about 4.43:1; that pairing is not the main cause of the perceived mess."
+    },
+    {
+      "name": "Trust states and provider-specific setup data are substantive",
+      "evidence": "The product already distinguishes stale, expired, changed, cooldown, and network states, and provider setup fields derive from the registry. The redesign should preserve that honesty while hiding implementation detail until it is actionable."
+    },
+    {
+      "name": "The app icon supplies a usable visual signature",
+      "evidence": "The reserve-gauge icon in docs/assets/icon-256.png is more specific to the product than the repeated purple card treatment. It can become the single recurring urgency device."
+    }
+  ],
+  "redesign_direction": {
+    "thesis": "Vigil is the five-second iPhone answer to: What AI limit needs my attention next?",
+    "navigation": "Use Limits, Accounts, and Settings. Put model caps inside Limits as a filter or disclosed section. Do not show the normal tab shell until the first account verifies.",
+    "first_run": "Show Connect Claude and Connect ChatGPT as the two primary actions. Put a searchable Other provider catalog below. Explain outcome and privacy in one sentence, then verify and land on the first real reading.",
+    "limits_screen": "Lead with one urgency card containing provider, percent left, real window name, reset time, freshness, and action. Follow with compact accounts sorted by action and urgency. Expand for additional windows and metrics.",
+    "visual_system": {
+      "palette": [
+        "Night #171122",
+        "Raised #251A37",
+        "Ink #F5F3F9",
+        "Secondary #AAA1B8",
+        "Reserve #64DEB6",
+        "Warning #F1C961"
+      ],
+      "type": "Use native Dynamic Type roles for all prose and labels. Use monospaced digits only for percentages and short reset values, not prose or full timer strings.",
+      "layout": "Prefer one continuous list with restrained separators over nested cards. Spend boldness on one reserve dial derived from the app icon; keep all other chrome quiet.",
+      "motion": "Animate only the reserve value when a verified snapshot changes, and honor Reduce Motion. Do not animate countdowns beyond native text updates."
+    },
+    "accessibility_gate": "Verify default, XXXL, and accessibility text categories; VoiceOver order; 44-point controls; Reduce Motion; error announcements; and provider-region names without truncation.",
+    "documentation": "Lead with the precise limit-monitor promise, then show three real screenshots: accountless connection choice, successful first account, and an urgent limit. Keep provider credential tables as reference, not as the first-run story."
+  }
+}

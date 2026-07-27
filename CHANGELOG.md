@@ -4,6 +4,91 @@
 
 Anything that changes shipped behavior gets an entry here: TestFlight app builds, provider contracts, registry changes, and local-state migrations. Historical command-line releases remain below as project history.
 
+## 0.15.0 (16) — TestFlight internal candidate, 2026-07-26
+
+**Vigil now answers one question first: which AI limit needs attention next.**
+Home ranks provider failures that require action first, then current finite quotas
+by least remaining allowance. Stale, reset-pending, and unknown accounts no
+longer outrank a fresh critical limit. Account detail holds every genuine
+provider window, exact amount the provider supplied, balance, model-specific
+lane, reset time, source explanation, and history action.
+
+**Observed history is now a real normalized SQLite archive.** The app and widget
+share it through the App Group, and every distinct successful fetch time remains
+a separate on-device observation even when values did not change. Readings
+retain utilization, exact used and limit values when supplied, balances, spend,
+retrieval time, and provider reset segments. A one-time, retry-safe migration
+preserves earlier money observations. Account archives read retained rows with
+stable cursor paging instead of loading the whole database. The rolling archive
+keeps up to 400 days, with independent per-account caps of 120,000 observations
+and 5,000 provider-backfill records.
+
+**Diagnostic exports are bounded and explicit about their scope.** The JSON
+report exports only a recent per-account and per-source history selection, then
+records both the total retained sample count and the exported sample count. It
+remains credential-free and excludes raw provider responses and free-form
+account or provider-controlled labels.
+
+**Official history is explicit and correctly scoped.** OpenAI API-platform
+organization Usage and Costs can be imported only after the user taps the
+account-detail import action. The app no longer starts a 365-day import during
+linking. Every surface warns that an Admin API key is a broad organization-owner
+credential, although Vigil itself sends only documented GET requests. These
+buckets never claim to represent ChatGPT or Codex subscription activity, and
+organization costs remain separate from completion-token groups.
+
+**Reset and notification state now fail honest.** A provider value whose reset
+passed after its fetch is hidden until a new provider response arrives. Neither
+the app nor widget rewrites it as a fabricated zero. Parked threshold alerts
+carry observation and reset-segment metadata, then revalidate against a fresh
+shared snapshot before delivery. Legacy, expired, mismatched, and no-longer-
+crossed alerts are removed instead of interrupting the user with stale claims.
+
+**Account transactions now have explicit recovery and cancellation boundaries.**
+Damaged history cannot leave removal permanently stuck. Vigil offers a separate,
+clearly destructive choice to erase all local history and finish cleanup. A
+canceled add or re-link cannot cross from delayed verification into Keychain,
+account-index, lifecycle, snapshot, or history mutation, and late tasks cannot
+present setup prompts after dismissal. Removal and re-link operations use
+generation-scoped notification identifiers and operation-scoped polling leases,
+so an older async completion cannot erase or republish a newer lifecycle.
+Duplicate removal is serialized per account. Upgrade cleanup removes polling
+rows, account lock files, and raw-key notification identifiers left by earlier
+builds.
+
+If the account index, Keychain payload, or lifecycle registry cannot be decoded,
+Vigil now remains fail-closed and offers an explicit **Erase Vigil data and
+start over** action in Settings. After confirmation, it invalidates every app
+and widget generation before deleting all Vigil Keychain credentials, local
+history, snapshots, notifications, polling state, and damaged identity data.
+Setup is re-enabled only after an empty account index and lifecycle registry are
+written successfully.
+
+Provider polling and Claude/Codex token exchanges now use an ephemeral,
+cache-disabled session with cookies disabled. On launch, Vigil removes only its
+own legacy `URLSession.shared` response cache and cookie residue from earlier
+builds. It does not touch Safari or provider-app sessions. Full recovery also
+waits for any already-started notification delivery, performs a final owned-ID
+sweep before success, and clears the legacy network residue again.
+
+**Privacy protection now covers both foreground access and app-switcher
+snapshots.** The optional lock uses device-owner authentication, including the
+system passcode fallback. Protected content is hidden from interaction and
+accessibility while locked. An opaque cover replaces account content whenever
+the scene is inactive or backgrounded. Account removal tombstones the identity
+before cleanup, removes queued and delivered notifications, account-derived
+snapshot and event lock files, SQLite history rows, legacy observations, poll
+metadata, and damaged-index backups, then prunes the lifecycle tombstone after
+the final sweep.
+
+This candidate also replaces period and Models navigation with phone-native
+setup choices, urgency summaries, account-scoped details, honest provider-plan
+context, opaque widget account identifiers for new configurations, and large-
+text coverage for the critical flows. Existing widget configurations remain
+readable during migration. Physical-device sign-
+in, App Group, WidgetKit, background refresh, and notification behavior remain
+the final TestFlight acceptance gate.
+
 ## 0.14.0 (15) — TestFlight internal, 2026-07-22
 
 **Vigil is now an iOS-only, phone-native product.** The macOS app target,

@@ -15,43 +15,40 @@ Vigil reads provider usage directly, stores credentials in Keychain, and has no 
 
 ## What is Vigil?
 
-Vigil is an iOS usage monitor for AI subscriptions and API accounts. It shows reset-based limits, model-specific caps, balances, spend, and overage credits when providers expose them.
+Vigil is an iOS limits and balance monitor for AI subscriptions and API accounts. It shows which limit needs attention next, then provides complete reset-based limits, model-specific caps, balances, spend, and overage credits when providers expose them.
 
 There is no Vigil account and no Vigil server. The app talks directly to each activated provider. Claude and ChatGPT/Codex use phone-native sign-in. Other providers use a key or session credential pasted into the app. Credentials remain in the device Keychain and do not sync through iCloud Keychain.
 
 Vigil is built around three principles:
 
-1. **Phone-native setup.** Every account can be added on the iPhone. No computer or terminal is required.
+1. **Phone-first setup.** Claude, ChatGPT/Codex, and ordinary provider keys can be connected on the iPhone. Experimental browser-session integrations may require obtaining a credential elsewhere first.
 2. **Honest freshness.** The app respects provider poll floors, keeps countdowns moving locally, and labels stale or structurally incompatible data.
 3. **On-device storage.** Credentials stay in Keychain. Snapshots and poll metadata stay in the shared App Group container used by the app and widgets.
-
-<p align="center">
-  <img src="docs/assets/screenshot-dashboard.png" width="280" alt="Vigil Home showing provider limits, percent left, reset countdowns, and freshness" />
-  &nbsp;&nbsp;
-  <img src="docs/assets/screenshot-models.png" width="280" alt="Vigil Models showing genuine model-specific limits ordered by urgency" />
-</p>
 
 ## Getting started
 
 1. Install Vigil from TestFlight.
-2. Open **Add account**.
+2. Open Vigil. First launch offers Claude, ChatGPT/Codex, and Other provider.
 3. Choose one path:
    - **Sign in with Claude:** approve access in the browser, copy the returned code, and finish in Vigil.
    - **Sign in with Codex:** open the approval page, enter the short code Vigil shows, and wait for completion.
    - **Paste a provider key:** choose a provider and enter the requested key, account identifier, or session credential.
-4. Read plan-wide limits on **Home** and genuine model-specific caps on **Models**.
+4. Read the most urgent current limit on **Limits**, then open an account for every real window, provider metric, and observed history.
 
 See [docs/getting-started.md](docs/getting-started.md) for the full walkthrough.
 
 ## Features
 
 - Claude and ChatGPT/Codex subscription-window tracking.
-- Genuine model-specific caps on the Models tab.
+- Genuine model-specific caps in complete account detail.
 - Provider balances, spend, limits, and overage credits when available.
 - Home-screen and lock-screen widgets.
 - Reset countdowns computed locally between provider fetches.
 - Shared, account-level poll leases across the app and widgets.
 - Threshold notifications at 80% and 95% utilization.
+- Protected on-device history for every retained successful reading, segmented by the provider's real reset window.
+- Official OpenAI completion-token and organization-cost import for linked Admin API accounts.
+- Credential-free JSON diagnostics export.
 - Optional Face ID or Touch ID app lock.
 - Explicit states for stale data, rate limits, expired authentication, provider drift, and network failures.
 - Keychain credential storage with no Vigil server or analytics.
@@ -71,7 +68,7 @@ Fourteen providers ship in the registry. Claude and ChatGPT/Codex are the primar
 | Kimi K3 coding plan | Session and weekly coding-plan windows | Paste a Kimi Code key |
 | MiniMax Coding Plan | General and video session and weekly windows | Paste a global MiniMax coding-plan key |
 | MiniMax Coding Plan China | General and video session and weekly windows | Paste a China-platform MiniMax coding-plan key |
-| OpenAI API | Month-to-date organization spend | Paste a read-only organization Admin key |
+| OpenAI API | Month-to-date organization spend; optional import of up to 365 days of completion-token and organization-cost buckets | Paste a dedicated API-platform organization Admin API key. It is a broad organization-owner credential. Vigil sends only documented GET requests. Regular project keys cannot access the Usage and Costs APIs. |
 | GitHub Copilot | Credits consumed, included and billable credits, and billable spend | Paste a fine-grained token and username |
 | xAI API | Prepaid balance | Paste a Management Key and team ID |
 | Z.ai / GLM Coding Plan | 5-hour and weekly token windows; web-search counters | Paste a GLM Coding Plan key |
@@ -83,8 +80,11 @@ Committed fixtures carry explicit evidence classifications in [protocol/fixture-
 
 ## Reading the app
 
-- **Home** leads with plan-wide session and weekly windows, then may include a compact subset of model or special lanes, plus balances and spend.
-- **Models** is the complete model-only list. It contains genuine model-specific or model-associated quota lanes and never substitutes a plan-wide row.
+- **Limits** ranks linked accounts by required action and remaining quota. Each account opens complete detail.
+- **Account detail** contains every real provider window, balance, spend value, and genuine model-specific cap.
+- **Plan labels** identify the provider's allowance tier. Vigil shows an exact used and limit amount only when the provider returns both values. Claude and Codex subscription capacity can vary by workload, so a tier name alone is not converted into a fictional token or message ceiling.
+- **Observed by Vigil** means the value came from a successful provider reading archived on this device. Gaps can occur because iOS schedules background work opportunistically.
+- **Imported from provider** identifies historical buckets returned by a documented administrative API. The OpenAI import covers completion tokens and organization costs, not ChatGPT or Codex subscription activity.
 - **Live** means the latest accepted response satisfied that provider's required-output contract.
 - **Provider changed** means a successful response no longer mapped completely enough to trust.
 - **Cooling down** means the provider rate-limited a request.
@@ -95,7 +95,7 @@ Committed fixtures carry explicit evidence classifications in [protocol/fixture-
 ```text
 ┌──────────────────────────── iPhone ─────────────────────────────┐
 │ Vigil app                                                       │
-│  ├─ Phone-native account setup                                  │
+│  ├─ Guided phone-native account setup                           │
 │  │   ├─ Claude OAuth                                            │
 │  │   ├─ Codex device authorization                              │
 │  │   └─ Manual provider credential entry                        │
@@ -104,7 +104,7 @@ Committed fixtures carry explicit evidence classifications in [protocol/fixture-
 │  │   ├─ UsageClient and UsageMapper                             │
 │  │   ├─ FetchScheduler and locked poll ledger                   │
 │  │   ├─ Keychain credential vault                               │
-│  │   └─ SnapshotStore and threshold engine                      │
+│  │   └─ SnapshotStore, UsageHistoryStore, and threshold engine  │
 │  └─ Widgets read shared snapshots and tick countdowns locally   │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -151,7 +151,7 @@ See [docs/release.md](docs/release.md) for TestFlight and App Store delivery.
 
 ## Privacy
 
-Vigil sends credentials and usage requests only to providers the user activates. It has no collection server, analytics, advertising SDK, or cloud synchronization service. Read [docs/privacy.md](docs/privacy.md) and [docs/threat-model.md](docs/threat-model.md) for the precise boundaries.
+Vigil sends credentials and usage requests only to providers the user activates. It has no collection server, analytics, advertising SDK, or cloud synchronization service. Normalized history stays in the protected App Group container. User-initiated diagnostics exports exclude credentials and raw provider bodies. Read [docs/privacy.md](docs/privacy.md) and [docs/threat-model.md](docs/threat-model.md) for the precise boundaries.
 
 ## Acknowledgments
 

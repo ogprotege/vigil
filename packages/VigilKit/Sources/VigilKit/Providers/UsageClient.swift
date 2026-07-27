@@ -12,8 +12,12 @@ public enum RequestBuilder {
         var urlString = spec.usageURLTemplate
         if urlString.contains("{account_id}") {
             let accountId = credentials.accountId?.trimmingCharacters(in: .whitespaces) ?? ""
+            var pathSegmentAllowed = CharacterSet.urlPathAllowed
+            pathSegmentAllowed.remove(charactersIn: "/?#%")
             guard !accountId.isEmpty,
-                  let encoded = accountId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)
+                  let encoded = accountId.addingPercentEncoding(
+                    withAllowedCharacters: pathSegmentAllowed
+                  )
             else { return nil }
             urlString = urlString.replacingOccurrences(of: "{account_id}", with: encoded)
         }
@@ -54,9 +58,16 @@ public enum RequestBuilder {
     /// Returns nil when the URL template cannot be satisfied.
     public static func usageRequest(spec: ProviderSpec, credentials: Credentials, now: Date = Date()) -> URLRequest? {
         guard let url = requestURL(spec: spec, credentials: credentials, now: now) else { return nil }
-        var request = URLRequest(url: url)
+        var request = URLRequest(
+            url: url,
+            cachePolicy: .reloadIgnoringLocalCacheData,
+            timeoutInterval: timeoutInterval
+        )
         request.httpMethod = spec.usageMethod
-        request.timeoutInterval = timeoutInterval
+        // A cached usage body is not a fresh provider observation. It must not
+        // receive a new fetchedAt timestamp, enter history, or trigger alerts.
+        request.setValue("no-cache, no-store", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
         for (name, template) in spec.headers {
             var value = template
             value = value.replacingOccurrences(of: "{access_token}", with: credentials.accessToken)

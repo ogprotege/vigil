@@ -6,6 +6,9 @@ import VigilKit
 /// ProviderRegistry): these helpers read the spec's templates and flags so no
 /// surface carries its own hardcoded provider list to drift.
 enum ProviderPresentation {
+    static let openAIAdminCredentialDisclosure =
+        "An API-platform organization Admin API key is a broad organization-owner credential, not a read-only key. Vigil sends only documented GET requests to OpenAI's organization Usage and Costs APIs. Regular project keys cannot access those endpoints."
+
     /// True when building a usage request for this provider needs an account
     /// id — the spec references "{account_id}" in the URL template (GitHub
     /// username, xAI team id) or in any header template (Codex).
@@ -85,6 +88,11 @@ enum ProviderPresentation {
         case "web_session_cookie": return "Session cookie"
         default: return "Access token"
         }
+    }
+
+    static func credentialWarning(for spec: ProviderSpec) -> String? {
+        guard spec.id == "openai" else { return nil }
+        return "\(openAIAdminCredentialDisclosure) Use a dedicated key and revoke it when you disconnect permanently."
     }
 }
 

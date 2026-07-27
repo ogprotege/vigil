@@ -16,7 +16,7 @@ The registry defines request policy and response mapping. It does not eliminate 
 | Moonshot (Kimi) China | Paste China API key | Available, cash, and voucher balances in CNY | 300 s | Not applicable | Vendor-documented balance contract with synthetic fixtures. No Vigil production capture. |
 | MiniMax Coding Plan | Paste global coding-plan key | General and video session and weekly windows | 300 s | Not applicable | **Experimental.** Undocumented token-plan endpoint, community-researched fixtures, no Vigil production capture. |
 | MiniMax Coding Plan China | Paste China coding-plan key | General and video session and weekly windows | 300 s | Not applicable | **Experimental.** Undocumented token-plan endpoint, community-researched fixtures, no Vigil production capture. |
-| OpenAI API | Paste read-only organization Admin key | Month-to-date spend | 300 s | Not applicable | Vendor-documented organization costs endpoint with synthetic fixtures. No Vigil production capture. |
+| OpenAI API | Paste dedicated organization Admin API key | Month-to-date spend; optional completion-token and cost history import | 300 s | Not applicable | Vendor-documented organization Usage and Costs APIs with synthetic fixtures. The Admin API key is a broad organization-owner credential. Vigil sends only GET requests. Regular project keys cannot access these endpoints. No Vigil production capture. |
 | GitHub Copilot | Paste fine-grained token and username | Credits consumed, included and billable credits, billable spend | 300 s | Not applicable | Vendor-documented billing endpoint with synthetic fixtures. Organization-managed seats can report empty personal usage. |
 | xAI API | Paste Management Key and team ID | Prepaid balance | 300 s | Not applicable | Vendor-documented management endpoint with synthetic fixtures. No Vigil production capture. |
 | Z.ai Coding Plan | Paste GLM Coding Plan key | 5-hour and weekly token windows; web-search counters | 300 s | Not applicable | **Experimental.** Undocumented endpoint, community-researched fixture, no Vigil production capture. |
@@ -226,10 +226,14 @@ Official references: <https://platform.kimi.ai/docs/api/balance> and <https://pl
 ## OpenAI API
 
 - Request: `GET https://api.openai.com/v1/organization/costs`.
-- Requires a read-only organization Admin key.
+- Requires an API-platform organization Admin API key. It is a broad organization-owner credential, not a read-only key, and can authorize organization-management actions beyond the GET requests Vigil sends.
+- Vigil sends only documented GET requests to the organization Usage and Costs APIs. Create a dedicated key for Vigil and revoke it when the integration is no longer needed. A regular project key cannot access these endpoints.
 - Computes UTC month start and sums daily cost buckets.
 - A present empty data array maps to honest zero.
 - `has_more` must be present and false because this release does not report a partial page as the monthly total.
+- Account detail can separately import up to 365 days from `GET /v1/organization/usage/completions` and `GET /v1/organization/costs`.
+- Completion tokens and organization costs remain separate imported quantities. Missing or malformed cost amounts are skipped rather than invented.
+- The import does not contain ChatGPT or Codex subscription activity. Those products do not share this Admin API credential or history contract.
 
 Official reference: <https://platform.openai.com/docs/api-reference/usage/costs>
 

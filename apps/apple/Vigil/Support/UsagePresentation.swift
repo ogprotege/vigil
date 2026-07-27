@@ -1,29 +1,22 @@
 import Foundation
 import VigilKit
 
-struct LimitCandidate: Equatable {
-    let account: AccountRef
-    let snapshot: ProviderSnapshot
-    let window: UsageWindow
-}
-
-struct WatchlineCoverage: Equatable {
-    let linkedAccountCount: Int
-    let windowAccountCount: Int
-    let metricOnlyAccountCount: Int
-    let unreliableAccountCount: Int
-
-    var isComplete: Bool {
-        unreliableAccountCount == 0
-    }
-}
-
 /// One presentation policy shared by the dashboard, widgets, and tests.
 /// Provider data stays intact; this layer only gives each window an honest,
 /// human-readable name and a consistent "percent left" representation.
 enum UsagePresentation {
     static func remainingPercent(for window: UsageWindow) -> Double {
         min(max(100 - window.utilization, 0), 100)
+    }
+
+    /// Some experimental providers expose percentage and amount fields that
+    /// describe different allowance bases. Preserve both, but combine them as
+    /// one denominator only when their ratio agrees within rounding tolerance.
+    static func exactAmountsMatchUtilization(_ window: UsageWindow) -> Bool {
+        guard let used = window.used, let limit = window.limit, limit > 0 else {
+            return false
+        }
+        return abs((used / limit * 100) - window.utilization) <= 1
     }
 
     static func title(for window: UsageWindow) -> String {
@@ -66,7 +59,10 @@ enum UsagePresentation {
             .replacingOccurrences(of: " limit", with: "")
     }
 
-    static func category(for window: UsageWindow) -> String {
+    static func category(
+        for window: UsageWindow,
+        providerId: String? = nil
+    ) -> String {
         switch window.id.lowercased() {
         case "session": return "ROLLING WINDOW"
         case "weekly": return "WEEKLY WINDOW"
@@ -75,32 +71,39 @@ enum UsagePresentation {
         case "billing": return "BILLING WINDOW"
         default:
             if window.secondary {
-                return isModelWindow(window) ? "MODEL LIMIT" : "SPECIAL LIMIT"
+                return isModelWindow(window, providerId: providerId)
+                    ? "MODEL LIMIT"
+                    : "SPECIAL LIMIT"
             }
             return "USAGE WINDOW"
         }
     }
 
-    static func isSpecialWindow(_ window: UsageWindow) -> Bool {
-        switch window.id.lowercased() {
-        case "session", "weekly", "monthly", "plan", "billing":
-            return false
-        default:
-            return window.secondary
-        }
-    }
-
-    /// A genuine model-scoped quota. Secondary provider features such as
-    /// Claude OAuth-app and Cowork caps remain special windows on Home, but do
-    /// not appear under the Models tab's narrower "Per-model caps" promise.
-    static func isModelWindow(_ window: UsageWindow) -> Bool {
+    /// A quota whose provider contract explicitly identifies model scope.
+    /// A label or secondary flag alone is not proof: Codex uses the same shape
+    /// for model lanes and other metered features, while MiniMax's video lane
+    /// is a modality category rather than a named model.
+    static func isModelWindow(
+        _ window: UsageWindow,
+        providerId: String? = nil
+    ) -> Bool {
         guard window.secondary else { return false }
         let id = window.id.lowercased()
-        return window.label != nil
+        let providerContractMatch: Bool
+        switch providerId?.lowercased() {
+        case "codex":
+            providerContractMatch = id == "codex_bengalfox_session"
+                || id == "codex_bengalfox_weekly"
+        case "cursor":
+            providerContractMatch = id == "plan_auto" || id == "plan_api"
+        default:
+            providerContractMatch = false
+        }
+
+        return providerContractMatch
             || id == "weekly_sonnet"
             || id == "weekly_opus"
             || id.hasPrefix("weekly_scoped_")
-            || id.hasSuffix("_video")
     }
 
     static func sortedWindows(_ windows: [UsageWindow]) -> [UsageWindow] {
@@ -112,101 +115,6 @@ enum UsagePresentation {
         }
     }
 
-    static func closestLimit(
-        accounts: [AccountRef],
-        snapshots: [String: ProviderSnapshot]
-    ) -> LimitCandidate? {
-        accounts
-            .compactMap { account -> [LimitCandidate]? in
-                guard let snapshot = snapshots[account.key] else { return nil }
-                return snapshot.windows.map {
-                    LimitCandidate(account: account, snapshot: snapshot, window: $0)
-                }
-            }
-            .flatMap { $0 }
-            .min {
-                let left = remainingPercent(for: $0.window)
-                let right = remainingPercent(for: $1.window)
-                if left != right { return left < right }
-                return sortRank($0.window) < sortRank($1.window)
-            }
-    }
-
-    /// Every genuine per-model limit across all accounts, tightest first.
-    /// Primary plan windows and non-model secondary caps stay on Home.
-    static func modelLimits(
-        accounts: [AccountRef],
-        snapshots: [String: ProviderSnapshot]
-    ) -> [LimitCandidate] {
-        accounts
-            .compactMap { account -> [LimitCandidate]? in
-                guard let snapshot = snapshots[account.key] else { return nil }
-                // ONLY genuine per-model windows. This used to fall
-                // back to an account's primary session/weekly windows so the
-                // tab was never empty for a coding plan — but that put Home's
-                // data on Models under a "Per-model caps" heading, so a Codex
-                // account with no model lanes rendered "Weekly limit" here as
-                // if it were a model. An honest empty state beats a wrong row;
-                // ModelsView already explains when a provider has no per-model
-                // caps.
-                let modelWindows = snapshot.windows.filter(isModelWindow)
-                guard !modelWindows.isEmpty else { return nil }
-                return modelWindows.map {
-                    LimitCandidate(account: account, snapshot: snapshot, window: $0)
-                }
-            }
-            .flatMap { $0 }
-            .sorted {
-                let left = remainingPercent(for: $0.window)
-                let right = remainingPercent(for: $1.window)
-                if left != right { return left < right }
-                return title(for: $0.window)
-                    .localizedCaseInsensitiveCompare(title(for: $1.window)) == .orderedAscending
-            }
-    }
-
-    static func watchlineCoverage(
-        accounts: [AccountRef],
-        snapshots: [String: ProviderSnapshot],
-        at now: Date = Date()
-    ) -> WatchlineCoverage {
-        var windowAccounts = 0
-        var metricOnlyAccounts = 0
-        var unreliableAccounts = 0
-
-        for account in accounts {
-            guard let snapshot = snapshots[account.key] else {
-                unreliableAccounts += 1
-                continue
-            }
-            guard !SnapshotFreshness.isDegraded(
-                status: snapshot.status,
-                fetchedAt: snapshot.fetchedAt,
-                at: now
-            ) else {
-                // Degraded accounts only count as unreliable — do not also
-                // inflate windowAccountCount or the coverage copy contradicts
-                // itself ("2 of 2 reporting" + "2 of 2 stale").
-                unreliableAccounts += 1
-                continue
-            }
-            if !snapshot.windows.isEmpty {
-                windowAccounts += 1
-            } else if !snapshot.metrics.isEmpty {
-                metricOnlyAccounts += 1
-            } else {
-                unreliableAccounts += 1
-            }
-        }
-
-        return WatchlineCoverage(
-            linkedAccountCount: accounts.count,
-            windowAccountCount: windowAccounts,
-            metricOnlyAccountCount: metricOnlyAccounts,
-            unreliableAccountCount: unreliableAccounts
-        )
-    }
-
     static func accountTitle(_ account: AccountRef) -> String {
         guard let label = account.label?.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -214,6 +122,24 @@ enum UsagePresentation {
             return account.displayName
         }
         return "\(account.displayName) · \(label)"
+    }
+
+    /// Provider plan identifiers are often lowercase machine values. Normalize
+    /// only known whole values and preserve every unknown string verbatim so
+    /// names such as ChatGPT, API, or mixed-case product tiers are not damaged.
+    static func planTitle(_ value: String) -> String {
+        switch value.lowercased() {
+        case "free": return "Free"
+        case "go": return "Go"
+        case "plus": return "Plus"
+        case "pro": return "Pro"
+        case "max": return "Max"
+        case "team": return "Team"
+        case "business": return "Business"
+        case "enterprise": return "Enterprise"
+        case "edu": return "Edu"
+        default: return value
+        }
     }
 
     static func statusTitle(_ status: SnapshotStatus) -> String {

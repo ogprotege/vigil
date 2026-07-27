@@ -4,6 +4,9 @@
     {
       "id": "plan",
       "utilization": 45,
+      "used": 1500,
+      "limit": 2000,
+      "remaining": 500,
       "resetsAt": "2026-05-11T00:00:00Z",
       "windowSeconds": null,
       "secondary": false

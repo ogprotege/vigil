@@ -154,7 +154,7 @@ struct CodexSignInView: View {
             return
         }
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await ProviderUsageSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse,
                   (200..<300).contains(http.statusCode),
                   let device = CodexAuth.parseUserCode(data)
@@ -179,7 +179,7 @@ struct CodexSignInView: View {
                 guard let request = CodexAuth.pollRequest(
                     oauth: oauth, deviceAuthId: device.deviceAuthId, userCode: device.userCode
                 ) else { break }
-                let (data, response) = try await URLSession.shared.data(for: request)
+                let (data, response) = try await ProviderUsageSession.shared.data(for: request)
                 let status = (response as? HTTPURLResponse)?.statusCode ?? 0
                 switch CodexAuth.parsePoll(statusCode: status, data: data) {
                 case .pending:
@@ -206,7 +206,7 @@ struct CodexSignInView: View {
             oauth: oauth, authorizationCode: authorizationCode, codeVerifier: codeVerifier
         )
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await ProviderUsageSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse,
                   (200..<300).contains(http.statusCode)
             else {

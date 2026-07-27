@@ -10,6 +10,15 @@ public struct UsageWindow: Codable, Equatable, Sendable {
     public let label: String?
     /// Percent used, clamped to 0...100.
     public let utilization: Double
+    /// Provider-supplied absolute usage, when the response exposes both sides
+    /// of the quota. Nil for percentage-only provider contracts.
+    public let used: Double?
+    /// Provider-supplied absolute quota, when available. Vigil never invents
+    /// a denominator from a utilization percentage.
+    public let limit: Double?
+    /// Exact allowance left when the provider supplies it, or when it can be
+    /// derived without estimation from exact `used` and `limit` values.
+    public let remaining: Double?
     public let resetsAt: Date?
     public let windowSeconds: Int?
     public let secondary: Bool
@@ -20,11 +29,17 @@ public struct UsageWindow: Codable, Equatable, Sendable {
         resetsAt: Date?,
         windowSeconds: Int?,
         secondary: Bool,
-        label: String? = nil
+        label: String? = nil,
+        used: Double? = nil,
+        limit: Double? = nil,
+        remaining: Double? = nil
     ) {
         self.id = id
         self.label = label
         self.utilization = utilization
+        self.used = used
+        self.limit = limit
+        self.remaining = remaining
         self.resetsAt = resetsAt
         self.windowSeconds = windowSeconds
         self.secondary = secondary
