@@ -6,7 +6,7 @@ It is an iPhone app for viewing provider-reported limits, reset times, balances,
 
 > Current documentation
 >
-> Last reviewed: 2026-07-26
+> Last reviewed: 2026-07-27
 >
 > Review again: before each release
 
@@ -76,7 +76,7 @@ Credentials are stored in the device-bound Keychain. Normalized snapshots, histo
 
 ## Project status
 
-These docs describe Vigil 0.15.0, build 16. Runtime provider behavior can change outside Vigil's control. Experimental integrations are marked during setup because their vendor contracts or production evidence are incomplete.
+These docs describe Vigil 0.15.0, build 17. Runtime provider behavior can change outside Vigil's control. Experimental integrations are marked during setup because their vendor contracts or production evidence are incomplete.
 
 Vigil was inspired by [token-monitor](https://github.com/Javis603/token-monitor). Desktop transcript and cache access do not carry over to an iOS-only app, so Vigil reports only data it can obtain and label honestly.
 

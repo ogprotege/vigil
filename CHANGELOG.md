@@ -6,7 +6,11 @@ Anything that changes shipped behavior gets an entry here: TestFlight app builds
 
 ## Unreleased
 
-- Fixed ChatGPT / Codex linking against OpenAI's current usage response. Vigil now accepts independently optional primary and secondary windows and the valid inactive `spend_control` wrapper instead of rejecting the authorized account as a schema change before saving it.
+## 0.15.0 (17) — TestFlight internal candidate, 2026-07-27
+
+- Fixed ChatGPT / Codex linking against OpenAI's current usage response. Vigil now accepts independently optional primary and secondary windows and a valid inactive `spend_control` wrapper instead of rejecting the authorized account as a schema change before saving it.
+- Preserved fail-closed behavior for reached spend controls, concrete individual limits, unknown limit reasons, and malformed spend-control wrappers.
+- Added a live-sanitized fixture and an app-level transaction test proving the verified account is stored and survives model reload.
 
 ## 0.15.0 (16) — TestFlight internal candidate, 2026-07-26
 
