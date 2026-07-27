@@ -51,4 +51,22 @@ final class AppPrivacyPolicyTests: XCTestCase {
             AppLockLaunchConfiguration.holdsLockForUITesting(environment: [:])
         )
     }
+
+    func testActiveSceneUITestHookRequiresExactOptIn() {
+        XCTAssertTrue(
+            AppPrivacyLaunchConfiguration.forcesActiveSceneForUITesting(
+                environment: ["VIGIL_UI_TEST_FORCE_ACTIVE": "1"]
+            )
+        )
+        XCTAssertFalse(
+            AppPrivacyLaunchConfiguration.forcesActiveSceneForUITesting(
+                environment: ["VIGIL_UI_TEST_FORCE_ACTIVE": "true"]
+            )
+        )
+        XCTAssertFalse(
+            AppPrivacyLaunchConfiguration.forcesActiveSceneForUITesting(
+                environment: [:]
+            )
+        )
+    }
 }

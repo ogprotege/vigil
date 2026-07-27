@@ -9,7 +9,13 @@ final class VigilPrivacyLockUITests: XCTestCase {
         app.launchEnvironment["VIGIL_DEMO"] = "1"
         app.launchEnvironment["VIGIL_TAB"] = "home"
         app.launchEnvironment["VIGIL_UI_TEST_LOCKED"] = "1"
+        app.launchEnvironment["VIGIL_UI_TEST_FORCE_ACTIVE"] = "1"
         app.launch()
+
+        let storageAlert = app.alerts["Vigil couldn't save data"]
+        if storageAlert.waitForExistence(timeout: 2) {
+            storageAlert.buttons["OK"].tap()
+        }
     }
 
     override func tearDownWithError() throws {

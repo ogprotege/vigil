@@ -180,6 +180,7 @@ final class VigilAccessibilityUITests: XCTestCase {
         app.launchEnvironment["VIGIL_TAB"] = tab
         app.launchEnvironment["VIGIL_DEMO"] = demo ? "1" : "0"
         app.launchEnvironment["VIGIL_DEMO_CLAUDE_AUTH_EXPIRED"] = claudeAuthExpired ? "1" : "0"
+        app.launchEnvironment["VIGIL_UI_TEST_FORCE_ACTIVE"] = "1"
         if let contentSizeCategory {
             app.launchArguments += [
                 "-UIPreferredContentSizeCategoryName",
