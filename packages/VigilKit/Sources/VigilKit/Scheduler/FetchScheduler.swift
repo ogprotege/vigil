@@ -319,7 +319,16 @@ public actor FetchScheduler {
     /// True if a fetch may start now. The check and lease write happen in one
     /// locked transaction shared by the app and widget processes. Callers MUST
     /// follow with recordResult (or release on abandonment).
-    public func acquireLease(accountKey: String, policy: PollPolicy) -> FetchLease? {
+    ///
+    /// `bypassingPollFloor` is for user-initiated refreshes only: it skips the
+    /// ordinary min-interval floor but never an active cross-process lease or
+    /// an unexpired 429 backoff — a provider that asked us to back off keeps
+    /// its say no matter who pulled.
+    public func acquireLease(
+        accountKey: String,
+        policy: PollPolicy,
+        bypassingPollFloor: Bool = false
+    ) -> FetchLease? {
         guard inFlight[accountKey] == nil else {
             lastStoreError[accountKey] = nil
             return nil
@@ -332,7 +341,17 @@ public actor FetchScheduler {
             try store.update { ledger in
                 var entry = ledger[accountKey]
                     ?? LedgerEntry(nextAllowedAt: .distantPast, consecutive429: 0)
-                guard acquiredAt >= entry.nextAllowedAt else { return }
+                if bypassingPollFloor {
+                    // A 429 backoff outranks the user's pull: the provider has
+                    // already said "slower", so its clock stays binding until
+                    // it expires even though the ordinary floor does not.
+                    if entry.consecutive429 > 0,
+                       acquiredAt < entry.nextAllowedAt {
+                        return
+                    }
+                } else {
+                    guard acquiredAt >= entry.nextAllowedAt else { return }
+                }
                 if let leaseExpiresAt = entry.leaseExpiresAt,
                    leaseExpiresAt > acquiredAt {
                     return
@@ -361,8 +380,16 @@ public actor FetchScheduler {
         return nil
     }
 
-    public func acquire(accountKey: String, policy: PollPolicy) -> Bool {
-        acquireLease(accountKey: accountKey, policy: policy) != nil
+    public func acquire(
+        accountKey: String,
+        policy: PollPolicy,
+        bypassingPollFloor: Bool = false
+    ) -> Bool {
+        acquireLease(
+            accountKey: accountKey,
+            policy: policy,
+            bypassingPollFloor: bypassingPollFloor
+        ) != nil
     }
 
     /// Generation-guarded variant used by app and widget fetches. Validation
@@ -372,10 +399,15 @@ public actor FetchScheduler {
         accountKey: String,
         policy: PollPolicy,
         lifecycle: Guard,
-        generation: Guard.Generation
+        generation: Guard.Generation,
+        bypassingPollFloor: Bool = false
     ) throws -> Bool {
         try lifecycle.withCurrentGeneration(generation, accountKey: accountKey) {
-            acquire(accountKey: accountKey, policy: policy)
+            acquire(
+                accountKey: accountKey,
+                policy: policy,
+                bypassingPollFloor: bypassingPollFloor
+            )
         }
     }
 
@@ -383,10 +415,15 @@ public actor FetchScheduler {
         accountKey: String,
         policy: PollPolicy,
         lifecycle: Guard,
-        generation: Guard.Generation
+        generation: Guard.Generation,
+        bypassingPollFloor: Bool = false
     ) throws -> FetchLease? {
         try lifecycle.withCurrentGeneration(generation, accountKey: accountKey) {
-            acquireLease(accountKey: accountKey, policy: policy)
+            acquireLease(
+                accountKey: accountKey,
+                policy: policy,
+                bypassingPollFloor: bypassingPollFloor
+            )
         }
     }
 

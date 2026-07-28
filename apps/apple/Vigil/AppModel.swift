@@ -1923,15 +1923,15 @@ final class AppModel {
             }
             if fetched > 0 {
                 var parts = ["Updated \(fetched)"]
-                if deferred > 0 { parts.append("\(deferred) waiting on poll floor") }
+                if deferred > 0 { parts.append("\(deferred) held back by a provider rate limit") }
                 if failed > 0 { parts.append("\(failed) failed") }
                 return parts.joined(separator: " · ")
             }
             if deferred > 0, let nextAllowedAt, nextAllowedAt > Date() {
-                return "Providers were checked recently. Next safe refresh \(nextAllowedAt.formatted(date: .omitted, time: .shortened)) — showing last known values until then."
+                return "A provider asked Vigil to back off (rate limited). Next safe refresh \(nextAllowedAt.formatted(date: .omitted, time: .shortened)) — showing last known values until then."
             }
             if deferred > 0 {
-                return "Providers were checked recently. Showing last known values until the next safe refresh."
+                return "A provider rate limit or an in-flight refresh is holding updates. Showing last known values."
             }
             if failed > 0 {
                 return "Couldn't reach \(failed) provider\(failed == 1 ? "" : "s"). Last known values stay visible."
@@ -1943,8 +1943,10 @@ final class AppModel {
     /// Ledger-gated refresh of every account. Safe to call aggressively —
     /// the scheduler enforces the real polling budget. Returns an honest
     /// summary so the UI never pretends a gated tap "updated live."
+    /// `bypassPollFloor` is reserved for the user-initiated pull: it skips the
+    /// ordinary min-interval floor but never an active lease or 429 backoff.
     @discardableResult
-    func refreshAll(surface: String) async -> RefreshReport {
+    func refreshAll(surface: String, bypassPollFloor: Bool = false) async -> RefreshReport {
         guard !isDemo else {
             return RefreshReport(fetched: 0, deferred: 0, failed: 0, nextAllowedAt: nil)
         }
@@ -1965,7 +1967,13 @@ final class AppModel {
         var failed = 0
         await withTaskGroup(of: AccountRefreshOutcome.self) { group in
             for account in accounts {
-                group.addTask { await self.refresh(account: account, surface: surface) }
+                group.addTask {
+                    await self.refresh(
+                        account: account,
+                        surface: surface,
+                        bypassPollFloor: bypassPollFloor
+                    )
+                }
             }
             for await outcome in group {
                 switch outcome {
@@ -1977,7 +1985,7 @@ final class AppModel {
         }
         // New snapshots are in the App Group, but WidgetKit does not watch the
         // container — without this the widget keeps rendering the previous
-        // numbers until its own 30-minute timeline policy fires, so the home
+        // numbers until its own stale-data timeline policy fires, so the home
         // screen disagrees with the app and a successful background refresh
         // produces no visible change. Gated on a real fetch so the 60-second
         // foreground timer does not burn WidgetKit's reload budget on no-ops.
@@ -2001,7 +2009,11 @@ final class AppModel {
     }
 
     @discardableResult
-    private func refresh(account: AccountRef, surface: String) async -> AccountRefreshOutcome {
+    private func refresh(
+        account: AccountRef,
+        surface: String,
+        bypassPollFloor: Bool = false
+    ) async -> AccountRefreshOutcome {
         guard !isDemo else { return .deferred }
         let generation: AccountLifecycleGeneration
         do {
@@ -2052,6 +2064,7 @@ final class AppModel {
                 vault: vault,
                 surface: surface,
                 session: usageSession,
+                bypassPollFloor: bypassPollFloor,
                 pendingEvents: pendingEvents,
                 history: historyStore,
                 lifecycle: lifecycleStore,

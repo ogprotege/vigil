@@ -23,8 +23,10 @@ enum BackgroundRefresh {
 
     static func schedule() {
         let request = BGAppRefreshTaskRequest(identifier: SharedContainer.refreshTaskID)
-        // The ledger enforces the real floor; this only hints iOS.
-        request.earliestBeginDate = Date(timeIntervalSinceNow: 30 * 60)
+        // The ledger enforces the real floor; this only hints iOS. 15 minutes
+        // is the practical floor for BGAppRefreshTask — iOS may still run it
+        // far less often, or not at all, based on usage patterns and power.
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
         do {
             try BGTaskScheduler.shared.submit(request)
         } catch {

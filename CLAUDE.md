@@ -86,7 +86,7 @@ A successful response becomes `schemaChanged` when parsing fails or the provider
 
 ## Invariants
 
-- Never poll a provider faster than `poll.minSeconds`. Every current provider has a 300-second floor.
+- Never poll a provider faster than `poll.minSeconds`. Every current provider has a 60-second floor. Only a user-initiated pull may bypass that floor — never an active lease or a 429 backoff.
 - Apple fetches acquire a durable account-level lease before network I/O. Ledger failure fails closed.
 - Claude requests require the exact configured `User-Agent` and beta header.
 - Refresh only credentials marked as minted by Vigil. Never rotate a credential copied or pasted from another client.

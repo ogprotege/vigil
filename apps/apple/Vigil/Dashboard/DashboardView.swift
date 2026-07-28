@@ -203,7 +203,7 @@ struct DashboardView: View {
     private func refresh() async {
         guard !isRefreshing else { return }
         isRefreshing = true
-        let report = await model.refreshAll(surface: "pull")
+        let report = await model.refreshAll(surface: "pull", bypassPollFloor: true)
         refreshNotice = report.userMessage
         isRefreshing = false
 

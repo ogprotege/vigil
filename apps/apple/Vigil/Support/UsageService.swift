@@ -102,6 +102,9 @@ enum UsageService {
         emitThresholdEvents: Bool = true,
         persistRotatedCredentials: Bool = true,
         allowCredentialRefresh: Bool = true,
+        /// User-initiated pulls only: skips the ordinary min-interval floor
+        /// while still honoring an active lease or 429 backoff.
+        bypassPollFloor: Bool = false,
         pendingEvents: PendingEventStore? = nil,
         history: UsageHistoryStore? = nil,
         lifecycle: AccountLifecycleStore? = nil,
@@ -128,7 +131,8 @@ enum UsageService {
                 policy: spec.poll,
                 lifecycle,
                 generation: generation,
-                accountKey: account.key
+                accountKey: account.key,
+                bypassingPollFloor: bypassPollFloor
             )
         } catch let error as AccountLifecycleError {
             return lifecycleFailureResult(error, credentials: credentials)
@@ -482,13 +486,14 @@ enum UsageService {
         // Link verification must not burn the poll floor when no request ever
         // reached the provider — a flaky network or a credential that cannot
         // even build a request was trapping users in the "deferred / save
-        // anyway" loop for five minutes with Models / Limits left empty.
+        // anyway" loop for a full poll-floor interval with Models / Limits
+        // left empty.
         //
         // But any completed round-trip counts against the provider's rate
         // limits, whatever it returned: 401/403, 429, 5xx, and a 2xx whose body
         // did not map are all real requests. Releasing the lease for those
         // would leave `nextAllowedAt` at `.distantPast` on a fresh account and
-        // remove the 5-minute Claude floor entirely on the verify path — a
+        // remove the Claude poll floor entirely on the verify path — a
         // documented hard invariant (CLAUDE.md, ADR-0003). So the clock is
         // charged whenever the provider answered.
         let shouldChargePollClock = persistSnapshot || providerAnswered
@@ -685,17 +690,23 @@ enum UsageService {
         policy: PollPolicy,
         _ lifecycle: AccountLifecycleStore?,
         generation: AccountLifecycleGeneration?,
-        accountKey: String
+        accountKey: String,
+        bypassingPollFloor: Bool = false
     ) async throws -> FetchLease? {
         guard let lifecycle else {
-            return await scheduler.acquireLease(accountKey: accountKey, policy: policy)
+            return await scheduler.acquireLease(
+                accountKey: accountKey,
+                policy: policy,
+                bypassingPollFloor: bypassingPollFloor
+            )
         }
         guard let generation else { throw AccountLifecycleError.inactiveAccount }
         return try await scheduler.acquireLease(
             accountKey: accountKey,
             policy: policy,
             lifecycle: lifecycle,
-            generation: generation
+            generation: generation,
+            bypassingPollFloor: bypassingPollFloor
         )
     }
 

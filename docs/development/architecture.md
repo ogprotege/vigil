@@ -126,7 +126,7 @@ sequenceDiagram
 
 `FetchScheduler` uses a durable account-level ledger and an external file lock. An acquisition returns an opaque lease token. Completion, cancellation, and result recording can mutate only that lease. A stale operation cannot release a newer account generation's polling state.
 
-The minimum provider interval is five minutes, with jitter and rate-limit backoff from the provider contract. The interval is a request floor. It is not a background schedule.
+The minimum provider interval is one minute, with jitter and rate-limit backoff from the provider contract. The interval is a request floor. It is not a background schedule. A user-initiated pull-to-refresh skips this floor, but never an active lease or an unexpired 429 backoff.
 
 Provider requests and Claude/Codex token exchanges use an ephemeral `URLSession`. It ignores local cache data, has no URL cache, and has no cookie store. Startup also clears app-scoped default-session cache and cookie residue created by older Vigil builds. System browser storage is outside this app process and is not cleared.
 
@@ -197,7 +197,7 @@ Notification identifiers include an opaque lifecycle scope. Removing an account 
 
 ## Background work and widgets
 
-The app registers `app.vigil.refresh` as a `BGAppRefreshTask`. When the app enters the background, it submits a request with an earliest begin date 30 minutes later. iOS may run it later or not at all.
+The app registers `app.vigil.refresh` as a `BGAppRefreshTask`. When the app enters the background, it submits a request with an earliest begin date 15 minutes later. iOS may run it later or not at all.
 
 The widget reads shared account and snapshot state. It can attempt a provider refresh only through the same scheduler used by the app. Widget configurations use a SHA-256-derived opaque account identifier for new selections.
 

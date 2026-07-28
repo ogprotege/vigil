@@ -132,7 +132,7 @@ An exported diagnostic file is no longer protected by Vigil's App Group containe
 
 ### Multiple linked accounts
 
-The polling ledger is keyed by account. Several accounts for one provider can each make a request inside the same five-minute period. Vigil enforces each account's floor but does not coordinate a global provider-wide budget.
+The polling ledger is keyed by account. Several accounts for one provider can each make a request inside the same one-minute period, and pull-to-refresh can fetch each of them on demand. Vigil enforces each account's floor but does not coordinate a global provider-wide budget.
 
 ### Background freshness
 

@@ -1,12 +1,12 @@
 # Provider support matrix
 
 - Status: Current
-- Last reviewed: 2026-07-26
+- Last reviewed: 2026-07-28
 - Review again: whenever `protocol/providers.json`, `ProviderRegistry`, or fixture provenance changes
 
 This is the canonical list of providers that Vigil can connect. It describes the current code, not a planned integration list.
 
-All listed providers use the same 300-second minimum polling interval. The app, background task, and widget share that account-level cooldown. iOS still decides when background work runs, so the poll floor is not a five-minute sampling promise.
+All listed providers use the same 60-second minimum polling interval. The app, background task, and widget share that account-level cooldown, while pull-to-refresh fetches on demand unless a fetch is already running or a rate-limit backoff is active. iOS still decides when background work runs, so the poll floor is not a one-minute sampling promise.
 
 ## Status terms
 
