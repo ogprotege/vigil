@@ -6,12 +6,15 @@ Anything that changes shipped behavior gets an entry here: TestFlight app builds
 
 ## Unreleased
 
-- Fixed two TestFlight 0xdead10cc kills (0.15.0 build 17): iOS terminated the app when it was suspended while still holding the history file lock or SQLite WAL locks. Every lock-holding history read/write — including the persistence tail of each fetch — now runs inside a `SuspensionGuard` background-task assertion in the app target, so suspension waits until the locks are released. VigilKit and the widget extension are unchanged.
 - Restored Vigil's product identity in the README with the existing gauge mark,
   a restrained status badge set, clear navigation, and current iOS screenshots.
   Account values in the Limits image come from the gated demo-data path.
 - Reworked the documentation index around user, data-interpretation, and
   maintainer routes. Reconciled the build 17 release record after PR #25 merged.
+
+## 0.15.0 (18) — TestFlight internal candidate, 2026-07-27
+
+- Fixed two TestFlight 0xdead10cc kills (0.15.0 build 17): iOS terminated the app when it was suspended while still holding the history file lock or SQLite WAL locks. Every lock-holding history read/write — including the persistence tail of each fetch — now runs inside a `SuspensionGuard` background-task assertion in the app target, so suspension waits until the locks are released. VigilKit and the widget extension are unchanged.
 
 ## 0.15.0 (17) — TestFlight internal candidate, 2026-07-27
 

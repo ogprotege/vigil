@@ -210,10 +210,9 @@ The complete simulator command and CI-equivalent gate live in the
 
 ## Project status
 
-These docs describe **Vigil 0.15.0, build 17** in the current source tree. The
-latest completed Internal TestFlight upload remains build 16. The build 17 app
-fix is integrated, but this user-facing documentation refresh has not completed
-review. Build 17 has not been uploaded. Consult the [build 17 release record](docs/releases/0.15.0-17.md)
+These docs describe **Vigil 0.15.0, build 18** in the current source tree. The
+latest completed Internal TestFlight upload is build 17. Build 18 fixes two
+0xdead10cc suspension kills and has not been uploaded. Consult the [build 18 release record](docs/releases/0.15.0-18.md)
 before distribution work.
 
 Runtime provider behavior can change outside Vigil's control. Experimental
