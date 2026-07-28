@@ -58,6 +58,31 @@ public struct UsageHistoryPage: Equatable, Sendable {
     }
 }
 
+/// Combined per-account read: the three provenance summaries plus the newest
+/// page of each source. Screens that present all of these pay one connection,
+/// one flock acquisition, and one checkpointed close instead of five.
+public struct UsageHistoryAccountState: Equatable, Sendable {
+    public let all: UsageHistorySummary
+    public let observed: UsageHistorySummary
+    public let providerBackfill: UsageHistorySummary
+    public let observedPage: UsageHistoryPage
+    public let providerBackfillPage: UsageHistoryPage
+
+    public init(
+        all: UsageHistorySummary,
+        observed: UsageHistorySummary,
+        providerBackfill: UsageHistorySummary,
+        observedPage: UsageHistoryPage,
+        providerBackfillPage: UsageHistoryPage
+    ) {
+        self.all = all
+        self.observed = observed
+        self.providerBackfill = providerBackfill
+        self.observedPage = observedPage
+        self.providerBackfillPage = providerBackfillPage
+    }
+}
+
 /// Transactional, cross-process history shared by the app and widget.
 ///
 /// Samples are independent SQLite rows, so a normal append validates and
@@ -198,46 +223,54 @@ public struct UsageHistoryStore: Sendable {
         source: UsageHistorySource? = nil
     ) throws -> UsageHistorySummary {
         try withDatabase(operation: .read) { database in
-            var conditions: [String] = []
-            if accountKey != nil { conditions.append("account_key = ?") }
-            if source != nil { conditions.append("source = ?") }
-            let whereClause = conditions.isEmpty
-                ? ""
-                : " WHERE " + conditions.joined(separator: " AND ")
-            let statement = try database.prepare(
-                """
-                SELECT COUNT(*),
-                       COALESCE(SUM(CASE WHEN source = 'observed' THEN 1 ELSE 0 END), 0),
-                       COALESCE(SUM(CASE WHEN source = 'providerBackfill' THEN 1 ELSE 0 END), 0),
-                       MIN(recorded_ms), MAX(recorded_ms)
-                FROM history_samples\(whereClause)
-                """
-            )
-            var index: Int32 = 1
-            if let accountKey {
-                try statement.bind(accountKey, at: index)
-                index += 1
-            }
-            if let source {
-                try statement.bind(source.rawValue, at: index)
-            }
-            guard try statement.step() else {
-                return UsageHistorySummary(
-                    sampleCount: 0,
-                    observedCount: 0,
-                    providerBackfillCount: 0,
-                    oldestRecordedAt: nil,
-                    newestRecordedAt: nil
-                )
-            }
+            try summary(accountKey: accountKey, source: source, database: database)
+        }
+    }
+
+    private func summary(
+        accountKey: String?,
+        source: UsageHistorySource?,
+        database: UsageHistorySQLiteConnection
+    ) throws -> UsageHistorySummary {
+        var conditions: [String] = []
+        if accountKey != nil { conditions.append("account_key = ?") }
+        if source != nil { conditions.append("source = ?") }
+        let whereClause = conditions.isEmpty
+            ? ""
+            : " WHERE " + conditions.joined(separator: " AND ")
+        let statement = try database.prepare(
+            """
+            SELECT COUNT(*),
+                   COALESCE(SUM(CASE WHEN source = 'observed' THEN 1 ELSE 0 END), 0),
+                   COALESCE(SUM(CASE WHEN source = 'providerBackfill' THEN 1 ELSE 0 END), 0),
+                   MIN(recorded_ms), MAX(recorded_ms)
+            FROM history_samples\(whereClause)
+            """
+        )
+        var index: Int32 = 1
+        if let accountKey {
+            try statement.bind(accountKey, at: index)
+            index += 1
+        }
+        if let source {
+            try statement.bind(source.rawValue, at: index)
+        }
+        guard try statement.step() else {
             return UsageHistorySummary(
-                sampleCount: statement.int(at: 0),
-                observedCount: statement.int(at: 1),
-                providerBackfillCount: statement.int(at: 2),
-                oldestRecordedAt: statement.double(at: 3).map(Self.date(milliseconds:)),
-                newestRecordedAt: statement.double(at: 4).map(Self.date(milliseconds:))
+                sampleCount: 0,
+                observedCount: 0,
+                providerBackfillCount: 0,
+                oldestRecordedAt: nil,
+                newestRecordedAt: nil
             )
         }
+        return UsageHistorySummary(
+            sampleCount: statement.int(at: 0),
+            observedCount: statement.int(at: 1),
+            providerBackfillCount: statement.int(at: 2),
+            oldestRecordedAt: statement.double(at: 3).map(Self.date(milliseconds:)),
+            newestRecordedAt: statement.double(at: 4).map(Self.date(milliseconds:))
+        )
     }
 
     /// Keyset-paged history, newest first. Limits are clamped to `1...1000`.
@@ -247,62 +280,116 @@ public struct UsageHistoryStore: Sendable {
         limit: Int = 100,
         cursor: UsageHistoryCursor? = nil
     ) throws -> UsageHistoryPage {
-        let boundedLimit = min(1_000, max(1, limit))
-        return try withDatabase(operation: .read) { database in
-            var conditions: [String] = []
-            if accountKey != nil { conditions.append("account_key = ?") }
-            if source != nil { conditions.append("source = ?") }
-            if cursor != nil {
-                conditions.append(
-                    """
-                    (recorded_ms < ?
-                     OR (recorded_ms = ? AND retrieved_ms < ?)
-                     OR (recorded_ms = ? AND retrieved_ms = ? AND id < ?))
-                    """
-                )
-            }
-            let whereClause = conditions.isEmpty
-                ? ""
-                : " WHERE " + conditions.joined(separator: " AND ")
-            let statement = try database.prepare(
-                Self.rowSelection
-                    + whereClause
-                    + " ORDER BY recorded_ms DESC, retrieved_ms DESC, id DESC"
-                    + " LIMIT ?"
-            )
-            var index: Int32 = 1
-            if let accountKey {
-                try statement.bind(accountKey, at: index)
-                index += 1
-            }
-            if let source {
-                try statement.bind(source.rawValue, at: index)
-                index += 1
-            }
-            if let cursor {
-                let recorded = Self.milliseconds(cursor.recordedAt)
-                let retrieved = Self.milliseconds(cursor.retrievedAt)
-                try statement.bind(recorded, at: index)
-                try statement.bind(recorded, at: index + 1)
-                try statement.bind(retrieved, at: index + 2)
-                try statement.bind(recorded, at: index + 3)
-                try statement.bind(retrieved, at: index + 4)
-                try statement.bind(cursor.id.uuidString, at: index + 5)
-                index += 6
-            }
-            try statement.bind(Int64(boundedLimit + 1), at: index)
-
-            var samples: [UsageHistorySample] = []
-            while try statement.step() {
-                samples.append(try decodeAndValidate(row: row(from: statement)))
-            }
-            let hasMore = samples.count > boundedLimit
-            if hasMore { samples.removeLast(samples.count - boundedLimit) }
-            return UsageHistoryPage(
-                samples: samples,
-                nextCursor: hasMore ? samples.last.map(UsageHistoryCursor.init(sample:)) : nil
+        try withDatabase(operation: .read) { database in
+            try page(
+                accountKey: accountKey,
+                source: source,
+                limit: limit,
+                cursor: cursor,
+                database: database
             )
         }
+    }
+
+    /// Summaries for every provenance plus the newest page of each source,
+    /// read over one connection so a screen refresh pays one flock
+    /// acquisition and one checkpointed close instead of five.
+    public func accountState(
+        accountKey: String,
+        previewLimit: Int
+    ) throws -> UsageHistoryAccountState {
+        try withDatabase(operation: .read) { database in
+            UsageHistoryAccountState(
+                all: try summary(accountKey: accountKey, source: nil, database: database),
+                observed: try summary(
+                    accountKey: accountKey,
+                    source: .observed,
+                    database: database
+                ),
+                providerBackfill: try summary(
+                    accountKey: accountKey,
+                    source: .providerBackfill,
+                    database: database
+                ),
+                observedPage: try page(
+                    accountKey: accountKey,
+                    source: .observed,
+                    limit: previewLimit,
+                    cursor: nil,
+                    database: database
+                ),
+                providerBackfillPage: try page(
+                    accountKey: accountKey,
+                    source: .providerBackfill,
+                    limit: previewLimit,
+                    cursor: nil,
+                    database: database
+                )
+            )
+        }
+    }
+
+    private func page(
+        accountKey: String?,
+        source: UsageHistorySource?,
+        limit: Int,
+        cursor: UsageHistoryCursor?,
+        database: UsageHistorySQLiteConnection
+    ) throws -> UsageHistoryPage {
+        let boundedLimit = min(1_000, max(1, limit))
+        var conditions: [String] = []
+        if accountKey != nil { conditions.append("account_key = ?") }
+        if source != nil { conditions.append("source = ?") }
+        if cursor != nil {
+            conditions.append(
+                """
+                (recorded_ms < ?
+                 OR (recorded_ms = ? AND retrieved_ms < ?)
+                 OR (recorded_ms = ? AND retrieved_ms = ? AND id < ?))
+                """
+            )
+        }
+        let whereClause = conditions.isEmpty
+            ? ""
+            : " WHERE " + conditions.joined(separator: " AND ")
+        let statement = try database.prepare(
+            Self.rowSelection
+                + whereClause
+                + " ORDER BY recorded_ms DESC, retrieved_ms DESC, id DESC"
+                + " LIMIT ?"
+        )
+        var index: Int32 = 1
+        if let accountKey {
+            try statement.bind(accountKey, at: index)
+            index += 1
+        }
+        if let source {
+            try statement.bind(source.rawValue, at: index)
+            index += 1
+        }
+        if let cursor {
+            let recorded = Self.milliseconds(cursor.recordedAt)
+            let retrieved = Self.milliseconds(cursor.retrievedAt)
+            try statement.bind(recorded, at: index)
+            try statement.bind(recorded, at: index + 1)
+            try statement.bind(retrieved, at: index + 2)
+            try statement.bind(recorded, at: index + 3)
+            try statement.bind(retrieved, at: index + 4)
+            try statement.bind(cursor.id.uuidString, at: index + 5)
+            index += 6
+        }
+        try statement.bind(Int64(boundedLimit + 1), at: index)
+
+        var samples: [UsageHistorySample] = []
+        while try statement.step() {
+            samples.append(try decodeAndValidate(row: row(from: statement)))
+        }
+        let hasMore = samples.count > boundedLimit
+        if hasMore { samples.removeLast(samples.count - boundedLimit) }
+        return UsageHistoryPage(
+            samples: samples,
+            nextCursor: hasMore ? samples.last.map(UsageHistoryCursor.init(sample:)) : nil
+        )
     }
 
     /// Archives one accepted provider snapshot as an observation made by

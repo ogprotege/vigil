@@ -66,6 +66,66 @@ final class UsageHistorySQLiteTests: XCTestCase {
         XCTAssertEqual(imported.samples.map(\.source), [.providerBackfill, .providerBackfill])
     }
 
+    func testAccountStateMatchesTheSeparateQueriesItBatches() throws {
+        let store = UsageHistoryStore(directory: try TestSupport.tempDirectory())
+        let observed = (0..<5).map {
+            sample(source: .observed, accountKey: "claude:a", offset: $0, value: Double($0))
+        }
+        let backfill = (5..<7).map {
+            sample(
+                source: .providerBackfill,
+                accountKey: "claude:a",
+                offset: $0,
+                value: Double($0)
+            )
+        }
+        let otherAccount = [
+            sample(source: .observed, accountKey: "openai:b", offset: 9, value: 9),
+        ]
+        try store.importObserved(observed + otherAccount, now: base.addingTimeInterval(10))
+        try store.importBackfill(backfill, now: base.addingTimeInterval(10))
+
+        let state = try store.accountState(accountKey: "claude:a", previewLimit: 3)
+
+        XCTAssertEqual(state.all, try store.summary(accountKey: "claude:a"))
+        XCTAssertEqual(state.observed, try store.summary(accountKey: "claude:a", source: .observed))
+        XCTAssertEqual(
+            state.providerBackfill,
+            try store.summary(accountKey: "claude:a", source: .providerBackfill)
+        )
+        XCTAssertEqual(
+            state.observedPage,
+            try store.page(accountKey: "claude:a", source: .observed, limit: 3)
+        )
+        XCTAssertEqual(
+            state.providerBackfillPage,
+            try store.page(accountKey: "claude:a", source: .providerBackfill, limit: 3)
+        )
+
+        // The other account must not leak into the batched read.
+        XCTAssertEqual(state.all.sampleCount, 7)
+        XCTAssertEqual(state.observedPage.samples.map(\.accountKey), Array(repeating: "claude:a", count: 3))
+        XCTAssertNotNil(state.observedPage.nextCursor)
+        XCTAssertNil(state.providerBackfillPage.nextCursor)
+
+        let empty = try store.accountState(accountKey: "claude:absent", previewLimit: 3)
+        XCTAssertEqual(empty.all.sampleCount, 0)
+        XCTAssertTrue(empty.observedPage.samples.isEmpty)
+        XCTAssertTrue(empty.providerBackfillPage.samples.isEmpty)
+    }
+
+    func testAccountStateClampsThePreviewLimitLikePage() throws {
+        let store = UsageHistoryStore(directory: try TestSupport.tempDirectory())
+        let observed = (0..<3).map {
+            sample(source: .observed, accountKey: "claude:a", offset: $0, value: Double($0))
+        }
+        try store.importObserved(observed, now: base.addingTimeInterval(10))
+
+        let state = try store.accountState(accountKey: "claude:a", previewLimit: 0)
+        XCTAssertEqual(state.observedPage.samples.count, 1)
+        XCTAssertEqual(state.observedPage.samples.map(\.recordedAt), [offsetDate(2)])
+    }
+
     func testLegacyJSONMigrationIsRetrySafeAndDeletesOnlyAfterCommit() throws {
         let directory = try TestSupport.tempDirectory()
         let store = UsageHistoryStore(directory: directory)
