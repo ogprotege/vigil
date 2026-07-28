@@ -210,9 +210,10 @@ The complete simulator command and CI-equivalent gate live in the
 
 ## Project status
 
-These docs describe **Vigil 0.15.0, build 18** in the current source tree. The
-latest completed Internal TestFlight upload is build 18, which fixes two
-0xdead10cc suspension kills from build 17. Consult the [build 18 release record](docs/releases/0.15.0-18.md)
+These docs describe **Vigil 0.15.0, build 19** in the current source tree. The
+latest Internal TestFlight candidate is build 19, which makes pull-to-refresh
+fetch on demand and lowers the provider polling floor to sixty seconds.
+Consult the [build 19 release record](docs/releases/0.15.0-19.md)
 before further distribution work.
 
 Runtime provider behavior can change outside Vigil's control. Experimental

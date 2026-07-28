@@ -4,7 +4,7 @@
 
 Anything that changes shipped behavior gets an entry here: TestFlight app builds, provider contracts, registry changes, and local-state migrations. Historical command-line releases remain below as project history.
 
-## Unreleased
+## 0.15.0 (19) — TestFlight internal candidate, 2026-07-28
 
 - Pull-to-refresh now fetches on demand: it skips the shared polling floor but still waits out an in-flight fetch or a provider 429 backoff. The automatic polling floor drops from five minutes to sixty seconds for every provider (registry and `protocol/providers.json`), the widget attempts a fetch once its snapshot is five minutes old (was thirty), and the background refresh task now asks iOS for a run fifteen minutes out (was thirty) — iOS still decides when background work actually runs.
 - Reduced the account history preview from five short-lived SQLite connections per account to one: `UsageHistoryStore.accountState` reads all provenance summaries and both source pages over a single flock acquisition and checkpointed close, shortening the window where a suspension could kill the app for holding history locks.
