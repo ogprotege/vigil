@@ -9,7 +9,7 @@ This stable path now points to the canonical release and maintenance records. Th
 > Review again: when the current release closes
 
 - Follow the [iOS release runbook](development/release.md) for required commands and approval boundaries.
-- Read the [0.15.0 (17) release record](releases/0.15.0-17.md) for current gate status and evidence.
+- Read the [0.15.0 (18) release record](releases/0.15.0-18.md) for current gate status and evidence.
 - Read [Documentation health](documentation-health.md) for open maintenance debt.
 - Read the [provider support matrix](providers/support-matrix.md) before live provider validation.
 
