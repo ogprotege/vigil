@@ -158,6 +158,8 @@ After a provider reset passes, the app hides the expired window until a newer pr
 
 `UsageHistoryStore` uses `usage-history-v2.sqlite3` with WAL mode and short-lived full-mutex connections. The app and widget can append accepted observations. Whole-store deletion and legacy migration use an external file lock.
 
+iOS kills a suspended process that still holds these file locks (RUNNINGBOARD 0xdead10cc). The app therefore runs every lock-holding history read or write — including the persistence tail of a fetch — inside a `SuspensionGuard` background-task assertion so suspension waits until the locks are released. The guard lives in the app target: VigilKit stays UI-free and the widget extension cannot hold UIApplication assertions.
+
 History has two provenance values:
 
 - `observed`: a snapshot Vigil accepted while polling on this device
