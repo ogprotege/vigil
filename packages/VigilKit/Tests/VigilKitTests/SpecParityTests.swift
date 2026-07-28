@@ -515,13 +515,12 @@ final class SpecParityTests: XCTestCase {
 
     /// Absolute-value tripwire, independent of providers.json: spec-parity
     /// alone would let a coordinated registry edit lower the floor on both
-    /// sides and still pass CI. "Never poll Claude faster than 5 minutes"
-    /// (CLAUDE.md) — changing these literals must be a conscious, reviewed
-    /// decision, not a side effect.
+    /// sides and still pass CI. Changing these literals must be a conscious,
+    /// reviewed decision, not a side effect.
     func testPollFloorsAreAbsolute() {
-        XCTAssertEqual(ProviderRegistry.claude.poll.minSeconds, 300)
+        XCTAssertEqual(ProviderRegistry.claude.poll.minSeconds, 60)
         for spec in ProviderRegistry.all {
-            XCTAssertGreaterThanOrEqual(spec.poll.minSeconds, 300, spec.id)
+            XCTAssertGreaterThanOrEqual(spec.poll.minSeconds, 60, spec.id)
             XCTAssertGreaterThanOrEqual(spec.poll.jitterSeconds, 0, spec.id)
             XCTAssertGreaterThanOrEqual(
                 spec.poll.backoff429BaseSeconds, spec.poll.minSeconds, spec.id

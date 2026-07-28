@@ -36,7 +36,7 @@ final class RefreshReportTests: XCTestCase {
             nextAllowedAt: nil
         )
         XCTAssertTrue(report.userMessage.contains("Updated 1"))
-        XCTAssertTrue(report.userMessage.contains("poll floor"))
+        XCTAssertTrue(report.userMessage.contains("rate limit"))
         XCTAssertTrue(report.userMessage.contains("failed"))
     }
 }

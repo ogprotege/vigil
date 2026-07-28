@@ -55,7 +55,7 @@ Provider costs stay separate from token quantities. Imported provider buckets st
 
 ## Scheduling boundary
 
-Manual refresh, foreground refresh, background work, and widgets share one provider polling gate. A five-minute provider floor plus jitter is a minimum delay, not a sampling promise. Rate limits can extend it. iOS decides when background tasks and widgets run.
+Manual refresh, foreground refresh, background work, and widgets share one provider polling gate: a one-minute provider floor plus jitter as a minimum delay, not a sampling promise. Rate limits can extend it. A manual pull-to-refresh fetches on demand — it skips the floor but never an in-flight fetch or a rate-limit backoff. iOS decides when background tasks and widgets run.
 
 Countdowns may advance locally without a network request. A moving countdown is not proof of fresh provider data.
 

@@ -26,7 +26,7 @@
         "manualRedirectUri": "https://console.anthropic.com/oauth/code/callback"
       },
       "poll": {
-        "minSeconds": 300,
+        "minSeconds": 60,
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
@@ -266,7 +266,7 @@
         "deviceTokenUrl": "https://auth.openai.com/api/accounts/deviceauth/token"
       },
       "poll": {
-        "minSeconds": 300,
+        "minSeconds": 60,
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
@@ -407,7 +407,7 @@
         }
       },
       "poll": {
-        "minSeconds": 300,
+        "minSeconds": 60,
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
@@ -531,7 +531,7 @@
         }
       },
       "poll": {
-        "minSeconds": 300,
+        "minSeconds": 60,
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
@@ -570,7 +570,7 @@
         }
       },
       "poll": {
-        "minSeconds": 300,
+        "minSeconds": 60,
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
@@ -636,7 +636,7 @@
         }
       },
       "poll": {
-        "minSeconds": 300,
+        "minSeconds": 60,
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
@@ -702,7 +702,7 @@
         }
       },
       "poll": {
-        "minSeconds": 300,
+        "minSeconds": 60,
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
@@ -815,7 +815,7 @@
         }
       },
       "poll": {
-        "minSeconds": 300,
+        "minSeconds": 60,
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
@@ -938,7 +938,7 @@
         }
       },
       "poll": {
-        "minSeconds": 300,
+        "minSeconds": 60,
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
@@ -995,7 +995,7 @@
         }
       },
       "poll": {
-        "minSeconds": 300,
+        "minSeconds": 60,
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
@@ -1061,7 +1061,7 @@
         }
       },
       "poll": {
-        "minSeconds": 300,
+        "minSeconds": 60,
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
@@ -1101,7 +1101,7 @@
         }
       },
       "poll": {
-        "minSeconds": 300,
+        "minSeconds": 60,
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
@@ -1388,7 +1388,7 @@
         }
       },
       "poll": {
-        "minSeconds": 300,
+        "minSeconds": 60,
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600
@@ -1680,7 +1680,7 @@
         }
       },
       "poll": {
-        "minSeconds": 300,
+        "minSeconds": 60,
         "jitterSeconds": 60,
         "backoff429BaseSeconds": 900,
         "backoffMaxSeconds": 3600

@@ -22,7 +22,7 @@ Observed history is not complete provider history. It can contain gaps because:
 - the provider rate-limited or rejected the request; or
 - the provider response could not be accepted safely.
 
-The normal five-minute polling floor is not a promise of five-minute history.
+The normal one-minute polling floor is not a promise of one-minute history.
 
 ## Imported from provider
 

@@ -80,13 +80,13 @@ struct UsageEntry: TimelineEntry {
 }
 
 /// Reads snapshots from the shared container with zero network; fetches only
-/// when the snapshot is older than 30 minutes or a reset needs confirmation,
+/// when the snapshot is older than 5 minutes or a reset needs confirmation,
 /// and only when the shared ledger allows (docs/architecture.md fetch
 /// triggers). Timeline entries are scheduled at reset boundaries so the old
 /// value is hidden until the next real fetch confirms the new window.
 struct UsageTimelineProvider: AppIntentTimelineProvider {
     private static let log = Logger(subsystem: "app.vigil", category: "widget")
-    private static let staleAfter: TimeInterval = 30 * 60
+    private static let staleAfter: TimeInterval = 5 * 60
 
     /// One scheduler per widget process: preserves in-process single-flight
     /// across concurrent getTimeline calls (the cross-process budget lives in
@@ -310,7 +310,7 @@ struct UsageTimelineProvider: AppIntentTimelineProvider {
         }
 
         // Ask WidgetKit for a new timeline at the first reset or ledger retry,
-        // while retaining the ordinary 30-minute upper bound.
+        // while retaining the ordinary 5-minute upper bound.
         return Timeline(entries: entries, policy: .after(reloadAt))
     }
 

@@ -37,7 +37,7 @@ final class SchedulerTests: XCTestCase {
 
         clock.advance(by: 1)
         let blocked = await scheduler.acquire(accountKey: key, policy: policy)
-        XCTAssertFalse(blocked, "a cancelled fetch must still hold the 5-minute floor")
+        XCTAssertFalse(blocked, "a cancelled fetch must still hold the poll floor")
 
         clock.advance(by: policy.minSeconds)
         let allowed = await scheduler.acquire(accountKey: key, policy: policy)
@@ -58,6 +58,108 @@ final class SchedulerTests: XCTestCase {
         _ = await scheduler.chargeFloor(accountKey: key, policy: policy)
         let afterCharge = await scheduler.nextAllowedFetch(accountKey: key)
         XCTAssertEqual(afterCharge, backoffUntil, "429 backoff must not be shortened")
+    }
+
+    /// A user-initiated pull skips the ordinary min-interval floor: after a
+    /// completed fetch charged it, a manual acquire succeeds immediately
+    /// while automatic surfaces keep waiting.
+    func testManualAcquireBypassesTheOrdinaryPollFloor() async throws {
+        let clock = ClockBox(Date(timeIntervalSince1970: 1_784_408_400))
+        let store = FileLedgerStore(directory: try TestSupport.tempDirectory())
+        let scheduler = makeScheduler(clock: clock, store: store)
+
+        let first = await scheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertTrue(first)
+        _ = await scheduler.recordResult(accountKey: key, policy: policy, status: .ok)
+
+        clock.advance(by: 1)
+        let gated = await scheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertFalse(gated, "automatic surfaces must still wait out the floor")
+        let manual = await scheduler.acquire(
+            accountKey: key,
+            policy: policy,
+            bypassingPollFloor: true
+        )
+        XCTAssertTrue(manual, "a user pull must not wait out the ordinary floor")
+        await scheduler.release(accountKey: key)
+    }
+
+    /// The bypass is for the floor only: another process's in-flight fetch
+    /// still owns the shared slot until its lease expires or completes.
+    func testManualAcquireRespectsAnActiveLease() async throws {
+        let clock = ClockBox(Date(timeIntervalSince1970: 1_784_408_400))
+        let directory = try TestSupport.tempDirectory()
+        let inFlight = makeScheduler(clock: clock, store: FileLedgerStore(directory: directory))
+        let pulling = makeScheduler(clock: clock, store: FileLedgerStore(directory: directory))
+
+        let acquired = await inFlight.acquire(accountKey: key, policy: policy)
+        XCTAssertTrue(acquired)
+        let manual = await pulling.acquire(
+            accountKey: key,
+            policy: policy,
+            bypassingPollFloor: true
+        )
+        XCTAssertFalse(manual, "an active cross-process lease must refuse even a user pull")
+        await inFlight.release(accountKey: key)
+    }
+
+    /// A 429 backoff outranks the user: while it runs, a manual pull is
+    /// refused; once it expires, the pull goes through.
+    func testManualAcquireRespectsAnActive429Backoff() async throws {
+        let clock = ClockBox(Date(timeIntervalSince1970: 1_784_408_400))
+        let store = FileLedgerStore(directory: try TestSupport.tempDirectory())
+        let scheduler = makeScheduler(clock: clock, store: store)
+
+        let acquired = await scheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertTrue(acquired)
+        _ = await scheduler.recordResult(accountKey: key, policy: policy, status: .rateLimited)
+
+        clock.advance(by: policy.minSeconds * 2)
+        let manual = await scheduler.acquire(
+            accountKey: key,
+            policy: policy,
+            bypassingPollFloor: true
+        )
+        XCTAssertFalse(manual, "an unexpired 429 backoff must refuse even a user pull")
+
+        let backoffClock = await scheduler.nextAllowedFetch(accountKey: key)
+        let nextAllowed = try XCTUnwrap(
+            backoffClock,
+            "a recorded 429 must set the backoff clock"
+        )
+        clock.advance(by: nextAllowed.timeIntervalSince(clock.now()) + 1)
+        let afterBackoff = await scheduler.acquire(
+            accountKey: key,
+            policy: policy,
+            bypassingPollFloor: true
+        )
+        XCTAssertTrue(afterBackoff, "the bypass applies again once the backoff expires")
+        await scheduler.release(accountKey: key)
+    }
+
+    /// A completed manual fetch still charges the ordinary floor for the
+    /// automatic surfaces that follow it.
+    func testManualFetchStillChargesTheFloor() async throws {
+        let clock = ClockBox(Date(timeIntervalSince1970: 1_784_408_400))
+        let store = FileLedgerStore(directory: try TestSupport.tempDirectory())
+        let scheduler = makeScheduler(clock: clock, store: store)
+
+        let manual = await scheduler.acquire(
+            accountKey: key,
+            policy: policy,
+            bypassingPollFloor: true
+        )
+        XCTAssertTrue(manual)
+        _ = await scheduler.recordResult(accountKey: key, policy: policy, status: .ok)
+
+        clock.advance(by: 1)
+        let gated = await scheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertFalse(gated, "a manual fetch must charge the floor like any other")
+
+        clock.advance(by: policy.minSeconds)
+        let allowed = await scheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertTrue(allowed)
+        await scheduler.release(accountKey: key)
     }
 
     func testLifecycleRotationRetiresLocalOwnerWithoutDroppingPollFloor() async throws {
@@ -283,8 +385,8 @@ final class SchedulerTests: XCTestCase {
         let clock = ClockBox(Date(timeIntervalSince1970: 1_784_408_400))
         let directory = try TestSupport.tempDirectory()
         // A hostile/buggy caller asks for a 1-second lease against the real
-        // Claude policy. acquire must clamp to the 300-second poll floor so a
-        // crash-looping process cannot poll faster than 5 minutes.
+        // Claude policy. acquire must clamp to the poll floor so a
+        // crash-looping process cannot poll faster than the floor.
         let crashedScheduler = makeScheduler(
             clock: clock,
             store: FileLedgerStore(directory: directory),
@@ -300,14 +402,14 @@ final class SchedulerTests: XCTestCase {
         XCTAssertTrue(initialAcquire)
         // Simulated crash: no release, no recordResult.
 
-        clock.advance(by: 60)
+        clock.advance(by: policy.minSeconds - 1)
         let tooSoon = await retryScheduler.acquire(accountKey: key, policy: policy)
         XCTAssertFalse(
             tooSoon,
             "a crashed fetch's lease must hold for the full poll floor, not the requested lease"
         )
 
-        clock.advance(by: 241) // 301 seconds total
+        clock.advance(by: 2) // minSeconds + 1 total
         let afterFloor = await retryScheduler.acquire(accountKey: key, policy: policy)
         XCTAssertTrue(afterFloor)
         await retryScheduler.release(accountKey: key)

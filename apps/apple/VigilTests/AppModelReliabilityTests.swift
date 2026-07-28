@@ -2457,7 +2457,7 @@ final class AppModelReliabilityTests: XCTestCase {
         // A 401 is a completed round-trip: it counted against the provider's
         // rate limits, so it must charge the poll clock. Releasing here would
         // leave a fresh account's `nextAllowedAt` at `.distantPast` and remove
-        // the 5-minute floor entirely on the verify path.
+        // the poll floor entirely on the verify path.
         let next = await scheduler.nextAllowedFetch(accountKey: account.key)
         XCTAssertNotNil(next, "A provider 401 must charge the poll clock")
         XCTAssertTrue(
@@ -2476,7 +2476,7 @@ final class AppModelReliabilityTests: XCTestCase {
 
     /// The legitimate half of the verify-path fix: when no request ever reached
     /// the provider, nothing was consumed and the user must be able to retry at
-    /// once instead of waiting out a five-minute cooldown they never earned.
+    /// once instead of waiting out a poll-floor cooldown they never earned.
     func testTransportFailureOnVerifyDoesNotBurnPollFloor() async throws {
         let directory = try makeTemporaryDirectory()
         StubURLProtocol.reset()

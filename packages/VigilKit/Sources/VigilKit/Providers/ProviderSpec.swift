@@ -681,7 +681,7 @@ public enum ProviderRegistry {
             "Accept": "application/json",
             "User-Agent": "claude-code/2.1.32",
         ],
-        poll: PollPolicy(minSeconds: 300, jitterSeconds: 60, backoff429BaseSeconds: 900, backoffMaxSeconds: 3600),
+        poll: PollPolicy(minSeconds: 60, jitterSeconds: 60, backoff429BaseSeconds: 900, backoffMaxSeconds: 3600),
         responseFields: ResponseFields(utilization: "utilization", resetsAt: "resets_at", windowSeconds: nil),
         requiredOutputs: RequiredOutputs(minimumWindows: 1, minimumPrimaryWindows: 1),
         requiredPaths: ["five_hour", "seven_day", "seven_day_sonnet", "seven_day_opus"],
@@ -744,7 +744,7 @@ public enum ProviderRegistry {
             "Accept": "application/json",
             "User-Agent": "codex_cli_rs/0.34.0",
         ],
-        poll: PollPolicy(minSeconds: 300, jitterSeconds: 60, backoff429BaseSeconds: 900, backoffMaxSeconds: 3600),
+        poll: PollPolicy(minSeconds: 60, jitterSeconds: 60, backoff429BaseSeconds: 900, backoffMaxSeconds: 3600),
         responseFields: ResponseFields(utilization: "used_percent", resetsAt: "reset_at", windowSeconds: "limit_window_seconds"),
         requiredOutputs: RequiredOutputs(minimumWindows: 1, minimumPrimaryWindows: 1),
         requiredConditionsWhenPresent: [
@@ -832,7 +832,7 @@ public enum ProviderRegistry {
             "Accept": "application/json",
             "User-Agent": "Vigil/0.10",
         ],
-        poll: PollPolicy(minSeconds: 300, jitterSeconds: 60, backoff429BaseSeconds: 900, backoffMaxSeconds: 3600),
+        poll: PollPolicy(minSeconds: 60, jitterSeconds: 60, backoff429BaseSeconds: 900, backoffMaxSeconds: 3600),
         requiredOutputs: RequiredOutputs(
             minimumMetrics: 8,
             metricIDs: [
@@ -871,7 +871,7 @@ public enum ProviderRegistry {
             "Accept": "application/json",
             "User-Agent": "Vigil/0.10",
         ],
-        poll: PollPolicy(minSeconds: 300, jitterSeconds: 60, backoff429BaseSeconds: 900, backoffMaxSeconds: 3600),
+        poll: PollPolicy(minSeconds: 60, jitterSeconds: 60, backoff429BaseSeconds: 900, backoffMaxSeconds: 3600),
         requiredOutputs: RequiredOutputs(minimumMetrics: 1),
         planKey: nil,
         additionalWindows: nil,
@@ -891,7 +891,7 @@ public enum ProviderRegistry {
     )
 
     private static let standardPoll = PollPolicy(
-        minSeconds: 300, jitterSeconds: 60, backoff429BaseSeconds: 900, backoffMaxSeconds: 3600
+        minSeconds: 60, jitterSeconds: 60, backoff429BaseSeconds: 900, backoffMaxSeconds: 3600
     )
 
     private static func gatewayHeaders() -> [String: String] {
