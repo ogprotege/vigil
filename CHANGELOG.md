@@ -6,6 +6,8 @@ Anything that changes shipped behavior gets an entry here: TestFlight app builds
 
 ## Unreleased
 
+- Reduced the account history preview from five short-lived SQLite connections per account to one: `UsageHistoryStore.accountState` reads all provenance summaries and both source pages over a single flock acquisition and checkpointed close, shortening the window where a suspension could kill the app for holding history locks.
+- Extended the suspension guard to shared snapshot reconciliation, closing the last unguarded cross-process file-lock path in the app process.
 - Restored Vigil's product identity in the README with the existing gauge mark,
   a restrained status badge set, clear navigation, and current iOS screenshots.
   Account values in the Limits image come from the gated demo-data path.

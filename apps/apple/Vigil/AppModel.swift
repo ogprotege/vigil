@@ -617,28 +617,21 @@ final class AppModel {
                 var summaries: [String: AccountHistorySummary] = [:]
                 var recent: [String: [UsageHistorySample]] = [:]
                 for key in keys {
-                    let all = try store.summary(accountKey: key)
-                    let observed = try store.summary(accountKey: key, source: .observed)
-                    let providerBackfill = try store.summary(
+                    // One connection per account: the summaries and both
+                    // preview pages share a single flock acquisition and a
+                    // single checkpointed close instead of five.
+                    let state = try store.accountState(
                         accountKey: key,
-                        source: .providerBackfill
+                        previewLimit: previewLimit
                     )
                     summaries[key] = AccountHistorySummary(
-                        all: all,
-                        observed: observed,
-                        providerBackfill: providerBackfill
+                        all: state.all,
+                        observed: state.observed,
+                        providerBackfill: state.providerBackfill
                     )
-                    let observedPage = try store.page(
-                        accountKey: key,
-                        source: .observed,
-                        limit: previewLimit
-                    )
-                    let backfillPage = try store.page(
-                        accountKey: key,
-                        source: .providerBackfill,
-                        limit: previewLimit
-                    )
-                    recent[key] = (observedPage.samples + backfillPage.samples).sorted {
+                    recent[key] = (
+                        state.observedPage.samples + state.providerBackfillPage.samples
+                    ).sorted {
                         ($0.recordedAt, $0.retrievedAt, $0.id.uuidString)
                             < ($1.recordedAt, $1.retrievedAt, $1.id.uuidString)
                     }
@@ -673,21 +666,25 @@ final class AppModel {
 
     /// Reconciles data that another process can change. Account identity is
     /// deliberately excluded because only the app may link or remove accounts.
+    /// The snapshot flock is held during the reads, so the guard keeps the
+    /// process unsuspended until they finish (0xdead10cc).
     func reconcileSharedData() {
         guard !isDemo else { return }
-        var loaded: [String: ProviderSnapshot] = [:]
-        for account in accounts {
-            do {
-                loaded[account.key] = try snapshotStore.current(accountKey: account.key)
-            } catch {
-                reportStorageError(
-                    "Vigil couldn't read the saved usage for \(account.displayName). It will keep the last in-memory value.",
-                    error: error
-                )
-                loaded[account.key] = snapshots[account.key]
+        SuspensionGuard.withProtection(named: "SharedDataReconcile") {
+            var loaded: [String: ProviderSnapshot] = [:]
+            for account in accounts {
+                do {
+                    loaded[account.key] = try snapshotStore.current(accountKey: account.key)
+                } catch {
+                    reportStorageError(
+                        "Vigil couldn't read the saved usage for \(account.displayName). It will keep the last in-memory value.",
+                        error: error
+                    )
+                    loaded[account.key] = snapshots[account.key]
+                }
             }
+            snapshots = loaded
         }
-        snapshots = loaded
         queueHistoryReload()
     }
 
