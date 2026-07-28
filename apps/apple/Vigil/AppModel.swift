@@ -18,12 +18,16 @@ enum OfficialHistoryImportState: Equatable {
 /// Serializes AppModel's archive reads, migration, and destructive whole-store
 /// recovery away from the main actor. SQLite coordinates ordinary concurrent
 /// row mutations itself, but deleting the database files must not overlap an
-/// AppModel read that still owns a database descriptor.
+/// AppModel read that still owns a database descriptor. Every operation runs
+/// under a suspension guard: the history flock and SQLite WAL locks held
+/// during I/O get the process killed (0xdead10cc) if it is suspended mid-lock.
 private actor AppHistoryIOCoordinator {
     func perform<Value: Sendable>(
         _ operation: @Sendable () throws -> Value
     ) rethrows -> Value {
-        try operation()
+        try SuspensionGuard.withProtection(named: "HistoryIO") {
+            try operation()
+        }
     }
 }
 
@@ -450,7 +454,9 @@ final class AppModel {
         try snapshotStore.deleteRetiredAccount(accountKey: accountKey)
         try pendingEvents.deleteRetiredAccount(accountKey: accountKey)
         try legacyObservationStore.removeAll(accountKey: accountKey)
-        try historyStore.delete(accountKey: accountKey)
+        try SuspensionGuard.withProtection(named: "HistoryDelete") {
+            try historyStore.delete(accountKey: accountKey)
+        }
         try AccountIndex.deleteCorruptBackups(
             in: accountIndexURL.deletingLastPathComponent()
         )
@@ -1059,7 +1065,9 @@ final class AppModel {
                         commitGeneration,
                         accountKey: ref.key
                     ) {
-                        try historyStore.append(snapshot: verifiedSnapshot)
+                        try SuspensionGuard.withProtection(named: "HistoryAppend") {
+                            try historyStore.append(snapshot: verifiedSnapshot)
+                        }
                     }
                     queueHistoryReload()
                 } catch {
@@ -1329,7 +1337,9 @@ final class AppModel {
                         commitGeneration,
                         accountKey: target.key
                     ) {
-                        try historyStore.append(snapshot: verifiedSnapshot)
+                        try SuspensionGuard.withProtection(named: "HistoryAppend") {
+                            try historyStore.append(snapshot: verifiedSnapshot)
+                        }
                     }
                     queueHistoryReload()
                 }
@@ -1400,7 +1410,9 @@ final class AppModel {
                 generation,
                 accountKey: account.key
             ) {
-                try historyStore.importBackfill(samples)
+                try SuspensionGuard.withProtection(named: "HistoryBackfill") {
+                    try historyStore.importBackfill(samples)
+                }
             }
             queueHistoryReload()
             officialHistoryImports[account.key] = .imported(
@@ -1531,7 +1543,9 @@ final class AppModel {
             historyCleanupError = historyCleanupError ?? error
         }
         do {
-            try historyStore.delete(accountKey: account.key)
+            try SuspensionGuard.withProtection(named: "HistoryDelete") {
+                try historyStore.delete(accountKey: account.key)
+            }
             historySummaries[account.key] = nil
             recentHistorySamples[account.key] = nil
         } catch {
@@ -1878,7 +1892,9 @@ final class AppModel {
             Self.log.error("late legacy-history sweep failed: \(error.localizedDescription, privacy: .private(mask: .hash))")
         }
         do {
-            try historyStore.delete(accountKey: accountKey)
+            try SuspensionGuard.withProtection(named: "HistoryDelete") {
+                try historyStore.delete(accountKey: accountKey)
+            }
             historySummaries[accountKey] = nil
             recentHistorySamples[accountKey] = nil
         } catch {
@@ -2026,19 +2042,25 @@ final class AppModel {
             )
             return .failed
         }
-        let result = await UsageService.refresh(
-            account: account,
-            credentials: credentials,
-            scheduler: scheduler,
-            snapshots: snapshotStore,
-            vault: vault,
-            surface: surface,
-            session: usageSession,
-            pendingEvents: pendingEvents,
-            history: historyStore,
-            lifecycle: lifecycleStore,
-            generation: generation
-        )
+        // The fetch persists snapshots, history rows, and pending events under
+        // cross-process file locks. The guard keeps the process unsuspended —
+        // including after a BGAppRefreshTask completes — until they are
+        // released; a mid-lock suspension is a 0xdead10cc kill.
+        let result = await SuspensionGuard.withProtection(named: "AccountRefresh") {
+            await UsageService.refresh(
+                account: account,
+                credentials: credentials,
+                scheduler: scheduler,
+                snapshots: snapshotStore,
+                vault: vault,
+                surface: surface,
+                session: usageSession,
+                pendingEvents: pendingEvents,
+                history: historyStore,
+                lifecycle: lifecycleStore,
+                generation: generation
+            )
+        }
         // Always read the poll clock, but publish nothing until after this last
         // suspension has been followed by a lifecycle and index revalidation.
         // Removal can complete during either UsageService or scheduler awaits.
