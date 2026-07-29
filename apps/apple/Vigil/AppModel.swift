@@ -56,6 +56,10 @@ final class AppModel {
     /// mode the accounts are seeded in memory and never fetched, so the seeded
     /// snapshots aren't overwritten by auth failures (there are no credentials).
     private(set) var isDemo = false
+    /// False until `ensureLoadedFromDisk()` has run once. Presentation shows a
+    /// launch placeholder while this is false so an unloaded model can never be
+    /// mistaken for an empty account list.
+    private(set) var hasLoadedFromDisk = false
     /// Constant-size history metadata plus a small recent preview. The full
     /// archive stays in SQLite and is read only through cursor-paged queries.
     private(set) var historySummaries: [String: AccountHistorySummary] = [:]
@@ -171,7 +175,14 @@ final class AppModel {
         // residue left by an older install. It never touches Safari or the
         // browser session used to approve OAuth.
         LegacyNetworkStorageCleaner.removeAppScopedSharedSessionData()
-        loadFromDisk()
+        // Deliberately no loadFromDisk() here. This initializer runs inside
+        // App.main() before UIApplicationMain, where a prewarmed or
+        // background-relaunched process can be suspended at any moment and a
+        // held App Group file lock is a 0xdead10cc kill — and no
+        // background-task assertion can exist yet to defer that suspension.
+        // Every launch context calls ensureLoadedFromDisk() once it is past
+        // UIApplicationMain: scene activation, the root scene task, and the
+        // BGAppRefreshTask handler.
         let notificationManager = self.notifications
         Task { await notificationManager.removeLegacyNotifications() }
         surfaceSharedStorageFallbackIfNeeded()
@@ -211,8 +222,20 @@ final class AppModel {
         )
     }
 
+    /// Idempotent post-launch entry point for the initial disk load. Safe to
+    /// call from every launch context; only the first call does work. Demo
+    /// mode never loads: its accounts are seeded in memory and a disk load
+    /// would clobber them.
+    func ensureLoadedFromDisk() {
+        guard !hasLoadedFromDisk, !isDemo else { return }
+        SuspensionGuard.withProtection(named: "StartupLoad") {
+            loadFromDisk()
+        }
+    }
+
     /// Instant render on relaunch: accounts + last snapshots, zero network.
     func loadFromDisk() {
+        hasLoadedFromDisk = true
         var sourceAccounts: [AccountRef]
         var repairedCorruptIndex = false
         var corruptIndexError: Error?
@@ -873,6 +896,9 @@ final class AppModel {
     /// Adds one account (manual entry or link payload). Verify-then-store.
     func addAccount(credentials: Credentials, allowUnverified: Bool = false, allowReplace: Bool = false) async throws {
         try Task.checkCancellation()
+        // Index writes start from in-memory accounts; an unloaded model would
+        // silently erase every account already on disk.
+        ensureLoadedFromDisk()
         try ensureAccountIndexUsable()
         let operationEpoch = identityMutationEpoch
         guard ProviderRegistry.spec(for: credentials.providerId) != nil else {
@@ -1100,6 +1126,9 @@ final class AppModel {
         allowUnverified: Bool = false
     ) async throws {
         try Task.checkCancellation()
+        // Index writes start from in-memory accounts; an unloaded model would
+        // silently erase every account already on disk.
+        ensureLoadedFromDisk()
         try ensureAccountIndexUsable()
         let operationEpoch = identityMutationEpoch
         guard !removingAccountKeys.contains(target.key) else {
@@ -1457,6 +1486,9 @@ final class AppModel {
     }
 
     func removeAccount(_ account: AccountRef) async throws {
+        // Index writes start from in-memory accounts; an unloaded model would
+        // silently erase every account already on disk.
+        ensureLoadedFromDisk()
         guard removingAccountKeys.insert(account.key).inserted else {
             throw LinkError.accountRemovalInProgress
         }
@@ -1950,6 +1982,8 @@ final class AppModel {
         guard !isDemo else {
             return RefreshReport(fetched: 0, deferred: 0, failed: 0, nextAllowedAt: nil)
         }
+        // Refreshing an unloaded model would report "nothing to refresh".
+        ensureLoadedFromDisk()
         guard !isResettingAllLocalData,
               accountIndexUsable,
               lifecycleUsable,
@@ -2291,6 +2325,7 @@ final class AppModel {
     func scenePhaseChanged(to phase: ScenePhase) {
         switch phase {
         case .active:
+            ensureLoadedFromDisk()
             guard !isResettingAllLocalData,
                   accountIndexUsable,
                   lifecycleUsable,

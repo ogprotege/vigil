@@ -46,6 +46,7 @@ final class LegacyUsageObservationMigrationTests: XCTestCase {
         )
 
         let model = AppModel(vault: InMemoryCredentialsStore(), directory: directory)
+        model.ensureLoadedFromDisk()
         await model.prepareHistoryStateForTesting()
 
         XCTAssertFalse(legacyFile(in: directory).fileExists)
@@ -73,6 +74,7 @@ final class LegacyUsageObservationMigrationTests: XCTestCase {
             vault: InMemoryCredentialsStore(),
             directory: directory
         )
+        relaunched.ensureLoadedFromDisk()
         await relaunched.prepareHistoryStateForTesting()
         XCTAssertEqual(relaunched.history(for: account).map(\.id), [stableID])
     }
@@ -104,6 +106,7 @@ final class LegacyUsageObservationMigrationTests: XCTestCase {
         )
 
         let model = AppModel(vault: InMemoryCredentialsStore(), directory: directory)
+        model.ensureLoadedFromDisk()
         await model.prepareHistoryStateForTesting()
 
         XCTAssertEqual(try Data(contentsOf: legacyFile(in: directory)), original)

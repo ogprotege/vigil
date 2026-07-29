@@ -101,11 +101,18 @@ struct VigilApp: App {
             )
 
             ZStack {
-                RootView()
-                    .disabled(hidesProtectedContent)
-                    .allowsHitTesting(!hidesProtectedContent)
-                    .accessibilityHidden(hidesProtectedContent)
-                    .opacity(hidesProtectedContent ? 0 : 1)
+                if model.hasLoadedFromDisk || model.isDemo {
+                    RootView()
+                        .disabled(hidesProtectedContent)
+                        .allowsHitTesting(!hidesProtectedContent)
+                        .accessibilityHidden(hidesProtectedContent)
+                        .opacity(hidesProtectedContent ? 0 : 1)
+                } else {
+                    // Pre-load launch frame. The disk load is deferred past
+                    // UIApplicationMain (0xdead10cc), and an unloaded model
+                    // must never present as an empty account list.
+                    Color.black.ignoresSafeArea()
+                }
 
                 if locked {
                     AppLockView(
@@ -126,6 +133,7 @@ struct VigilApp: App {
             }
             .environment(model)
             .preferredColorScheme(.dark)
+            .task { model.ensureLoadedFromDisk() }
             .onChange(of: scenePhase) { _, phase in
                 model.scenePhaseChanged(to: phase)
                 switch phase {

@@ -55,6 +55,7 @@ final class AppModelReliabilityTests: XCTestCase {
             notifications: RecordingNotificationManager(),
             usageSession: session
         )
+        model.ensureLoadedFromDisk()
 
         try await model.addAccount(credentials: credentials)
 
@@ -80,6 +81,7 @@ final class AppModelReliabilityTests: XCTestCase {
             notifications: RecordingNotificationManager(),
             usageSession: session
         )
+        reloaded.ensureLoadedFromDisk()
         XCTAssertEqual(reloaded.accounts.map(\.key), [accountKey])
         XCTAssertEqual(reloaded.snapshots[accountKey]?.status, .ok)
         XCTAssertEqual(try vault.load(accountKey: accountKey), credentials)
@@ -159,6 +161,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             notifications: RecordingNotificationManager()
         )
+        model.ensureLoadedFromDisk()
         let credentials = Credentials(
             providerId: "openai",
             accessToken: "sk-admin-consent-test",
@@ -210,6 +213,7 @@ final class AppModelReliabilityTests: XCTestCase {
         let historyStore = UsageHistoryStore(directory: directory)
         try historyStore.append(snapshot: Self.snapshot(for: account, utilization: 22))
         let model = AppModel(vault: vault, directory: directory)
+        model.ensureLoadedFromDisk()
 
         try await model.replaceCredentials(
             for: account,
@@ -251,6 +255,7 @@ final class AppModelReliabilityTests: XCTestCase {
         let vault = InMemoryCredentialsStore()
         try vault.save(old, accountKey: originalKey)
         let model = AppModel(vault: vault, directory: directory)
+        model.ensureLoadedFromDisk()
         let preservedNextAllowed = Date().addingTimeInterval(900)
         try FileLedgerStore(directory: directory).update {
             $0[originalKey] = LedgerEntry(
@@ -308,6 +313,7 @@ final class AppModelReliabilityTests: XCTestCase {
         let vault = InMemoryCredentialsStore()
         try vault.save(old, accountKey: originalKey)
         let model = AppModel(vault: vault, directory: directory)
+        model.ensureLoadedFromDisk()
         let preservedNextAllowed = Date().addingTimeInterval(900)
         try FileLedgerStore(directory: directory).update {
             $0[originalKey] = LedgerEntry(
@@ -353,6 +359,7 @@ final class AppModelReliabilityTests: XCTestCase {
         let vault = InMemoryCredentialsStore()
         try vault.save(old, accountKey: account.key)
         let model = AppModel(vault: vault, directory: directory)
+        model.ensureLoadedFromDisk()
 
         do {
             try await model.replaceCredentials(
@@ -398,6 +405,7 @@ final class AppModelReliabilityTests: XCTestCase {
             notifications: RecordingNotificationManager(),
             usageSession: transport.session
         )
+        model.ensureLoadedFromDisk()
         let credentials = Credentials(
             providerId: "openrouter",
             accessToken: "cancel-before-add-commit",
@@ -454,6 +462,7 @@ final class AppModelReliabilityTests: XCTestCase {
             notifications: RecordingNotificationManager(),
             usageSession: transport.session
         )
+        model.ensureLoadedFromDisk()
         let credentials = Credentials(
             providerId: "openrouter",
             accessToken: "must-not-survive-reset",
@@ -535,6 +544,7 @@ final class AppModelReliabilityTests: XCTestCase {
             notifications: RecordingNotificationManager(),
             usageSession: transport.session
         )
+        model.ensureLoadedFromDisk()
         let lifecycle = AccountLifecycleStore(directory: directory)
         let generationBefore = try XCTUnwrap(
             lifecycle.captureActiveGeneration(accountKey: account.key)
@@ -609,6 +619,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             usageSession: relinkTransport.session
         )
+        model.ensureLoadedFromDisk()
 
         let relink = Task {
             try await model.replaceCredentials(for: account, with: replacement)
@@ -677,6 +688,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             usageSession: relinkTransport.session
         )
+        model.ensureLoadedFromDisk()
 
         let relink = Task {
             try await model.replaceCredentials(for: target, with: replacement)
@@ -791,6 +803,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             notifications: notifications
         )
+        model.ensureLoadedFromDisk()
         let events = [
             ThresholdEvent(
                 windowId: "session",
@@ -849,6 +862,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             notifications: notifications
         )
+        model.ensureLoadedFromDisk()
         let event = ThresholdEvent(
             windowId: "session",
             threshold: 80,
@@ -933,6 +947,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             notifications: notifications
         )
+        model.ensureLoadedFromDisk()
         let event = ThresholdEvent(
             windowId: "session",
             threshold: 80,
@@ -1028,6 +1043,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             notifications: notifications
         )
+        model.ensureLoadedFromDisk()
         let delivered = ThresholdEvent(
             windowId: "session",
             threshold: 80,
@@ -1074,6 +1090,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             notifications: notifications
         )
+        model.ensureLoadedFromDisk()
         // Missing observedAt/resetAt models a queue written before segment
         // metadata existed. It decodes, but cannot prove which reset it belongs to.
         try model.pendingEvents.append(
@@ -1113,6 +1130,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             notifications: notifications
         )
+        model.ensureLoadedFromDisk()
         let event = ThresholdEvent(
             windowId: "credits",
             threshold: 80,
@@ -1154,6 +1172,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             notifications: notifications
         )
+        model.ensureLoadedFromDisk()
 
         // Simulate a widget fetch after AppModel loaded its in-memory copy.
         try seedPendingSnapshot(
@@ -1212,6 +1231,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             notifications: notifications
         )
+        model.ensureLoadedFromDisk()
         let valid = ThresholdEvent(
             windowId: "valid",
             threshold: 80,
@@ -1261,6 +1281,7 @@ final class AppModelReliabilityTests: XCTestCase {
         try Data("file".utf8).write(to: notADirectory)
         let vault = InMemoryCredentialsStore()
         let model = AppModel(vault: vault, directory: notADirectory)
+        model.ensureLoadedFromDisk()
         let credentials = Credentials(providerId: "claude", accessToken: "secret")
 
         do {
@@ -1294,6 +1315,7 @@ final class AppModelReliabilityTests: XCTestCase {
             failDelete: true
         )
         let model = AppModel(vault: vault, directory: directory)
+        model.ensureLoadedFromDisk()
 
         do {
             try await model.removeAccount(account)
@@ -1337,6 +1359,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             notifications: notifications
         )
+        model.ensureLoadedFromDisk()
 
         try await model.removeAccount(account)
 
@@ -1390,6 +1413,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             notifications: RecordingNotificationManager()
         )
+        model.ensureLoadedFromDisk()
 
         XCTAssertTrue(model.accounts.isEmpty)
         XCTAssertNil(try FileLedgerStore(directory: directory).load()[departedKey])
@@ -1437,6 +1461,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             scheduler: scheduler
         )
+        model.ensureLoadedFromDisk()
         let completion = AsyncCompletionFlag()
         defer { ledger.resumeClear() }
 
@@ -1504,6 +1529,7 @@ final class AppModelReliabilityTests: XCTestCase {
             notifications: RecordingNotificationManager(),
             scheduler: scheduler
         )
+        model.ensureLoadedFromDisk()
         defer { ledger.resumeClear() }
 
         let firstRemoval = Task {
@@ -1567,6 +1593,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             notifications: notifications
         )
+        model.ensureLoadedFromDisk()
         defer { Task { await notifications.resumeRemoval() } }
 
         let removal = Task {
@@ -1654,6 +1681,7 @@ final class AppModelReliabilityTests: XCTestCase {
             notifications: RecordingNotificationManager(),
             scheduler: scheduler
         )
+        model.ensureLoadedFromDisk()
         defer { ledger.resumeClear() }
 
         let startupClearPaused = await waitForLedgerClearStart(ledger)
@@ -1722,6 +1750,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             scheduler: scheduler
         )
+        model.ensureLoadedFromDisk()
 
         do {
             try await model.removeAccount(account)
@@ -1764,6 +1793,7 @@ final class AppModelReliabilityTests: XCTestCase {
             withIntermediateDirectories: false
         )
         let model = AppModel(vault: vault, directory: directory)
+        model.ensureLoadedFromDisk()
 
         do {
             try await model.removeAccount(account)
@@ -1811,6 +1841,7 @@ final class AppModelReliabilityTests: XCTestCase {
         // Model startup sees valid history. Corrupt it afterward so removal is
         // the first operation forced to choose between preserving and erasing.
         let model = AppModel(vault: vault, directory: directory)
+        model.ensureLoadedFromDisk()
         try Data("not-json".utf8).write(
             to: directory.appendingPathComponent("usage-history-v1.json"),
             options: .atomic
@@ -1869,6 +1900,7 @@ final class AppModelReliabilityTests: XCTestCase {
         try vault.save(credentials, accountKey: key)
 
         let model = AppModel(vault: vault, directory: directory)
+        model.ensureLoadedFromDisk()
 
         XCTAssertTrue(model.accountIndexUsable)
         XCTAssertEqual(model.accounts, [
@@ -1910,6 +1942,7 @@ final class AppModelReliabilityTests: XCTestCase {
             .beginNewLifecycle(accountKey: key)
 
         let model = AppModel(vault: vault, directory: directory)
+        model.ensureLoadedFromDisk()
 
         XCTAssertEqual(model.accounts.map(\.key), [key])
         XCTAssertEqual(try AccountIndex.load(from: indexURL), model.accounts)
@@ -1929,6 +1962,7 @@ final class AppModelReliabilityTests: XCTestCase {
         try vault.save(credentials, accountKey: key)
 
         let model = AppModel(vault: vault, directory: directory)
+        model.ensureLoadedFromDisk()
 
         XCTAssertEqual(model.accounts.map(\.key), [key])
         XCTAssertEqual(
@@ -1952,6 +1986,7 @@ final class AppModelReliabilityTests: XCTestCase {
         try lifecycle.tombstone(accountKey: key)
 
         let model = AppModel(vault: vault, directory: directory)
+        model.ensureLoadedFromDisk()
 
         XCTAssertTrue(model.accounts.isEmpty)
         XCTAssertNil(try vault.load(accountKey: key))
@@ -1975,6 +2010,7 @@ final class AppModelReliabilityTests: XCTestCase {
         )
         let vault = InMemoryCredentialsStore()
         let model = AppModel(vault: vault, directory: directory)
+        model.ensureLoadedFromDisk()
 
         XCTAssertTrue(model.accounts.isEmpty)
         XCTAssertNotNil(model.storageErrorMessage)
@@ -2012,6 +2048,7 @@ final class AppModelReliabilityTests: XCTestCase {
         )
 
         let model = AppModel(vault: vault, directory: directory)
+        model.ensureLoadedFromDisk()
 
         XCTAssertTrue(model.accounts.isEmpty)
         XCTAssertTrue(try AccountIndex.load(from: indexURL).isEmpty)
@@ -2030,6 +2067,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             notifications: notifications
         )
+        model.ensureLoadedFromDisk()
 
         XCTAssertTrue(model.accountIndexUsable)
         XCTAssertTrue(model.accounts.isEmpty)
@@ -2062,6 +2100,7 @@ final class AppModelReliabilityTests: XCTestCase {
             vault: ListingFailingCredentialsStore(),
             directory: directory
         )
+        model.ensureLoadedFromDisk()
 
         XCTAssertFalse(model.accountIndexUsable)
         do {
@@ -2146,6 +2185,7 @@ final class AppModelReliabilityTests: XCTestCase {
             notifications: notifications,
             additionalRecoveryDirectories: [priorFallbackDirectory]
         )
+        model.ensureLoadedFromDisk()
 
         XCTAssertFalse(model.accountIndexUsable)
         XCTAssertTrue(model.requiresFullLocalDataRecovery)
@@ -2198,6 +2238,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             notifications: RecordingNotificationManager()
         )
+        model.ensureLoadedFromDisk()
 
         XCTAssertFalse(model.accountIndexUsable)
         XCTAssertTrue(model.requiresFullLocalDataRecovery)
@@ -2217,6 +2258,7 @@ final class AppModelReliabilityTests: XCTestCase {
         let directory = try makeTemporaryDirectory()
         let vault = InMemoryCredentialsStore()
         let model = AppModel(vault: vault, directory: directory)
+        model.ensureLoadedFromDisk()
 
         do {
             try await model.addAccount(
@@ -2266,6 +2308,7 @@ final class AppModelReliabilityTests: XCTestCase {
         let vault = InMemoryCredentialsStore()
         try vault.save(old, accountKey: key)
         let model = AppModel(vault: vault, directory: directory)
+        model.ensureLoadedFromDisk()
         _ = await model.scheduler.recordResult(
             accountKey: key,
             policy: ProviderRegistry.codex.poll,
@@ -2599,6 +2642,7 @@ final class AppModelReliabilityTests: XCTestCase {
         let vault = InMemoryCredentialsStore()
         try vault.save(credentials, accountKey: account.key)
         let model = AppModel(vault: vault, directory: directory)
+        model.ensureLoadedFromDisk()
         let externallyWritten = ProviderSnapshot(
             providerId: account.providerId,
             accountKey: account.key,
@@ -2668,6 +2712,7 @@ final class AppModelReliabilityTests: XCTestCase {
             directory: directory,
             usageSession: session
         )
+        model.ensureLoadedFromDisk()
 
         let refresh = Task { await model.refreshAll(surface: "removal-race-test") }
         let appRequestPaused = await waitForStubRequests(1)
