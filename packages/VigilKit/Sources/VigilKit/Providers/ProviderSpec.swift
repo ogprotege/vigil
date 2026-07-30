@@ -195,19 +195,27 @@ public struct ResponseFields: Sendable, Equatable {
     public let utilizationKind: UtilizationKind
     /// Providers that serialize window numbers as JSON strings ("46.5").
     public let allowStringNumbers: Bool
+    /// Providers whose proto3-style JSON marshaling omits zero-valued
+    /// numbers: an absent `used` or `remaining` window field is accepted as
+    /// exactly zero, and only when the declared limit and the other amount
+    /// agree that zero is the omitted value. A present malformed value, or
+    /// an absence whose pair implies a nonzero amount, remains drift.
+    public let zeroOmittedNumbers: Bool
 
     public init(
         utilization: String,
         resetsAt: String,
         windowSeconds: String?,
         utilizationKind: UtilizationKind = .used,
-        allowStringNumbers: Bool = false
+        allowStringNumbers: Bool = false,
+        zeroOmittedNumbers: Bool = false
     ) {
         self.utilization = utilization
         self.resetsAt = resetsAt
         self.windowSeconds = windowSeconds
         self.utilizationKind = utilizationKind
         self.allowStringNumbers = allowStringNumbers
+        self.zeroOmittedNumbers = zeroOmittedNumbers
     }
 }
 
@@ -1283,7 +1291,8 @@ public enum ProviderRegistry {
             resetsAt: "resetTime",
             windowSeconds: nil,
             utilizationKind: .used,
-            allowStringNumbers: true
+            allowStringNumbers: true,
+            zeroOmittedNumbers: true
         ),
         requiredOutputs: RequiredOutputs(minimumWindows: 2, windowIDs: ["session", "weekly"]),
         exhaustiveCollections: [ExhaustiveCollection(

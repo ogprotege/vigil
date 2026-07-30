@@ -1,7 +1,7 @@
 # Provider support matrix
 
 - Status: Current
-- Last reviewed: 2026-07-28
+- Last reviewed: 2026-07-30
 - Review again: whenever `protocol/providers.json`, `ProviderRegistry`, or fixture provenance changes
 
 This is the canonical list of providers that Vigil can connect. It describes the current code, not a planned integration list.
@@ -36,7 +36,7 @@ Fixture coverage proves deterministic behavior for the committed body. It does n
 | xAI API (`xai`) | Management Key with billing read access, plus team ID. | Prepaid balance in USD. | Vendor-documented signed-cent contract with a synthetic fixture. | Established |
 | Z.ai Coding Plan (`zai`) | GLM Coding Plan API key. | A provider-declared four-hour or five-hour token session window, a weekly token window, and web-search used, limit, and remaining counters. | Community research plus synthetic duration and hostile-input cases. The endpoint is undocumented. | Experimental |
 | Cursor (`cursor`) | `WorkosCursorSessionToken` cookie value. | Plan quota, optional auto-selected and API-model percentages, billing reset, and compatible on-demand spend and limit pairs. | Community research plus synthetic fallback coverage. The web endpoint is undocumented. | Experimental |
-| Kimi K3 (`kimi_code`) | Kimi Code API key. | Five-hour and weekly coding-plan windows with exact used, limit, and remaining values when returned. | Community research. The coding-plan endpoint is undocumented. | Experimental |
+| Kimi K3 (`kimi_code`) | Kimi Code API key. | Five-hour and weekly coding-plan windows with exact used, limit, and remaining values when returned. | Community research plus a sanitized 2026-07-30 production capture confirming zero-valued amounts are omitted. The coding-plan endpoint is undocumented. | Experimental |
 
 ## Interpretation corrections
 

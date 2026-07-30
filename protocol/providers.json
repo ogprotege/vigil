@@ -1690,7 +1690,8 @@
       "responseFields": {
         "utilization": "used",
         "resetsAt": "resetTime",
-        "allowStringNumbers": true
+        "allowStringNumbers": true,
+        "zeroOmittedNumbers": true
       },
       "windows": [
         {

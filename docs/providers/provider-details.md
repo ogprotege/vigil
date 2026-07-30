@@ -1,7 +1,7 @@
 # Provider details
 
 - Status: Current
-- Last reviewed: 2026-07-26
+- Last reviewed: 2026-07-30
 - Review again: whenever provider authentication, mapping, or user-facing setup changes
 
 The [support matrix](support-matrix.md) is the canonical provider list. This guide explains how to interpret each integration without repeating its evidence table.
@@ -105,6 +105,8 @@ The mapper selects one compatible plan source from individual plan, individual o
 ### Kimi K3
 
 Kimi K3 uses a Kimi Code key, not a Moonshot open-platform key. The current contract requires a 300-minute session entry and a weekly usage object. Both can contain exact used, limit, and remaining values.
+
+The endpoint serializes protobuf-style JSON that omits zero-valued numbers, confirmed by a sanitized 2026-07-30 production capture: a session with zero usage arrives without its `used` field, and a fully used window can arrive without `remaining`. Vigil accepts the omission as exactly zero, and only when the declared limit and the other amount agree that zero is the omitted value. A present malformed amount, or an absence whose pair implies a nonzero amount, still marks the response incompatible.
 
 The endpoint is experimental. An unexpected duration or collection identity marks the response incompatible rather than pretending that the changed data is understood.
 

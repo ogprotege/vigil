@@ -1,0 +1,8 @@
+{
+  "planLabel": "LEVEL_ADVANCED",
+  "incomplete": false,
+  "windows": [
+    { "id": "session", "utilization": 0, "used": 0, "limit": 100, "remaining": 100, "resetsAt": "2026-07-30T16:34:42Z", "windowSeconds": 18000, "secondary": false },
+    { "id": "weekly", "utilization": 18, "used": 18, "limit": 100, "remaining": 82, "resetsAt": "2026-08-01T14:34:42Z", "windowSeconds": 604800, "secondary": false }
+  ]
+}

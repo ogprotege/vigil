@@ -4,6 +4,10 @@
 
 Anything that changes shipped behavior gets an entry here: TestFlight app builds, provider contracts, registry changes, and local-state migrations. Historical command-line releases remain below as project history.
 
+## Unreleased
+
+- Fixed Kimi K3 permanently reporting "Provider changed" since 2026-07-28: the endpoint's protobuf-style JSON omits zero-valued numbers, so a session with zero usage arrives without its `used` field and the strict contract rejected the response. A sanitized production capture (live_sanitized provenance) now proves the shape; the new per-provider `zeroOmittedNumbers` contract flag accepts an omitted `used` or `remaining` as exactly zero, and only when the declared limit and the other amount agree that zero is the omitted value. Absent amounts on providers without the flag, present malformed amounts, and absences whose pair implies a nonzero amount still mark the response incompatible.
+
 ## 0.15.0 (20) — TestFlight internal candidate, 2026-07-29
 
 - Fixed the TestFlight 0xdead10cc kill on build 19's launch path: `AppModel` construction ran inside `App.main()` before UIApplicationMain and held an App Group snapshot lock while decoding, where a prewarmed or background-relaunched process can be suspended and no background-task assertion can exist. The launch initializer now takes no App Group lock; the initial disk load runs through an idempotent `ensureLoadedFromDisk()` from scene activation, the root scene task, and the background-refresh handler, and presentation shows a launch frame until the load completes.
