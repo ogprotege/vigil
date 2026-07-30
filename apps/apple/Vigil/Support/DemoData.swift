@@ -66,6 +66,13 @@ enum DemoData {
         return ["claude:demo": [sample]]
     }
 
+    /// UI-test-only hook: holds a link attempt open instead of contacting a
+    /// provider, so tests can assert the linking overlay's accessibility
+    /// structure deterministically. Cancellation ends the hold.
+    static func linkHoldRequested(in environment: [String: String]) -> Bool {
+        environment["VIGIL_UI_TEST_LINK_HOLD"] == "1"
+    }
+
     static func seed(
         now: Date = Date(),
         claudeStatus: SnapshotStatus = .ok

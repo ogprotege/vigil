@@ -144,6 +144,58 @@ final class VigilAccessibilityUITests: XCTestCase {
         XCTAssertTrue(destructiveAction.exists)
     }
 
+    func testLinkingOverlaySpeaksItsCopyAndKeepsCancelFocusable() {
+        launch(tab: "home", demo: false, linkHold: true)
+
+        tapVisiblePortion(of: reachableElement("vigil.setup.other"))
+        XCTAssertTrue(app.navigationBars["Other provider"].waitForExistence(timeout: 5))
+
+        let providerRow = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS %@", "OpenRouter")
+        ).firstMatch
+        let catalogScroll = app.scrollViews.firstMatch
+        for _ in 0..<10 where !providerRow.isHittable {
+            catalogScroll.swipeUp()
+        }
+        providerRow.tap()
+        XCTAssertTrue(app.navigationBars["Direct setup"].waitForExistence(timeout: 5))
+
+        let keyField = app.secureTextFields.firstMatch
+        XCTAssertTrue(keyField.waitForExistence(timeout: 5))
+        keyField.tap()
+        keyField.typeText("sk-or-ui-test\n")
+
+        let submit = app.buttons["Verify and add account"]
+        if !submit.isHittable { app.swipeUp() }
+        submit.tap()
+
+        // VIGIL_UI_TEST_LINK_HOLD keeps the overlay up without networking.
+        let spokenCopy = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "label CONTAINS %@",
+                "Nothing is saved until verification finishes."
+            )
+        ).firstMatch
+        XCTAssertTrue(
+            spokenCopy.waitForExistence(timeout: 5),
+            "The overlay must speak its nothing-is-saved promise, not a replacement label."
+        )
+        let cancel = app.buttons["vigil.addAccount.cancelLinking"]
+        XCTAssertTrue(
+            cancel.waitForExistence(timeout: 3),
+            "Cancel must be a focusable button, not a rotor-only action."
+        )
+        XCTAssertFalse(
+            app.buttons["vigil.addAccount.close"].exists,
+            "The covered form must leave the accessibility order while the overlay shows."
+        )
+        cancel.tap()
+        XCTAssertTrue(
+            app.buttons["vigil.addAccount.close"].waitForExistence(timeout: 5),
+            "Cancel must dismiss the overlay and restore the form."
+        )
+    }
+
     private func assertCriticalActions(in scenario: ContentSizeScenario) {
         assertFirstRunSetupRoutes(in: scenario)
         assertHomeAndAccountDetailRoutes(in: scenario)
@@ -224,7 +276,8 @@ final class VigilAccessibilityUITests: XCTestCase {
         contentSizeCategory: UIContentSizeCategory? = nil,
         claudeAuthExpired: Bool = false,
         claudeProviderChanged: Bool = false,
-        demoHistory: Bool = false
+        demoHistory: Bool = false,
+        linkHold: Bool = false
     ) {
         if app?.state != .notRunning {
             app?.terminate()
@@ -235,6 +288,7 @@ final class VigilAccessibilityUITests: XCTestCase {
         app.launchEnvironment["VIGIL_DEMO_CLAUDE_AUTH_EXPIRED"] = claudeAuthExpired ? "1" : "0"
         app.launchEnvironment["VIGIL_DEMO_CLAUDE_PROVIDER_CHANGED"] = claudeProviderChanged ? "1" : "0"
         app.launchEnvironment["VIGIL_DEMO_HISTORY"] = demoHistory ? "1" : "0"
+        app.launchEnvironment["VIGIL_UI_TEST_LINK_HOLD"] = linkHold ? "1" : "0"
         app.launchEnvironment["VIGIL_UI_TEST_FORCE_ACTIVE"] = "1"
         app.launchEnvironment["VIGIL_UI_TEST_SUPPRESS_STORAGE_NOTICE"] = "1"
         if let contentSizeCategory {
