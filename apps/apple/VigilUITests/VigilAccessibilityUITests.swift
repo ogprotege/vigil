@@ -73,6 +73,34 @@ final class VigilAccessibilityUITests: XCTestCase {
         )
     }
 
+    func testHistoryRowSpeaksTheReadingItDiscloses() {
+        launch(tab: "home", demo: true, demoHistory: true)
+
+        tapVisiblePortion(of: reachableElement("vigil.home.account.claude"))
+        XCTAssertTrue(
+            app.navigationBars["Claude"].waitForExistence(timeout: 5),
+            "The Claude Home card must open account detail."
+        )
+
+        // Scroll until the observed-history disclosure row is on screen,
+        // matched by either spoken label so the failure names the bug.
+        let readingRow = app.buttons["58% left · 5-hour limit"]
+        let genericRow = app.buttons["History reading details"]
+        let scrollView = app.scrollViews.firstMatch
+        for _ in 0..<10 where !(readingRow.exists || genericRow.exists) {
+            scrollView.swipeUp()
+        }
+
+        XCTAssertTrue(
+            readingRow.exists,
+            "The history disclosure must speak the reading it summarizes, not a generic phrase."
+        )
+        XCTAssertFalse(
+            genericRow.exists,
+            "A generic spoken label hides the reading from VoiceOver users."
+        )
+    }
+
     func testDiagnosticExportIsReachableAtDefaultContentSize() {
         launch(tab: "settings", demo: true)
 
@@ -195,7 +223,8 @@ final class VigilAccessibilityUITests: XCTestCase {
         demo: Bool,
         contentSizeCategory: UIContentSizeCategory? = nil,
         claudeAuthExpired: Bool = false,
-        claudeProviderChanged: Bool = false
+        claudeProviderChanged: Bool = false,
+        demoHistory: Bool = false
     ) {
         if app?.state != .notRunning {
             app?.terminate()
@@ -205,6 +234,7 @@ final class VigilAccessibilityUITests: XCTestCase {
         app.launchEnvironment["VIGIL_DEMO"] = demo ? "1" : "0"
         app.launchEnvironment["VIGIL_DEMO_CLAUDE_AUTH_EXPIRED"] = claudeAuthExpired ? "1" : "0"
         app.launchEnvironment["VIGIL_DEMO_CLAUDE_PROVIDER_CHANGED"] = claudeProviderChanged ? "1" : "0"
+        app.launchEnvironment["VIGIL_DEMO_HISTORY"] = demoHistory ? "1" : "0"
         app.launchEnvironment["VIGIL_UI_TEST_FORCE_ACTIVE"] = "1"
         app.launchEnvironment["VIGIL_UI_TEST_SUPPRESS_STORAGE_NOTICE"] = "1"
         if let contentSizeCategory {

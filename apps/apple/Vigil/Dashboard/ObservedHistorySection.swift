@@ -305,7 +305,7 @@ private struct HistorySampleRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("History reading details")
+            .accessibilityLabel(primaryValue)
             .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
             .accessibilityHint(isExpanded ? "Collapses this reading" : "Shows every value in this reading")
 

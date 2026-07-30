@@ -35,6 +35,37 @@ enum DemoData {
         environment["VIGIL_DEMO_HISTORY_RECOVERY"] == "1"
     }
 
+    /// UI-test and screenshot hook: seeds one retained observed reading for
+    /// the demo Claude account so history rows render without any polling.
+    /// It has no effect unless demo mode is also enabled by the caller.
+    static func historySeedRequested(in environment: [String: String]) -> Bool {
+        environment["VIGIL_DEMO_HISTORY"] == "1"
+    }
+
+    /// One observed Claude reading whose row summary is deterministic:
+    /// "58% left · 5-hour limit". Keyed by account key for direct
+    /// assignment to AppModel.recentHistorySamples.
+    static func historySamples(now: Date = Date()) -> [String: [UsageHistorySample]] {
+        let sample = UsageHistorySample(
+            source: .observed,
+            accountKey: "claude:demo",
+            providerId: "claude",
+            recordedAt: now.addingTimeInterval(-3_600),
+            retrievedAt: now.addingTimeInterval(-3_600),
+            status: .ok,
+            windows: [
+                UsageHistoryWindow(
+                    providerId: "claude",
+                    id: "session",
+                    utilization: 42,
+                    resetAt: now.addingTimeInterval(2 * 3_600),
+                    windowSeconds: 18_000
+                )
+            ]
+        )
+        return ["claude:demo": [sample]]
+    }
+
     static func seed(
         now: Date = Date(),
         claudeStatus: SnapshotStatus = .ok
