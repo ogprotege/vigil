@@ -1,0 +1,55 @@
+name: Bug report
+description: Something in Vigil behaved wrong
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If an account shows **Provider changed**, use the
+        [provider change report](https://github.com/ogprotege/vigil/issues/new?template=provider-change-report.yml)
+        instead — it collects what a mapping fix needs.
+
+        **Sanitize everything you paste.** Never include an API key, token, cookie, or
+        session credential, and remove account identifiers and email addresses.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Accounts
+        2. ...
+  - type: input
+    id: version
+    attributes:
+      label: Vigil version and build
+      description: Shown in Vigil's Settings.
+      placeholder: "0.15.0 (20)"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and iOS version
+      placeholder: "iPhone 16 Pro, iOS 26.6"
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostic export (optional)
+      description: Account detail offers a credential-free diagnostic export. Review its contents yourself, then paste or attach the relevant part.
+  - type: checkboxes
+    id: sanitized
+    attributes:
+      label: Sanitization confirmed
+      options:
+        - label: I checked that this report contains no API key, token, cookie, session credential, account or organization identifier, or email address.
+          required: true

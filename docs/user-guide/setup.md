@@ -2,7 +2,7 @@
 
 Vigil requires iOS 17 or later. All account setup happens on the iPhone, except that some experimental credentials may first need to be copied from a provider website.
 
-> Last reviewed: 2026-07-26
+> Last reviewed: 2026-07-30
 >
 > Review again: when setup or provider support changes
 
@@ -69,7 +69,7 @@ Perplexity is not supported in this release. There is no Perplexity entry hidden
 
 Vigil normally verifies a credential before saving it.
 
-**Save anyway** appears only when verification could not run because of a network problem or Vigil's shared provider cooldown. Choosing it stores the account and credential without an accepted usage reading. The next allowed successful refresh must establish the first reading.
+**Save anyway** appears only when verification could not produce an accepted reading through no fault of the credential: a network problem, Vigil's shared provider cooldown, or a provider response this version of Vigil cannot read ([When a provider changes](provider-changes.md)). Choosing it stores the account and credential without an accepted usage reading. The next allowed successful refresh must establish the first reading.
 
 This option does not turn an unsupported provider into a supported one. It also does not bypass a provider rejection or malformed credential check.
 

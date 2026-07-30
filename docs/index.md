@@ -14,7 +14,7 @@
 
 > Status: current documentation
 >
-> Last reviewed: 2026-07-27
+> Last reviewed: 2026-07-30
 >
 > Review again: before each release
 
@@ -36,6 +36,7 @@ These guides describe the current product from the user's side of the screen.
 - **[History and imports](user-guide/history-and-imports.md)** separates local observations from official provider history.
 - **[Privacy, deletion, and notifications](user-guide/privacy-deletion-notifications.md)** covers Keychain storage, local files, backups, alerts, app lock, exports, and deletion.
 - **[Troubleshooting](user-guide/troubleshooting.md)** gives the correct response for common setup, provider, and storage states.
+- **[When a provider changes](user-guide/provider-changes.md)** explains the **Provider changed** state, retained data, unverified saves, and how to report a change so a fix can ship.
 
 ## Understand the data
 
