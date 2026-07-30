@@ -161,6 +161,17 @@ enum UsagePresentation {
         statusTitle(status) + ", data from "
     }
 
+    /// Freshness clause for a card's spoken accessibility summary, which
+    /// replaces the card's visible children for VoiceOver. Same honesty rule
+    /// as the visible line: an ok snapshot's `fetchedAt` is a real check
+    /// time; a degraded snapshot's `fetchedAt` is when the shown data was
+    /// last accepted, while checks may still run every minute — so the
+    /// spoken clause ages the data and never claims a check time.
+    static func accessibilityFreshness(status: SnapshotStatus, fetchedAt: Date) -> String {
+        let stamp = fetchedAt.formatted(date: .abbreviated, time: .shortened)
+        return status == .ok ? "Last checked \(stamp)" : "Data from \(stamp)"
+    }
+
     /// One phrase for "this number is not current", used wherever a preserved
     /// last-good value is shown. A non-ok status names the reason; an ok-but-old
     /// snapshot reports its age. Never returns something that reads as live.
