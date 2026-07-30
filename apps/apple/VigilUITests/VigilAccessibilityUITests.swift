@@ -73,6 +73,34 @@ final class VigilAccessibilityUITests: XCTestCase {
         )
     }
 
+    func testHistoryRowSpeaksTheReadingItDiscloses() {
+        launch(tab: "home", demo: true, demoHistory: true)
+
+        tapVisiblePortion(of: reachableElement("vigil.home.account.claude"))
+        XCTAssertTrue(
+            app.navigationBars["Claude"].waitForExistence(timeout: 5),
+            "The Claude Home card must open account detail."
+        )
+
+        // Scroll until the observed-history disclosure row is on screen,
+        // matched by either spoken label so the failure names the bug.
+        let readingRow = app.buttons["58% left · 5-hour limit"]
+        let genericRow = app.buttons["History reading details"]
+        let scrollView = app.scrollViews.firstMatch
+        for _ in 0..<10 where !(readingRow.exists || genericRow.exists) {
+            scrollView.swipeUp()
+        }
+
+        XCTAssertTrue(
+            readingRow.exists,
+            "The history disclosure must speak the reading it summarizes, not a generic phrase."
+        )
+        XCTAssertFalse(
+            genericRow.exists,
+            "A generic spoken label hides the reading from VoiceOver users."
+        )
+    }
+
     func testDiagnosticExportIsReachableAtDefaultContentSize() {
         launch(tab: "settings", demo: true)
 
@@ -114,6 +142,58 @@ final class VigilAccessibilityUITests: XCTestCase {
         )
         let destructiveAction = app.buttons["Remove account"]
         XCTAssertTrue(destructiveAction.exists)
+    }
+
+    func testLinkingOverlaySpeaksItsCopyAndKeepsCancelFocusable() {
+        launch(tab: "home", demo: false, linkHold: true)
+
+        tapVisiblePortion(of: reachableElement("vigil.setup.other"))
+        XCTAssertTrue(app.navigationBars["Other provider"].waitForExistence(timeout: 5))
+
+        let providerRow = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS %@", "OpenRouter")
+        ).firstMatch
+        let catalogScroll = app.scrollViews.firstMatch
+        for _ in 0..<10 where !providerRow.isHittable {
+            catalogScroll.swipeUp()
+        }
+        providerRow.tap()
+        XCTAssertTrue(app.navigationBars["Direct setup"].waitForExistence(timeout: 5))
+
+        let keyField = app.secureTextFields.firstMatch
+        XCTAssertTrue(keyField.waitForExistence(timeout: 5))
+        keyField.tap()
+        keyField.typeText("sk-or-ui-test\n")
+
+        let submit = app.buttons["Verify and add account"]
+        if !submit.isHittable { app.swipeUp() }
+        submit.tap()
+
+        // VIGIL_UI_TEST_LINK_HOLD keeps the overlay up without networking.
+        let spokenCopy = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "label CONTAINS %@",
+                "Nothing is saved until verification finishes."
+            )
+        ).firstMatch
+        XCTAssertTrue(
+            spokenCopy.waitForExistence(timeout: 5),
+            "The overlay must speak its nothing-is-saved promise, not a replacement label."
+        )
+        let cancel = app.buttons["vigil.addAccount.cancelLinking"]
+        XCTAssertTrue(
+            cancel.waitForExistence(timeout: 3),
+            "Cancel must be a focusable button, not a rotor-only action."
+        )
+        XCTAssertFalse(
+            app.buttons["vigil.addAccount.close"].exists,
+            "The covered form must leave the accessibility order while the overlay shows."
+        )
+        cancel.tap()
+        XCTAssertTrue(
+            app.buttons["vigil.addAccount.close"].waitForExistence(timeout: 5),
+            "Cancel must dismiss the overlay and restore the form."
+        )
     }
 
     private func assertCriticalActions(in scenario: ContentSizeScenario) {
@@ -195,7 +275,9 @@ final class VigilAccessibilityUITests: XCTestCase {
         demo: Bool,
         contentSizeCategory: UIContentSizeCategory? = nil,
         claudeAuthExpired: Bool = false,
-        claudeProviderChanged: Bool = false
+        claudeProviderChanged: Bool = false,
+        demoHistory: Bool = false,
+        linkHold: Bool = false
     ) {
         if app?.state != .notRunning {
             app?.terminate()
@@ -205,6 +287,8 @@ final class VigilAccessibilityUITests: XCTestCase {
         app.launchEnvironment["VIGIL_DEMO"] = demo ? "1" : "0"
         app.launchEnvironment["VIGIL_DEMO_CLAUDE_AUTH_EXPIRED"] = claudeAuthExpired ? "1" : "0"
         app.launchEnvironment["VIGIL_DEMO_CLAUDE_PROVIDER_CHANGED"] = claudeProviderChanged ? "1" : "0"
+        app.launchEnvironment["VIGIL_DEMO_HISTORY"] = demoHistory ? "1" : "0"
+        app.launchEnvironment["VIGIL_UI_TEST_LINK_HOLD"] = linkHold ? "1" : "0"
         app.launchEnvironment["VIGIL_UI_TEST_FORCE_ACTIVE"] = "1"
         app.launchEnvironment["VIGIL_UI_TEST_SUPPRESS_STORAGE_NOTICE"] = "1"
         if let contentSizeCategory {

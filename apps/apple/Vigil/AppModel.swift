@@ -211,6 +211,9 @@ final class AppModel {
         let demo = DemoData.seed(claudeStatus: claudeStatus)
         accounts = demo.accounts
         snapshots = demo.snapshots
+        if DemoData.historySeedRequested(in: environment) {
+            recentHistorySamples = DemoData.historySamples()
+        }
         demoHistoryDamageActive = DemoData.historyRecoveryRequested(in: environment)
     }
 

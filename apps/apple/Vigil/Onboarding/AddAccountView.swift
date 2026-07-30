@@ -81,6 +81,7 @@ struct AddAccountView: View {
         }
         .toolbarBackground(VigilPalette.canvas.opacity(0.97), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
+        .accessibilityHidden(isLinking)
         .overlay { if isLinking { linkingOverlay } }
         .alert(
             alertTitle,
@@ -99,12 +100,14 @@ struct AddAccountView: View {
 
     @ToolbarContentBuilder
     private var closeToolbar: some ToolbarContent {
-        ToolbarItem(placement: .cancellationAction) {
-            Button("Close") {
-                cancelLinking()
-                dismiss()
+        if !isLinking {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Close") {
+                    cancelLinking()
+                    dismiss()
+                }
+                .accessibilityIdentifier("vigil.addAccount.close")
             }
-            .accessibilityIdentifier("vigil.addAccount.close")
         }
     }
 
@@ -203,25 +206,32 @@ struct AddAccountView: View {
         ZStack {
             Color.black.opacity(0.58).ignoresSafeArea()
             VStack(spacing: 12) {
-                ProgressView().controlSize(.large).tint(VigilPalette.signal)
-                Text("Checking with the provider")
-                    .font(.headline)
-                    .foregroundStyle(VigilPalette.ink)
-                Text("Nothing is saved until verification finishes.")
-                    .font(.caption)
-                    .foregroundStyle(VigilPalette.inkMuted)
-                    .multilineTextAlignment(.center)
+                VStack(spacing: 12) {
+                    ProgressView().controlSize(.large).tint(VigilPalette.signal)
+                    Text("Checking with the provider")
+                        .font(.headline)
+                        .foregroundStyle(VigilPalette.ink)
+                    Text("Nothing is saved until verification finishes.")
+                        .font(.caption)
+                        .foregroundStyle(VigilPalette.inkMuted)
+                        .multilineTextAlignment(.center)
+                }
+                // One spoken summary for the progress state. Cancel stays a
+                // separately focusable sibling, not a rotor-only action.
+                .accessibilityElement(children: .combine)
                 Button("Cancel") {
                     cancelLinking()
                 }
                 .buttonStyle(.bordered)
                 .tint(VigilPalette.inkMuted)
+                .accessibilityIdentifier("vigil.addAccount.cancelLinking")
             }
             .padding(24)
             .vigilCard(padding: VigilSpacing.large)
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Verifying account with the provider")
+        // VoiceOver must not wander into the covered form; the base
+        // NavigationStack is also accessibility-hidden while isLinking.
+        .accessibilityAddTraits(.isModal)
     }
 
     @ViewBuilder
@@ -280,6 +290,12 @@ struct AddAccountView: View {
             do {
                 try Task.checkCancellation()
                 guard activeLinkAttemptID == attemptID else { return }
+                if DemoData.linkHoldRequested(in: ProcessInfo.processInfo.environment) {
+                    // UI-test-only: keep the overlay visible so its spoken
+                    // surface can be asserted; no provider is contacted.
+                    // cancelLinking() cancels the sleep (CancellationError).
+                    try await Task.sleep(nanoseconds: 300_000_000_000)
+                }
                 switch source {
                 case .credentials(let credentials):
                     if let relinkTarget {

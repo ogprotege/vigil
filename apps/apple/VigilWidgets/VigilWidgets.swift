@@ -306,6 +306,14 @@ struct CircularUsageView: View {
                 Image(systemName: "link")
             }
             .gaugeStyle(.accessoryCircularCapacity)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(
+                Text(
+                    UsagePresentation.circularFallbackAccessibilityLabel(
+                        accountDisplayName: entry.account?.displayName
+                    )
+                )
+            )
         }
     }
 

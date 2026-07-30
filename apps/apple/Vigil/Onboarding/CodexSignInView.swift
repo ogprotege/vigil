@@ -13,6 +13,7 @@ struct CodexSignInView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var phase: Phase = .requesting
+    @State private var retryAttempt = SignInAttempt()
 
     private enum Phase: Equatable {
         case requesting
@@ -41,6 +42,7 @@ struct CodexSignInView: View {
         #endif
         .preferredColorScheme(.dark)
         .task { await run() }
+        .onDisappear { retryAttempt.cancel() }
     }
 
     private var header: some View {
@@ -132,7 +134,7 @@ struct CodexSignInView: View {
         case .failed(let message):
             VStack(alignment: .leading, spacing: VigilSpacing.medium) {
                 Text(message).font(.callout).foregroundStyle(VigilPalette.caution)
-                Button("Try again") { Task { await run() } }
+                Button("Try again") { retryAttempt.start { _ in await run() } }
                     .buttonStyle(.borderedProminent)
                     .tint(VigilPalette.signal)
                     .foregroundStyle(VigilPalette.canvas)
@@ -207,6 +209,9 @@ struct CodexSignInView: View {
         )
         do {
             let (data, response) = try await ProviderUsageSession.shared.data(for: request)
+            // A dismissed or superseded sign-in must never link an account:
+            // the user was told nothing happened.
+            guard !Task.isCancelled else { return }
             guard let http = response as? HTTPURLResponse,
                   (200..<300).contains(http.statusCode)
             else {
