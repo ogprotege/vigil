@@ -1489,6 +1489,16 @@ final class AppModel {
         // Index writes start from in-memory accounts; an unloaded model would
         // silently erase every account already on disk.
         ensureLoadedFromDisk()
+        // Demo identities exist only in memory. Running the real removal here
+        // would persist the remaining demo accounts into the shared account
+        // index, which a real launch must never see (same rule as
+        // reconcileSharedData).
+        if isDemo {
+            accounts.removeAll { $0.key == account.key }
+            snapshots[account.key] = nil
+            nextAllowed[account.key] = nil
+            return
+        }
         guard removingAccountKeys.insert(account.key).inserted else {
             throw LinkError.accountRemovalInProgress
         }

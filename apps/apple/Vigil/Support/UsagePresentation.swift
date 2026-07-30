@@ -152,6 +152,15 @@ enum UsagePresentation {
         }
     }
 
+    /// Freshness-line prefix for a degraded snapshot, completed by a relative
+    /// timestamp ("Provider changed, data from 3 hr ago"). On a degraded
+    /// snapshot `fetchedAt` is when the shown data was last accepted, not the
+    /// last poll attempt — polls may still run every minute — so the line ages
+    /// the data and never claims a check time.
+    static func retainedFreshnessPrefix(_ status: SnapshotStatus) -> String {
+        statusTitle(status) + ", data from "
+    }
+
     /// One phrase for "this number is not current", used wherever a preserved
     /// last-good value is shown. A non-ok status names the reason; an ok-but-old
     /// snapshot reports its age. Never returns something that reads as live.

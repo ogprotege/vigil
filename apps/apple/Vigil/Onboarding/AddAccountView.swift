@@ -37,6 +37,35 @@ struct AddAccountView: View {
         case confirmReplace(LinkSource, [String])
     }
 
+    enum LinkFailureResolution: Equatable {
+        case offerUnverifiedSave(String)
+        case offerReplace([String])
+        case fail(String)
+    }
+
+    /// Maps a link failure to the alert the user should see. Every state that
+    /// can be verified later — network trouble, a provider cooldown, or a
+    /// provider response this Vigil build cannot read — offers "Save anyway";
+    /// a credential the provider rejected never does. Without the
+    /// schemaChanged path here, removing a drifted account strands the user:
+    /// re-adding it re-verifies against the same drifted response and fails.
+    static func linkFailureResolution(for error: any Error) -> LinkFailureResolution {
+        switch error {
+        case AppModel.LinkError.verifyFailed(.network):
+            return .offerUnverifiedSave("Network problem while verifying. Save and verify later?")
+        case AppModel.LinkError.verifyFailed(.schemaChanged):
+            return .offerUnverifiedSave(
+                "The provider responded, but this version of Vigil couldn't read its usage fields. Save anyway to keep the account linked, then update Vigil."
+            )
+        case AppModel.LinkError.verificationDeferred(_):
+            return .offerUnverifiedSave("A provider cooldown deferred verification. Save now and verify at the next allowed check?")
+        case AppModel.LinkError.wouldReplace(let labels):
+            return .offerReplace(labels)
+        default:
+            return .fail(error.localizedDescription)
+        }
+    }
+
     private enum LinkSource {
         case credentials(Credentials)
     }
@@ -271,18 +300,16 @@ struct AddAccountView: View {
                 dismiss()
             } catch is CancellationError {
                 return
-            } catch AppModel.LinkError.verifyFailed(.network) {
-                guard !Task.isCancelled, activeLinkAttemptID == attemptID else { return }
-                pending = .confirmUnverified(source, "Network problem while verifying. Save and verify later?")
-            } catch AppModel.LinkError.verificationDeferred(_) {
-                guard !Task.isCancelled, activeLinkAttemptID == attemptID else { return }
-                pending = .confirmUnverified(source, "A provider cooldown deferred verification. Save now and verify at the next allowed check?")
-            } catch AppModel.LinkError.wouldReplace(let labels) {
-                guard !Task.isCancelled, activeLinkAttemptID == attemptID else { return }
-                pending = .confirmReplace(source, labels)
             } catch {
                 guard !Task.isCancelled, activeLinkAttemptID == attemptID else { return }
-                pending = .failed(error.localizedDescription)
+                switch Self.linkFailureResolution(for: error) {
+                case .offerUnverifiedSave(let message):
+                    pending = .confirmUnverified(source, message)
+                case .offerReplace(let labels):
+                    pending = .confirmReplace(source, labels)
+                case .fail(let message):
+                    pending = .failed(message)
+                }
             }
         }
     }
