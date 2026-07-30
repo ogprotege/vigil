@@ -34,6 +34,14 @@ enum BackgroundRefresh {
         }
     }
 
+    /// A BGAppRefreshTask relaunch never passes through scene activation, so
+    /// the background path loads persisted accounts itself — inside the
+    /// system's task assertion — before refreshing.
+    static func performRefresh(model: AppModel) async {
+        await model.ensureLoadedFromDisk()
+        await model.refreshAll(surface: "bgtask")
+    }
+
     private static func handle(_ task: BGAppRefreshTask, model: AppModel) {
         schedule() // keep the chain alive
 
@@ -50,7 +58,7 @@ enum BackgroundRefresh {
         }
 
         let work = Task {
-            await model.refreshAll(surface: "bgtask")
+            await performRefresh(model: model)
             completeOnce(success: true)
         }
         task.expirationHandler = {

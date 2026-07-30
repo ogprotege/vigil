@@ -404,6 +404,20 @@ public struct SnapshotStore: Sendable {
                 reason: "The snapshot account key does not match its storage key."
             )
         }
+        // Encoding is pure; do it before taking the cross-process lock so the
+        // hold window (0xdead10cc exposure) covers only the file rotation.
+        // The existing-current decode stays inside the lock on purpose: it
+        // gates the corrupt-current-is-preserved contract and must see the
+        // same bytes it rotates.
+        let data: Data
+        do {
+            data = try Self.encoder().encode(snapshot)
+        } catch {
+            throw StorePersistenceError.writeFailed(
+                path: currentURL.path,
+                reason: error.localizedDescription
+            )
+        }
         try PersistenceFileIO.withExclusiveLock(at: lockURL(accountKey)) {
             if let existing = try PersistenceFileIO.readIfPresent(at: currentURL) {
                 do {
@@ -425,15 +439,6 @@ public struct SnapshotStore: Sendable {
                 try PersistenceFileIO.writeAtomically(existing, to: previousURL)
             }
 
-            let data: Data
-            do {
-                data = try Self.encoder().encode(snapshot)
-            } catch {
-                throw StorePersistenceError.writeFailed(
-                    path: currentURL.path,
-                    reason: error.localizedDescription
-                )
-            }
             try PersistenceFileIO.writeAtomically(data, to: currentURL)
         }
     }
@@ -464,27 +469,30 @@ public struct SnapshotStore: Sendable {
 
     private func read(accountKey: String, kind: String) throws -> ProviderSnapshot? {
         let fileURL = url(accountKey, kind)
-        return try PersistenceFileIO.withExclusiveLock(at: lockURL(accountKey)) {
-            guard let data = try PersistenceFileIO.readIfPresent(at: fileURL) else {
-                return nil
-            }
-            do {
-                let decoded = try Self.decoder().decode(ProviderSnapshot.self, from: data)
-                guard decoded.accountKey == accountKey else {
-                    throw StorePersistenceError.corruptData(
-                        path: fileURL.path,
-                        reason: "The stored snapshot belongs to a different account key."
-                    )
-                }
-                return decoded
-            } catch let error as StorePersistenceError {
-                throw error
-            } catch {
+        // Hold the cross-process lock only for the consistent byte copy.
+        // Decoding runs on the private copy after release: a suspension while
+        // any App Group lock is held kills the process (0xdead10cc), so the
+        // hold window must not include JSON decoding.
+        let data = try PersistenceFileIO.withExclusiveLock(at: lockURL(accountKey)) {
+            try PersistenceFileIO.readIfPresent(at: fileURL)
+        }
+        guard let data else { return nil }
+        do {
+            let decoded = try Self.decoder().decode(ProviderSnapshot.self, from: data)
+            guard decoded.accountKey == accountKey else {
                 throw StorePersistenceError.corruptData(
                     path: fileURL.path,
-                    reason: error.localizedDescription
+                    reason: "The stored snapshot belongs to a different account key."
                 )
             }
+            return decoded
+        } catch let error as StorePersistenceError {
+            throw error
+        } catch {
+            throw StorePersistenceError.corruptData(
+                path: fileURL.path,
+                reason: error.localizedDescription
+            )
         }
     }
 }
