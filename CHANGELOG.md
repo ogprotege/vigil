@@ -4,7 +4,7 @@
 
 Anything that changes shipped behavior gets an entry here: TestFlight app builds, provider contracts, registry changes, and local-state migrations. Historical command-line releases remain below as project history.
 
-## Unreleased
+## 0.15.0 (21) — TestFlight internal candidate, 2026-07-30
 
 - Added a user guide for provider changes (`docs/user-guide/provider-changes.md`) covering the **Provider changed** state, retained-data honesty, the restored **Save anyway** recovery, and how to report a change with a sanitized capture. Added GitHub issue templates for provider change reports and bug reports. Aligned the setup, troubleshooting, and reading-limits guides with the restored **Save anyway** path and the one-minute polling floor with on-demand manual refresh shipped in build 19.
 - Fixed Remove account doing nothing: confirming the removal dialog read the pending account from state that dialog dismissal had already cleared, so the removal silently never started. Both Accounts-screen dialogs now receive the account through the dialog's `presenting:` data, and a UI test walks the confirm flow end to end. Demo mode now removes accounts in memory only instead of writing demo identities into the shared account index.

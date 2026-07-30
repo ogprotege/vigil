@@ -210,11 +210,12 @@ The complete simulator command and CI-equivalent gate live in the
 
 ## Project status
 
-These docs describe **Vigil 0.15.0, build 20** in the current source tree. The
-latest Internal TestFlight candidate is build 20, which removes every App Group
-file lock from the app's launch path so a prewarmed or background-relaunched
-process can no longer be killed mid-lock (RUNNINGBOARD 0xdead10cc).
-Consult the [build 20 release record](docs/releases/0.15.0-20.md)
+These docs describe **Vigil 0.15.0, build 21** in the current source tree. The
+latest Internal TestFlight candidate is build 21, which fixes account removal
+doing nothing, restores re-linking a provider whose response this build cannot
+read, makes degraded freshness honest on screen and in VoiceOver, and recovers
+Kimi K3 accounts stranded by the endpoint's omitted zero-valued fields.
+Consult the [build 21 release record](docs/releases/0.15.0-21.md)
 before further distribution work.
 
 Runtime provider behavior can change outside Vigil's control. Experimental
