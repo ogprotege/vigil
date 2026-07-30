@@ -2,7 +2,7 @@
 
 Vigil presents provider data without turning estimates or labels into invented precision.
 
-> Last reviewed: 2026-07-26
+> Last reviewed: 2026-07-30
 >
 > Review again: when ranking, freshness, or presentation changes
 
@@ -49,13 +49,13 @@ History keeps the earlier observation in its original reset segment. A new reset
 | **Offline** | The provider could not be reached. |
 | **Waiting** | The account has no accepted provider reading yet. |
 
-For failed checks, Vigil can retain the last accepted windows and metrics. The degraded label and last-checked time are part of the value. Do not read a retained value as current.
+For failed checks, Vigil can retain the last accepted windows and metrics. The degraded label and the age of the retained data — "Provider changed, data from 2 hours ago" — are part of the value. Do not read a retained value as current. See [When a provider changes](provider-changes.md) for the recovery and reporting path.
 
 ## Refresh timing
 
 Pull-to-refresh, the toolbar refresh button, foreground checks, background tasks, and widgets all use the same account-level polling gate.
 
-The normal provider floor is five minutes plus jitter. A manual refresh cannot bypass it. Provider rate limits can require a longer wait. iOS can delay background tasks and widget updates, so Vigil does not promise fixed sampling intervals.
+The automatic polling floor is one minute plus jitter for every provider. A manual pull-to-refresh fetches on demand — it skips the floor but never interrupts an in-flight check or a rate-limit backoff. Provider rate limits can require a longer wait. iOS can delay background tasks and widget updates, so Vigil does not promise fixed sampling intervals.
 
 ## Account detail
 
@@ -66,7 +66,7 @@ Open an account to inspect:
 - used, limit, and remaining amounts when available;
 - balances, spend, and other provider metrics;
 - plan context;
-- last-checked and next-allowed times;
+- the time of the last accepted reading and the next allowed check;
 - observed and imported history; and
 - a credential-free account diagnostic export.
 

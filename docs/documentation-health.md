@@ -4,7 +4,7 @@ This page records documentation coverage, review triggers, and known debt. It is
 
 > Status: current
 >
-> Last reviewed: 2026-07-27
+> Last reviewed: 2026-07-30
 >
 > Review again: before each release and after any product-boundary change
 
@@ -22,7 +22,7 @@ No known critical documentation defect remains open. Historical organization and
 | Architecture and development | [Development architecture](development/architecture.md) | Current | Storage, scheduling, lifecycle, build, or diagnostic change |
 | Security and privacy | [Security policy](../SECURITY.md) and [privacy guide](user-guide/privacy-deletion-notifications.md) | Current | Storage, network, Keychain, notification, widget, export, or deletion change |
 | Release procedure | [iOS release runbook](development/release.md) | Current | Signing, CI, archive, upload, or App Store Connect change |
-| Release evidence | [0.15.0 (19) record](releases/0.15.0-19.md) | In progress | Every completed or failed release gate |
+| Release evidence | [0.15.0 (20) record](releases/0.15.0-20.md) | In progress | Every completed or failed release gate |
 | Decisions | [ADR index](decisions/README.md) | Current | A durable architectural decision is accepted, amended, or superseded |
 
 ## Known documentation debt
