@@ -210,10 +210,11 @@ The complete simulator command and CI-equivalent gate live in the
 
 ## Project status
 
-These docs describe **Vigil 0.15.0, build 19** in the current source tree. The
-latest Internal TestFlight candidate is build 19, which makes pull-to-refresh
-fetch on demand and lowers the provider polling floor to sixty seconds.
-Consult the [build 19 release record](docs/releases/0.15.0-19.md)
+These docs describe **Vigil 0.15.0, build 20** in the current source tree. The
+latest Internal TestFlight candidate is build 20, which removes every App Group
+file lock from the app's launch path so a prewarmed or background-relaunched
+process can no longer be killed mid-lock (RUNNINGBOARD 0xdead10cc).
+Consult the [build 20 release record](docs/releases/0.15.0-20.md)
 before further distribution work.
 
 Runtime provider behavior can change outside Vigil's control. Experimental

@@ -53,7 +53,7 @@ These guides describe the current product from the user's side of the screen.
 - **[Provider contribution](development/provider-contribution.md)** is the complete integration checklist.
 - **[Diagnostic schema](development/diagnostic-schema.md)** defines the credential-free export boundary.
 - **[iOS release runbook](development/release.md)** controls archive, signing, approval, upload, and TestFlight verification.
-- **[Current 0.15.0 (19) release record](releases/0.15.0-19.md)** records the exact release state and remaining gates.
+- **[Current 0.15.0 (20) release record](releases/0.15.0-20.md)** records the exact release state and remaining gates.
 - **[Architecture decisions](decisions/README.md)** preserves durable technical decisions and their status.
 - **[Documentation health](documentation-health.md)** tracks review triggers and known documentation debt.
 
