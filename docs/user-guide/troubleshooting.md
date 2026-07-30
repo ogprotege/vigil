@@ -2,7 +2,7 @@
 
 Start with the status shown beside the account. Vigil keeps failed, deferred, and stale checks visible so an old value does not look current.
 
-> Last reviewed: 2026-07-26
+> Last reviewed: 2026-07-30
 >
 > Review again: when an error state or recovery flow changes
 
@@ -11,11 +11,11 @@ Start with the status shown beside the account. Vigil keeps failed, deferred, an
 | What you see | What it means | What to do |
 |---|---|---|
 | **Waiting for the first check** | The account was saved without an accepted reading, or its first check has not completed. | Connect to the network and refresh after the displayed provider cooldown. |
-| **Providers were checked recently** | The shared polling gate deferred another request. | Wait until the next safe refresh time. Repeated taps and widget reloads cannot bypass it. |
+| **Providers were checked recently** | The shared polling gate deferred a request. | Wait or pull to refresh — a manual pull fetches on demand but never interrupts an in-flight check or a rate-limit cooldown. Widget reloads cannot bypass the gate. |
 | **Cooling down** | The provider rate-limited the request. | Keep the last accepted value in context and wait. The delay can be longer than five minutes. |
 | **Offline** | Vigil could not reach the provider. | Check connectivity, VPN, DNS, and provider availability, then refresh when allowed. |
 | **Re-link needed** | The provider rejected or expired the credential. | Open the account and use **Re-link**. Revoke an old copied key at the provider if needed. |
-| **Provider changed** | The endpoint responded, but required fields no longer mapped safely. | Update Vigil if a newer build exists. Do not treat retained values as live. |
+| **Provider changed** | The endpoint responded, but required fields no longer mapped safely. | Update Vigil if a newer build exists, and see [When a provider changes](provider-changes.md) to recover and report it. Do not treat retained values as live. |
 | **Stale** | The last accepted reading is over 30 minutes old. | Check the last-checked and next-allowed times. Open the app and refresh when allowed. |
 | **Awaiting update** | A provider reset passed, so Vigil hid the old quota. | Wait for a successful provider check. Vigil will not assume the new usage is zero. |
 | **Provider reports no finite quota** | The provider authenticated but returned no reset quota. | Open account detail for balances, spend, or other metrics. |
@@ -36,9 +36,9 @@ The shipped setup flow does not provide manual Codex token and account-ID entry.
 
 ## “Save anyway” appeared
 
-Vigil could not perform verification because of a network failure or its shared provider cooldown. **Save anyway** stores the credential without claiming it is valid. The account remains in **Waiting** or another degraded state until a later provider check succeeds.
+Vigil could not verify the account: a network failure, its shared provider cooldown, or a provider response this version of Vigil cannot read (**Provider changed** — see [When a provider changes](provider-changes.md)). **Save anyway** stores the credential without claiming it is valid. The account remains in **Waiting** or another degraded state until a later provider check succeeds.
 
-If the provider explicitly rejected a credential, correct it or sign in again. Save anyway is not a bypass for that rejection.
+If the provider explicitly rejected a credential, correct it or sign in again. Save anyway never appears for that rejection and is not a bypass of it.
 
 ## No Perplexity option appears
 

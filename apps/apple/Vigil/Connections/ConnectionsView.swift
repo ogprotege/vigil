@@ -54,19 +54,25 @@ struct ConnectionsView: View {
             }
         }
         .sheet(isPresented: $showAddAccount) { AddAccountView() }
+        // Both dialogs hand the pending account to their action closures via
+        // `presenting:`. Tapping any dialog button synchronously dismisses the
+        // dialog, and dismissal clears the pending state — so an action that
+        // read the @State optional from its later Task always found nil and
+        // silently removed nothing.
         .confirmationDialog(
             "Remove \(accountPendingRemoval?.displayName ?? "account")?",
             isPresented: .init(
                 get: { accountPendingRemoval != nil },
                 set: { if !$0 { accountPendingRemoval = nil } }
             ),
-            titleVisibility: .visible
-        ) {
+            titleVisibility: .visible,
+            presenting: accountPendingRemoval
+        ) { account in
             Button("Remove account", role: .destructive) {
-                Task { await removePendingAccount() }
+                Task { await remove(account) }
             }
             Button("Cancel", role: .cancel) { accountPendingRemoval = nil }
-        } message: {
+        } message: { _ in
             Text("This deletes the credential and saved usage from this device.")
         }
         .confirmationDialog(
@@ -75,15 +81,16 @@ struct ConnectionsView: View {
                 get: { accountPendingHistoryRecovery != nil },
                 set: { if !$0 { accountPendingHistoryRecovery = nil } }
             ),
-            titleVisibility: .visible
-        ) {
+            titleVisibility: .visible,
+            presenting: accountPendingHistoryRecovery
+        ) { account in
             Button("Delete all history and finish removal", role: .destructive) {
-                Task { await finishRemovalWithHistoryRecovery() }
+                Task { await finishRemovalWithHistoryRecovery(account) }
             }
             Button("Keep history and account entry", role: .cancel) {
                 accountPendingHistoryRecovery = nil
             }
-        } message: {
+        } message: { _ in
             Text(
                 "The account credential is already gone, but damaged local history blocked cleanup. "
                     + "This permanently deletes observed and imported history for every Vigil account, then finishes removing this account."
@@ -137,8 +144,7 @@ struct ConnectionsView: View {
         }
     }
 
-    private func removePendingAccount() async {
-        guard let account = accountPendingRemoval else { return }
+    private func remove(_ account: AccountRef) async {
         do {
             try await model.removeAccount(account)
         } catch AppModel.LinkError.historyRecoveryRequired(_) {
@@ -146,17 +152,14 @@ struct ConnectionsView: View {
         } catch {
             removalError = error.localizedDescription
         }
-        accountPendingRemoval = nil
     }
 
-    private func finishRemovalWithHistoryRecovery() async {
-        guard let account = accountPendingHistoryRecovery else { return }
+    private func finishRemovalWithHistoryRecovery(_ account: AccountRef) async {
         do {
             try await model.finishRemovalByDeletingAllHistory(account)
         } catch {
             removalError = error.localizedDescription
         }
-        accountPendingHistoryRecovery = nil
     }
 }
 

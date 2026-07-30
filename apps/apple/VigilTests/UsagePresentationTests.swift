@@ -253,6 +253,60 @@ final class UsagePresentationTests: XCTestCase {
         )
     }
 
+    func testDegradedFreshnessDescribesDataAgeNotACheckTime() {
+        // fetchedAt on a degraded snapshot is the moment the data was last
+        // accepted, not the last poll attempt — polls may still run every
+        // minute. The freshness line must age the data, never the "check".
+        for status in [SnapshotStatus.schemaChanged, .authExpired, .network, .rateLimited] {
+            let prefix = UsagePresentation.retainedFreshnessPrefix(status)
+            XCTAssertTrue(
+                prefix.hasPrefix(UsagePresentation.statusTitle(status)),
+                "Prefix must lead with the status title: \(prefix)"
+            )
+            XCTAssertTrue(
+                prefix.hasSuffix("data from "),
+                "Prefix must age the retained data: \(prefix)"
+            )
+            XCTAssertFalse(
+                prefix.localizedCaseInsensitiveContains("checked"),
+                "Degraded freshness must not claim a check time: \(prefix)"
+            )
+        }
+    }
+
+    func testAccessibilityFreshnessNeverClaimsACheckTimeForRetainedData() {
+        // The Home card replaces its combined children with one spoken
+        // summary, so the honest-freshness rule must hold for that string
+        // too: an ok snapshot's fetchedAt is a real check time, a degraded
+        // snapshot's fetchedAt is when the shown data was last accepted.
+        let fetchedAt = Date(timeIntervalSince1970: 1_785_000_000)
+        for status in [SnapshotStatus.schemaChanged, .authExpired, .network, .rateLimited] {
+            let clause = UsagePresentation.accessibilityFreshness(status: status, fetchedAt: fetchedAt)
+            XCTAssertTrue(
+                clause.hasPrefix("Data from "),
+                "\(status) retains data, so the spoken freshness must age it: \(clause)"
+            )
+            XCTAssertFalse(
+                clause.localizedCaseInsensitiveContains("checked"),
+                "\(status)'s fetchedAt is not a check time, so nothing spoken may claim one: \(clause)"
+            )
+            XCTAssertGreaterThan(
+                clause.count, "Data from ".count,
+                "The spoken clause must carry a timestamp: \(clause)"
+            )
+        }
+
+        let live = UsagePresentation.accessibilityFreshness(status: .ok, fetchedAt: fetchedAt)
+        XCTAssertTrue(
+            live.hasPrefix("Last checked "),
+            "An ok snapshot's fetchedAt is a real check time and may say so: \(live)"
+        )
+        XCTAssertGreaterThan(
+            live.count, "Last checked ".count,
+            "The spoken clause must carry a timestamp: \(live)"
+        )
+    }
+
     private func window(
         id: String,
         used: Double,

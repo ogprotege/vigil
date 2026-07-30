@@ -49,6 +49,30 @@ final class VigilAccessibilityUITests: XCTestCase {
         assertCriticalActions(in: .accessibilityXXXL)
     }
 
+    func testDegradedHomeCardSpeaksDataAgeNotACheckTime() {
+        // The Home card combines its children and replaces them with one
+        // spoken summary, so the honest-freshness rule must hold for that
+        // summary itself: a degraded snapshot's fetchedAt is when the shown
+        // data was last accepted — polls may still run every minute — so
+        // VoiceOver must age the data, never claim a check time.
+        launch(tab: "home", demo: true, claudeProviderChanged: true)
+
+        let claudeAccount = reachableElement("vigil.home.account.claude")
+        let spoken = claudeAccount.label
+        XCTAssertTrue(
+            spoken.contains("Provider changed"),
+            "The drifted demo account must speak its status. Spoken: \(spoken)"
+        )
+        XCTAssertTrue(
+            spoken.contains("Data from"),
+            "VoiceOver must age retained data, not claim a check. Spoken: \(spoken)"
+        )
+        XCTAssertFalse(
+            spoken.contains("Last checked"),
+            "A degraded snapshot's fetchedAt is not a check time. Spoken: \(spoken)"
+        )
+    }
+
     func testDiagnosticExportIsReachableAtDefaultContentSize() {
         launch(tab: "settings", demo: true)
 
@@ -170,7 +194,8 @@ final class VigilAccessibilityUITests: XCTestCase {
         tab: String,
         demo: Bool,
         contentSizeCategory: UIContentSizeCategory? = nil,
-        claudeAuthExpired: Bool = false
+        claudeAuthExpired: Bool = false,
+        claudeProviderChanged: Bool = false
     ) {
         if app?.state != .notRunning {
             app?.terminate()
@@ -179,6 +204,7 @@ final class VigilAccessibilityUITests: XCTestCase {
         app.launchEnvironment["VIGIL_TAB"] = tab
         app.launchEnvironment["VIGIL_DEMO"] = demo ? "1" : "0"
         app.launchEnvironment["VIGIL_DEMO_CLAUDE_AUTH_EXPIRED"] = claudeAuthExpired ? "1" : "0"
+        app.launchEnvironment["VIGIL_DEMO_CLAUDE_PROVIDER_CHANGED"] = claudeProviderChanged ? "1" : "0"
         app.launchEnvironment["VIGIL_UI_TEST_FORCE_ACTIVE"] = "1"
         app.launchEnvironment["VIGIL_UI_TEST_SUPPRESS_STORAGE_NOTICE"] = "1"
         if let contentSizeCategory {

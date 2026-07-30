@@ -1,0 +1,71 @@
+name: Provider change report
+description: An account shows "Provider changed" — the provider's response no longer maps safely
+title: "[Provider change] "
+labels: ["provider-change"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks — reports like this are how mapping fixes ship. Vigil marks an account
+        **Provider changed** when the endpoint answered but a required usage field no
+        longer mapped safely. Background: [When a provider changes](https://github.com/ogprotege/vigil/blob/main/docs/user-guide/provider-changes.md).
+
+        **Sanitize everything you paste.** Never include an API key, token, cookie, or
+        session credential. Remove or replace account identifiers, organization
+        identifiers, and email addresses. Usage numbers can be replaced with plausible
+        values — the response *shape* is what a fix needs, not your data.
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options:
+        - Claude
+        - ChatGPT / Codex
+        - OpenAI API
+        - OpenRouter
+        - DeepSeek
+        - Moonshot (Kimi)
+        - Moonshot (Kimi) China
+        - MiniMax Coding Plan
+        - MiniMax Coding Plan China
+        - GitHub Copilot
+        - xAI API
+        - Z.ai Coding Plan
+        - Cursor
+        - Kimi K3
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Vigil version and build
+      description: Shown in Vigil's Settings.
+      placeholder: "0.15.0 (20)"
+    validations:
+      required: true
+  - type: input
+    id: started
+    attributes:
+      label: When it started
+      description: Approximate date and time the account first showed "Provider changed", if known.
+      placeholder: "2026-07-28, evening US Eastern"
+  - type: textarea
+    id: observed
+    attributes:
+      label: What you observed
+      description: The status shown, the plan or tier on the account, and anything the provider announced or changed around that time.
+    validations:
+      required: true
+  - type: textarea
+    id: capture
+    attributes:
+      label: Sanitized response capture (optional, most useful)
+      description: If you can call the provider's usage endpoint yourself, paste the sanitized JSON response here. This is the single most useful thing you can attach.
+      render: json
+  - type: checkboxes
+    id: sanitized
+    attributes:
+      label: Sanitization confirmed
+      options:
+        - label: I checked that this report contains no API key, token, cookie, session credential, account or organization identifier, or email address.
+          required: true

@@ -19,6 +19,7 @@ docs/user-guide/reading-limits.md
 docs/user-guide/history-and-imports.md
 docs/user-guide/privacy-deletion-notifications.md
 docs/user-guide/troubleshooting.md
+docs/user-guide/provider-changes.md
 docs/providers/support-matrix.md
 docs/providers/provider-details.md
 docs/providers/unsupported-candidates.md

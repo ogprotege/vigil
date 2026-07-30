@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Vigil documentation
+    url: https://github.com/ogprotege/vigil/blob/main/docs/index.md
+    about: Setup, reading limits, troubleshooting, provider support, and privacy.
