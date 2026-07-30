@@ -377,7 +377,10 @@ struct AccountLimitSummaryCard: View {
         }
         if let snapshot, snapshot.fetchedAt > .distantPast {
             parts.append(
-                "Last checked \(snapshot.fetchedAt.formatted(date: .abbreviated, time: .shortened))"
+                UsagePresentation.accessibilityFreshness(
+                    status: snapshot.status,
+                    fetchedAt: snapshot.fetchedAt
+                )
             )
         }
         if let nextAllowed = summary.nextAllowed, nextAllowed > Date() {

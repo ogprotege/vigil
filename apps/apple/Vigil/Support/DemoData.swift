@@ -22,6 +22,19 @@ enum DemoData {
         environment["VIGIL_DEMO_CLAUDE_AUTH_EXPIRED"] == "1"
     }
 
+    /// UI-test-only state for exercising the drifted-provider presentation.
+    /// It has no effect unless demo mode is also enabled by the caller.
+    static func claudeProviderChangedRequested(in environment: [String: String]) -> Bool {
+        environment["VIGIL_DEMO_CLAUDE_PROVIDER_CHANGED"] == "1"
+    }
+
+    /// UI-test-only state modeling a damaged history archive, so the
+    /// history-recovery removal dialog is reachable without touching the real
+    /// stores. It has no effect unless demo mode is also enabled by the caller.
+    static func historyRecoveryRequested(in environment: [String: String]) -> Bool {
+        environment["VIGIL_DEMO_HISTORY_RECOVERY"] == "1"
+    }
+
     static func seed(
         now: Date = Date(),
         claudeStatus: SnapshotStatus = .ok

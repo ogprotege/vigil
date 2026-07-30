@@ -56,6 +56,10 @@ final class AppModel {
     /// mode the accounts are seeded in memory and never fetched, so the seeded
     /// snapshots aren't overwritten by auth failures (there are no credentials).
     private(set) var isDemo = false
+    /// Demo-only stand-in for a damaged history archive: while set, removal
+    /// throws `historyRecoveryRequired` exactly like the real damage path, so
+    /// the recovery dialog is testable without touching shared stores.
+    private var demoHistoryDamageActive = false
     /// False until `ensureLoadedFromDisk()` has run once. Presentation shows a
     /// launch placeholder while this is false so an unloaded model can never be
     /// mistaken for an empty account list.
@@ -196,12 +200,18 @@ final class AppModel {
         let environment = ProcessInfo.processInfo.environment
         guard DemoData.requested(in: environment) else { return }
         isDemo = true
-        let claudeStatus: SnapshotStatus = DemoData.claudeAuthExpiredRequested(in: environment)
-            ? .authExpired
-            : .ok
+        let claudeStatus: SnapshotStatus
+        if DemoData.claudeAuthExpiredRequested(in: environment) {
+            claudeStatus = .authExpired
+        } else if DemoData.claudeProviderChangedRequested(in: environment) {
+            claudeStatus = .schemaChanged
+        } else {
+            claudeStatus = .ok
+        }
         let demo = DemoData.seed(claudeStatus: claudeStatus)
         accounts = demo.accounts
         snapshots = demo.snapshots
+        demoHistoryDamageActive = DemoData.historyRecoveryRequested(in: environment)
     }
 
     /// The App Group container being unavailable silently disables the
@@ -1494,6 +1504,11 @@ final class AppModel {
         // index, which a real launch must never see (same rule as
         // reconcileSharedData).
         if isDemo {
+            if demoHistoryDamageActive {
+                throw LinkError.historyRecoveryRequired(
+                    "This account's credentials were deleted, but a local history file is damaged or unavailable. You can delete all local Vigil history for every account and finish removing this account."
+                )
+            }
             accounts.removeAll { $0.key == account.key }
             snapshots[account.key] = nil
             nextAllowed[account.key] = nil
@@ -1884,6 +1899,16 @@ final class AppModel {
     /// normalized and retired history files for every account, so the UI must
     /// obtain a second, specific confirmation before calling it.
     func finishRemovalByDeletingAllHistory(_ account: AccountRef) async throws {
+        // Demo history damage exists only in memory; deleting "all history"
+        // clears the modeled damage and must never reach the shared stores
+        // (same rule as removeAccount).
+        if isDemo {
+            demoHistoryDamageActive = false
+            historySummaries.removeAll()
+            recentHistorySamples.removeAll()
+            try await removeAccount(account)
+            return
+        }
         let operationEpoch = identityMutationEpoch
         try ensureAccountIndexUsable()
         let historyStore = historyStore
