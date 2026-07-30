@@ -253,6 +253,27 @@ final class UsagePresentationTests: XCTestCase {
         )
     }
 
+    func testDegradedFreshnessDescribesDataAgeNotACheckTime() {
+        // fetchedAt on a degraded snapshot is the moment the data was last
+        // accepted, not the last poll attempt — polls may still run every
+        // minute. The freshness line must age the data, never the "check".
+        for status in [SnapshotStatus.schemaChanged, .authExpired, .network, .rateLimited] {
+            let prefix = UsagePresentation.retainedFreshnessPrefix(status)
+            XCTAssertTrue(
+                prefix.hasPrefix(UsagePresentation.statusTitle(status)),
+                "Prefix must lead with the status title: \(prefix)"
+            )
+            XCTAssertTrue(
+                prefix.hasSuffix("data from "),
+                "Prefix must age the retained data: \(prefix)"
+            )
+            XCTAssertFalse(
+                prefix.localizedCaseInsensitiveContains("checked"),
+                "Degraded freshness must not claim a check time: \(prefix)"
+            )
+        }
+    }
+
     private func window(
         id: String,
         used: Double,

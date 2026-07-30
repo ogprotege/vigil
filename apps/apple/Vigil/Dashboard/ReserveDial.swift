@@ -77,7 +77,7 @@ struct SnapshotFreshnessLine: View {
             } else if snapshot.status == .ok {
                 Text("Checked ") + Text(snapshot.fetchedAt, style: .relative) + Text(" ago")
             } else {
-                Text(UsagePresentation.statusTitle(snapshot.status) + ", last checked ")
+                Text(UsagePresentation.retainedFreshnessPrefix(snapshot.status))
                     + Text(snapshot.fetchedAt, style: .relative)
                     + Text(" ago")
             }

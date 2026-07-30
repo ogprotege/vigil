@@ -4,6 +4,12 @@
 
 Anything that changes shipped behavior gets an entry here: TestFlight app builds, provider contracts, registry changes, and local-state migrations. Historical command-line releases remain below as project history.
 
+## Unreleased
+
+- Fixed Remove account doing nothing: confirming the removal dialog read the pending account from state that dialog dismissal had already cleared, so the removal silently never started. Both Accounts-screen dialogs now receive the account through the dialog's `presenting:` data, and a UI test walks the confirm flow end to end. Demo mode now removes accounts in memory only instead of writing demo identities into the shared account index.
+- Restored the "Save anyway" path when linking an account whose provider response this Vigil build cannot read. Verification failing with a schema change previously ended in a dead-end alert, so removing a drifted account (for example experimental Kimi K3 after its late-July response change) made it impossible to re-add until the provider reverted. Rejected credentials still fail hard.
+- Degraded freshness lines now age the retained data instead of claiming a check time: "Provider changed, data from 1 day ago" replaces "last checked 1 day ago", which misread as the poll loop being stopped while checks were in fact still running every minute against a drifted response.
+
 ## 0.15.0 (20) — TestFlight internal candidate, 2026-07-29
 
 - Fixed the TestFlight 0xdead10cc kill on build 19's launch path: `AppModel` construction ran inside `App.main()` before UIApplicationMain and held an App Group snapshot lock while decoding, where a prewarmed or background-relaunched process can be suspended and no background-task assertion can exist. The launch initializer now takes no App Group lock; the initial disk load runs through an idempotent `ensureLoadedFromDisk()` from scene activation, the root scene task, and the background-refresh handler, and presentation shows a launch frame until the load completes.
