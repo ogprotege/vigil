@@ -20,7 +20,7 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    CURRENT_PROJECT_VERSION: 20
+    CURRENT_PROJECT_VERSION: 21
     MARKETING_VERSION: 0.15.0
     # Local simulator builds need no team. Distribution settings below provide
     # the team and profiles for device and App Store builds.
