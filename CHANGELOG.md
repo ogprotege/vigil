@@ -4,6 +4,12 @@
 
 Anything that changes shipped behavior gets an entry here: TestFlight app builds, provider contracts, registry changes, and local-state migrations. Historical command-line releases remain below as project history.
 
+## 0.15.0 (20) — TestFlight internal candidate, 2026-07-29
+
+- Fixed the TestFlight 0xdead10cc kill on build 19's launch path: `AppModel` construction ran inside `App.main()` before UIApplicationMain and held an App Group snapshot lock while decoding, where a prewarmed or background-relaunched process can be suspended and no background-task assertion can exist. The launch initializer now takes no App Group lock; the initial disk load runs through an idempotent `ensureLoadedFromDisk()` from scene activation, the root scene task, and the background-refresh handler, and presentation shows a launch frame until the load completes.
+- Account linking, credential replacement, account removal, and refresh-all now load persisted state before acting, so an index write from a not-yet-loaded model can never erase accounts already on disk.
+- `SnapshotStore` holds its per-account lock only for the raw byte copy and file rotation: encoding happens before the lock and read-path decoding after release, in the app and widget alike, shrinking the suspension-kill window for every snapshot read.
+
 ## 0.15.0 (19) — TestFlight internal candidate, 2026-07-28
 
 - Pull-to-refresh now fetches on demand: it skips the shared polling floor but still waits out an in-flight fetch or a provider 429 backoff. The automatic polling floor drops from five minutes to sixty seconds for every provider (registry and `protocol/providers.json`), the widget attempts a fetch once its snapshot is five minutes old (was thirty), and the background refresh task now asks iOS for a run fifteen minutes out (was thirty) — iOS still decides when background work actually runs.
