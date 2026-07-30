@@ -19,6 +19,15 @@ enum UsagePresentation {
         return abs((used / limit * 100) - window.utilization) <= 1
     }
 
+    /// Spoken surface for the circular widget's fallback ring (no confirmed
+    /// window, no metric to show). Mirrors SmallUsageView's visible copy so
+    /// both families describe the state with the same words, in the
+    /// "<display name>, <state>" shape of the circular family's siblings.
+    static func circularFallbackAccessibilityLabel(accountDisplayName: String?) -> String {
+        guard let accountDisplayName else { return "Vigil, no account linked" }
+        return "\(accountDisplayName), waiting for first fetch"
+    }
+
     static func title(for window: UsageWindow) -> String {
         let id = window.id.lowercased()
         switch id {
