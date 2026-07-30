@@ -693,24 +693,52 @@ public enum UsageMapper {
         let remaining: Double?
         if let usedKey = fieldOverride?.used,
            let limitKey = fieldOverride?.limit {
-            guard let rawUsed = windowNumber(fieldValue(at: usedKey, bucket: bucket, root: root), lenient: lenient),
-                  let rawLimit = windowNumber(fieldValue(at: limitKey, bucket: bucket, root: root), lenient: lenient),
-                  rawUsed >= 0,
+            guard let rawLimit = windowNumber(fieldValue(at: limitKey, bucket: bucket, root: root), lenient: lenient),
                   rawLimit > 0
             else { return nil }
+            let usedValue = fieldValue(at: usedKey, bucket: bucket, root: root)
+            let remainingValue: Any?
+            if let remainingKey = fieldOverride?.remaining {
+                remainingValue = fieldValue(at: remainingKey, bucket: bucket, root: root)
+            } else {
+                remainingValue = nil
+            }
+            let rawUsed: Double
+            if let parsedUsed = windowNumber(usedValue, lenient: lenient), parsedUsed >= 0 {
+                rawUsed = parsedUsed
+            } else if fields.zeroOmittedNumbers,
+                      !isPresent(usedValue),
+                      let providerRemaining = windowNumber(remainingValue, lenient: lenient),
+                      providerRemaining >= 0,
+                      abs(providerRemaining - rawLimit) <= max(1, abs(rawLimit)) * 1e-9 {
+                // A zero-omitting marshaler drops a number only when it is
+                // exactly zero, so an absent used requires remaining == limit.
+                // Any other pair implies a nonzero used the marshaler could
+                // never have omitted — drift, not a derivable value.
+                rawUsed = 0
+            } else {
+                return nil
+            }
             used = rawUsed
             limit = rawLimit
             let exactRemaining = max(0, rawLimit - rawUsed)
-            if let remainingKey = fieldOverride?.remaining {
-                guard let providerRemaining = windowNumber(
-                    fieldValue(at: remainingKey, bucket: bucket, root: root),
-                    lenient: lenient
-                ), providerRemaining >= 0 else { return nil }
-                let scale = max(1, abs(exactRemaining), abs(providerRemaining))
-                guard abs(providerRemaining - exactRemaining) <= scale * 1e-9 else {
+            if fieldOverride?.remaining != nil {
+                if let providerRemaining = windowNumber(remainingValue, lenient: lenient),
+                   providerRemaining >= 0 {
+                    let scale = max(1, abs(exactRemaining), abs(providerRemaining))
+                    guard abs(providerRemaining - exactRemaining) <= scale * 1e-9 else {
+                        return nil
+                    }
+                    remaining = providerRemaining
+                } else if fields.zeroOmittedNumbers,
+                          !isPresent(remainingValue),
+                          abs(rawUsed - rawLimit) <= max(1, abs(rawLimit)) * 1e-9 {
+                    // Symmetric: an absent remaining is the marshaler's zero
+                    // only when used == limit.
+                    remaining = 0
+                } else {
                     return nil
                 }
-                remaining = providerRemaining
             } else {
                 remaining = exactRemaining
             }
@@ -871,7 +899,20 @@ public enum UsageMapper {
            let limitKey = fieldOverride?.limit {
             let used = fieldValue(at: usedKey, bucket: bucket, root: root)
             let limit = fieldValue(at: limitKey, bucket: bucket, root: root)
-            if !isPresent(used) || !isPresent(limit) { return true }
+            let remainingValue: Any?
+            if let remainingKey = fieldOverride?.remaining {
+                remainingValue = fieldValue(at: remainingKey, bucket: bucket, root: root)
+            } else {
+                remainingValue = nil
+            }
+            // Zero-omitting marshalers drop one side of used/remaining at
+            // zero; the pair stays recoverable while the other side and the
+            // limit are declared.
+            let usedSatisfiedByOmission = fields.zeroOmittedNumbers
+                && !isPresent(used)
+                && isPresent(remainingValue)
+            if !isPresent(limit) { return true }
+            if !isPresent(used), !usedSatisfiedByOmission { return true }
             if let utilizationKey = fieldOverride?.utilization,
                isPresent(fieldValue(at: utilizationKey, bucket: bucket, root: root)) {
                 let rawUtilization = windowNumber(
@@ -885,15 +926,17 @@ public enum UsageMapper {
                 // used as a fallback, because it is the provider's declared
                 // primary field.
                 if let rawUtilization, (0...100).contains(rawUtilization),
-                   windowNumber(used, lenient: fields.allowStringNumbers) == nil
+                   (!usedSatisfiedByOmission
+                    && windowNumber(used, lenient: fields.allowStringNumbers) == nil)
                     || windowNumber(limit, lenient: fields.allowStringNumbers) == nil {
                     return true
                 }
             } else if fieldOverride?.utilization != nil {
                 return true
             }
-            if let remainingKey = fieldOverride?.remaining,
-               !isPresent(fieldValue(at: remainingKey, bucket: bucket, root: root)) {
+            if fieldOverride?.remaining != nil,
+               !isPresent(remainingValue),
+               !(fields.zeroOmittedNumbers && isPresent(used)) {
                 return true
             }
             return windowNumber(limit, lenient: fields.allowStringNumbers) == 0

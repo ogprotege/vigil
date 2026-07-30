@@ -1,0 +1,55 @@
+{
+  "user": {
+    "userId": "sanitizeduserid00000",
+    "region": "REGION_OVERSEA",
+    "membership": { "level": "LEVEL_ADVANCED" },
+    "businessId": ""
+  },
+  "usage": {
+    "limit": "100",
+    "used": "18",
+    "remaining": "82",
+    "resetTime": "2026-08-01T14:34:42Z"
+  },
+  "limits": [
+    {
+      "window": { "duration": 300, "timeUnit": "TIME_UNIT_MINUTE" },
+      "detail": {
+        "limit": "100",
+        "remaining": "100",
+        "resetTime": "2026-07-30T16:34:42Z"
+      }
+    }
+  ],
+  "parallel": { "limit": "30" },
+  "totalQuota": {},
+  "authentication": { "method": "METHOD_API_KEY", "scope": "FEATURE_CODING" },
+  "subType": "TYPE_PURCHASE",
+  "boosterWallet": {
+    "id": "00000000-0000-0000-8000-000000000001",
+    "userId": "sanitizeduserid00000",
+    "balance": {
+      "id": "00000000-0000-0000-8000-000000000002",
+      "feature": "FEATURE_OMNI",
+      "type": "BOOSTER",
+      "unit": "UNIT_CURRENCY",
+      "periodStart": "2026-07-21T11:17:39.981917Z",
+      "periodEnd": "2126-07-21T11:17:40.981917Z",
+      "subscriptionId": "00000000-0000-0000-0000-000000000000",
+      "userId": "sanitizeduserid00000",
+      "createTime": "2026-07-21T11:17:40.981917Z",
+      "updateTime": "2026-07-21T11:17:40.981917Z",
+      "domain": "DOMAIN_NEXUS"
+    },
+    "status": "STATUS_ACTIVE",
+    "allowTopup": true,
+    "topupLimit": { "currency": "USD", "priceInCents": "100000" },
+    "autoRefillCharge": { "currency": "USD", "priceInCents": "0" },
+    "autoRefillThreshold": { "currency": "USD", "priceInCents": "0" },
+    "monthlyChargeLimit": { "currency": "USD", "priceInCents": "0" },
+    "monthlyUsed": { "currency": "USD", "priceInCents": "0" },
+    "createdAt": "2026-07-21T11:17:40.981917Z",
+    "updatedAt": "2026-07-21T11:17:47.836986Z"
+  },
+  "domain": "DOMAIN_NEXUS"
+}

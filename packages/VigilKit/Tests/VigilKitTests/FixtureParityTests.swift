@@ -571,6 +571,51 @@ final class MapperDivergenceTests: XCTestCase {
         XCTAssertNil(UsageMapper.map(spec: ProviderRegistry.kimiCode, body: Data(body.utf8)))
     }
 
+    /// The proto3-style marshaler omits `remaining` when a session is fully
+    /// used; the declared used and limit reconstruct it exactly.
+    func testKimiZeroOmittedRemainingDerivesFromUsedAndLimit() throws {
+        let body = #"{"user":{"membership":{"level":"LEVEL_ADVANCED"}},"usage":{"limit":"100","used":"18","remaining":"82","resetTime":"2026-08-01T14:34:42Z"},"limits":[{"window":{"duration":300,"timeUnit":"TIME_UNIT_MINUTE"},"detail":{"limit":"100","used":"100","resetTime":"2026-07-30T16:34:42Z"}}]}"#
+        let mapped = try XCTUnwrap(
+            UsageMapper.map(spec: ProviderRegistry.kimiCode, body: Data(body.utf8))
+        )
+        let session = try XCTUnwrap(mapped.windows.first { $0.id == "session" })
+        XCTAssertEqual(session.utilization, 100)
+        XCTAssertEqual(session.used, 100)
+        XCTAssertEqual(session.remaining, 0)
+    }
+
+    /// Zero-omission is a per-provider opt-in: a provider without the flag
+    /// must still treat an absent amount as drift, never derive it.
+    func testAbsentUsedWithoutZeroOmissionFlagRemainsDrift() {
+        let body = #"{"membershipType":"pro","individualUsage":{"overall":{"limit":10000}}}"#
+        XCTAssertNil(UsageMapper.map(spec: ProviderRegistry.cursor, body: Data(body.utf8)))
+    }
+
+    /// A zero-omitting marshaler drops a number only when it IS zero: an
+    /// absent used beside remaining below the limit implies a nonzero used,
+    /// which is an inconsistent pair — drift, never a derived amount.
+    func testKimiAbsentUsedWithNonFullRemainingIsStillDrift() {
+        let body = #"{"usage":{"limit":"100","used":"18","remaining":"82","resetTime":"2026-08-01T14:34:42Z"},"limits":[{"window":{"duration":300,"timeUnit":"TIME_UNIT_MINUTE"},"detail":{"limit":"100","remaining":"82","resetTime":"2026-07-30T16:34:42Z"}}]}"#
+        let mapped = UsageMapper.map(spec: ProviderRegistry.kimiCode, body: Data(body.utf8))
+        XCTAssertNil(mapped?.windows.first { $0.id == "session" } ?? nil)
+    }
+
+    /// Symmetric case: an absent remaining beside partial used implies a
+    /// nonzero remaining — also an inconsistent pair, also drift.
+    func testKimiAbsentRemainingWithPartialUsedIsStillDrift() {
+        let body = #"{"usage":{"limit":"100","used":"18","remaining":"82","resetTime":"2026-08-01T14:34:42Z"},"limits":[{"window":{"duration":300,"timeUnit":"TIME_UNIT_MINUTE"},"detail":{"limit":"100","used":"18","resetTime":"2026-07-30T16:34:42Z"}}]}"#
+        let mapped = UsageMapper.map(spec: ProviderRegistry.kimiCode, body: Data(body.utf8))
+        XCTAssertNil(mapped?.windows.first { $0.id == "session" } ?? nil)
+    }
+
+    /// A present malformed amount is drift even under zero-omission — only
+    /// true absence is the marshaler's zero.
+    func testKimiMalformedUsedIsStillDriftUnderZeroOmission() {
+        let body = #"{"usage":{"limit":"100","used":"18","remaining":"82","resetTime":"2026-08-01T14:34:42Z"},"limits":[{"window":{"duration":300,"timeUnit":"TIME_UNIT_MINUTE"},"detail":{"limit":"100","used":"not-a-number","remaining":"100","resetTime":"2026-07-30T16:34:42Z"}}]}"#
+        let mapped = UsageMapper.map(spec: ProviderRegistry.kimiCode, body: Data(body.utf8))
+        XCTAssertNil(mapped?.windows.first { $0.id == "session" } ?? nil)
+    }
+
     func testCursorTeamFallbackUsesTopLevelBillingReset() throws {
         let body = #"{"membershipType":"enterprise","billingCycleEnd":"2026-08-11T00:00:00.500Z","individualUsage":{"overall":{"used":71,"limit":10000}},"teamUsage":{"pooled":{"used":50,"limit":200}}}"#
         let mapped = try XCTUnwrap(

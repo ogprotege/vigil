@@ -91,6 +91,11 @@
       "url": "https://github.com/robinebers/openusage/blob/9d2bf09f10e21f769494a525a9d65c84d7aeb1df/Sources/OpenUsage/Providers/ZAI/ZAIUsageMapper.swift",
       "checkedOn": "2026-07-22",
       "notes": "Shipping community client showing quota classification and millisecond reset semantics."
+    },
+    "kimi-live-2026-07-30": {
+      "url": "https://api.kimi.com/coding/v1/usages",
+      "checkedOn": "2026-07-30",
+      "notes": "Authenticated production response from a LEVEL_ADVANCED coding-plan account confirming proto3-style zero-value omission (detail.used absent at zero session usage) plus new top-level parallel, authentication, subType, totalQuota, boosterWallet, and domain fields."
     }
   },
   "fixtures": [
@@ -349,6 +354,14 @@
       "sourceIds": ["zai-community-client"],
       "verifiedOn": "2026-07-22",
       "notes": "Hand-authored compatibility case for the documented root wrapper, name identity field, and duration-based session/weekly classification."
+    },
+    {
+      "input": "kimi_code-usage-zero-session-used.json",
+      "expected": "kimi_code-usage-zero-session-used-expected.json",
+      "evidenceClass": "live_sanitized",
+      "sourceIds": ["kimi-live-2026-07-30"],
+      "verifiedOn": "2026-07-30",
+      "notes": "Sanitized production capture reproducing the 2026-07-28 drift: detail.used omitted at zero session usage (proto3 zero-value marshaling) alongside new purchase-related top-level fields. Identifiers were replaced; keys, nesting, enums, and value types retained."
     }
   ]
 }

@@ -71,6 +71,7 @@ final class SpecParityTests: XCTestCase {
         let windowSeconds: String?
         let utilizationKind: String?
         let allowStringNumbers: Bool?
+        let zeroOmittedNumbers: Bool?
     }
 
     private struct SpecAdditionalFilter: Decodable {
@@ -285,6 +286,11 @@ final class SpecParityTests: XCTestCase {
             XCTAssertEqual(
                 swiftFields.allowStringNumbers,
                 json.responseFields?.allowStringNumbers ?? false,
+                file: file, line: line
+            )
+            XCTAssertEqual(
+                swiftFields.zeroOmittedNumbers,
+                json.responseFields?.zeroOmittedNumbers ?? false,
                 file: file, line: line
             )
         }
