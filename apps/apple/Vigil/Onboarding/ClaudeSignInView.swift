@@ -15,8 +15,7 @@ struct ClaudeSignInView: View {
     @State private var pkce = ClaudeAuth.generatePKCE()
     @State private var pastedCode = ""
     @State private var didOpen = false
-    @State private var isExchanging = false
-    @State private var exchangeTask: Task<Void, Never>?
+    @State private var exchangeAttempt = SignInAttempt()
     @State private var errorMessage: String?
 
     private var oauth: OAuthEndpoint { ProviderRegistry.claude.oauth! }
@@ -30,7 +29,8 @@ struct ClaudeSignInView: View {
         )
     }
     private var canLink: Bool {
-        !pastedCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isExchanging
+        !pastedCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !exchangeAttempt.isRunning
     }
 
     var body: some View {
@@ -56,8 +56,9 @@ struct ClaudeSignInView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .overlay { if isExchanging { exchangingOverlay } }
+        .overlay { if exchangeAttempt.isRunning { exchangingOverlay } }
         .preferredColorScheme(.dark)
+        .onDisappear { exchangeAttempt.cancel() }
     }
 
     private var header: some View {
@@ -132,9 +133,7 @@ struct ClaudeSignInView: View {
                     .font(.headline)
                     .foregroundStyle(VigilPalette.ink)
                 Button("Cancel") {
-                    exchangeTask?.cancel()
-                    exchangeTask = nil
-                    isExchanging = false
+                    exchangeAttempt.cancel()
                 }
                 .buttonStyle(.bordered)
                 .tint(VigilPalette.inkMuted)
@@ -151,13 +150,7 @@ struct ClaudeSignInView: View {
             errorMessage = "That code didn't look right. Copy the whole code Claude showed you and try again."
             return
         }
-        exchangeTask?.cancel()
-        exchangeTask = Task {
-            isExchanging = true
-            defer {
-                isExchanging = false
-                exchangeTask = nil
-            }
+        exchangeAttempt.start { isCurrent in
             let request = ClaudeAuth.exchangeRequest(
                 oauth: oauth,
                 code: code,
@@ -167,7 +160,9 @@ struct ClaudeSignInView: View {
             )
             do {
                 let (data, response) = try await ProviderUsageSession.shared.data(for: request)
-                guard !Task.isCancelled else { return }
+                // A cancelled or superseded exchange publishes nothing: not
+                // credentials, not an error, not a fresh PKCE.
+                guard isCurrent(), !Task.isCancelled else { return }
                 guard let http = response as? HTTPURLResponse,
                       (200..<300).contains(http.statusCode),
                       let credentials = ClaudeAuth.credentials(fromExchange: data)
@@ -175,15 +170,15 @@ struct ClaudeSignInView: View {
                     // A fresh PKCE for the next attempt: a used/expired code can't be retried.
                     pkce = ClaudeAuth.generatePKCE()
                     pastedCode = ""
-                    errorMessage = "Claude didn't accept that code — it may have expired. Tap “Reopen Claude sign-in” to start over."
+                    errorMessage = "Claude didn't accept that code — it may have expired. Tap 'Reopen Claude sign-in' to start over."
                     return
                 }
                 onComplete(credentials)
                 dismiss()
             } catch is CancellationError {
-                // User cancelled.
+                // User cancelled or the view went away.
             } catch {
-                guard !Task.isCancelled else { return }
+                guard isCurrent(), !Task.isCancelled else { return }
                 errorMessage = "Couldn't reach Claude to finish signing in. Check your connection and try again."
             }
         }

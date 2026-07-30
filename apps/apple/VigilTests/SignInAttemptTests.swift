@@ -50,4 +50,41 @@ final class SignInAttemptTests: XCTestCase {
         XCTAssertTrue(firstSawCancellation, "Retry must cancel the previous attempt")
         attempt.cancel()
     }
+
+    func testASupersededAttemptsCleanupDoesNotClearTheNewerAttempt() async throws {
+        let attempt = SignInAttempt()
+        let firstFinished = expectation(description: "first attempt unwound")
+        let secondStarted = expectation(description: "second attempt started")
+        var secondIsCurrent: (@MainActor () -> Bool)?
+
+        attempt.start { _ in
+            // Unwinds shortly after being cancelled — its cleanup then
+            // races the second attempt, exactly like ClaudeSignInView's
+            // defer cleared a newer attempt's isExchanging/exchangeTask.
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 10_000_000)
+            }
+            firstFinished.fulfill()
+        }
+        attempt.start { isCurrent in
+            secondIsCurrent = isCurrent
+            secondStarted.fulfill()
+            // Stay in flight while the first attempt's cleanup unwinds.
+            try? await Task.sleep(nanoseconds: 60_000_000_000)
+        }
+
+        await fulfillment(of: [firstFinished, secondStarted], timeout: 2)
+        // Give the first attempt's post-operation cleanup time to run.
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        XCTAssertTrue(
+            attempt.isRunning,
+            "The first attempt's cleanup cleared the second attempt's running state"
+        )
+        XCTAssertEqual(
+            secondIsCurrent?(), true,
+            "The second attempt must still be the active one"
+        )
+        attempt.cancel()
+    }
 }

@@ -31,8 +31,12 @@ final class SignInAttempt {
         activeAttemptID = attemptID
         task = Task { [weak self] in
             await operation { [weak self] in self?.activeAttemptID == attemptID }
-            self?.activeAttemptID = nil
-            self?.task = nil
+            // A superseded attempt may unwind after the user has already
+            // started another one. It must not clear the newer attempt's
+            // running state or task handle (the AddAccountView.run race).
+            guard let self, self.activeAttemptID == attemptID else { return }
+            self.activeAttemptID = nil
+            self.task = nil
         }
     }
 
