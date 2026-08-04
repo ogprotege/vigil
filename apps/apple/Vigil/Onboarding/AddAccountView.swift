@@ -4,6 +4,7 @@ import VigilKit
 enum SetupRoute: String, Hashable, Identifiable {
     case claude
     case codex
+    case grok
     case other
 
     var id: String { rawValue }
@@ -143,6 +144,13 @@ struct AddAccountView: View {
                                 detail: "Use OpenAI's device authorization on this iPhone."
                             )
                         }
+                        NavigationLink(value: SetupRoute.grok) {
+                            SetupChoiceRow(
+                                symbol: "hammer",
+                                title: "Connect Grok Build",
+                                detail: "Use xAI device authorization for Grok Build usage."
+                            )
+                        }
                         NavigationLink(value: SetupRoute.other) {
                             SetupChoiceRow(
                                 symbol: "key.horizontal",
@@ -175,6 +183,8 @@ struct AddAccountView: View {
             ClaudeSignInView { attempt(.credentials($0)) }
         case .codex:
             CodexSignInView { attempt(.credentials($0)) }
+        case .grok:
+            GrokSignInView { attempt(.credentials($0)) }
         case .other:
             if let relinkTarget {
                 ManualEntryView(
@@ -346,6 +356,7 @@ struct AddAccountView: View {
         switch providerId {
         case "claude": return .claude
         case "codex": return .codex
+        case "grok": return .grok
         default: return .other
         }
     }

@@ -12,7 +12,7 @@ struct ProviderCatalogView: View {
 
     static var availableProviders: [ProviderSpec] {
         ProviderRegistry.all.filter { spec in
-            spec.id != "claude" && spec.id != "codex"
+            spec.id != "claude" && spec.id != "codex" && spec.id != "grok"
         }
     }
 

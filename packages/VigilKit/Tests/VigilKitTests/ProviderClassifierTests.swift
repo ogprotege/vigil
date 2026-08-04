@@ -15,6 +15,7 @@ final class ProviderClassifierTests: XCTestCase {
         ("openai", "openai-costs-ok.json"),
         ("github", "github-billing-ok.json"),
         ("xai", "xai-balance-ok.json"),
+        ("grok", "grok-usage-ok.json"),
         ("zai", "zai-quota-ok.json"),
         ("cursor", "cursor-usage-ok.json"),
         ("kimi_code", "kimi_code-usage-ok.json"),

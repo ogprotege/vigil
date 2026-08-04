@@ -4,6 +4,14 @@
 
 Anything that changes shipped behavior gets an entry here: TestFlight app builds, provider contracts, registry changes, and local-state migrations. Historical command-line releases remain below as project history.
 
+## Unreleased
+
+## 0.15.0 (22) — TestFlight internal candidate, 2026-08-04
+
+- Added **Grok Build** (`grok`) as an experimental provider so Vigil can monitor Grok Build / Grok CLI credit usage. Setup uses the same kind of xAI OIDC **device authorization** flow as desktop `grok login` / `/login` (short code + browser approval), minting a renewable phone-owned session rather than reading `~/.grok/auth.json`. Distinct from the existing **xAI API** prepaid Management Key integration under Other provider.
+- Polls the Grok Build CLI chat-proxy billing endpoint for monthly credit used/limit (with a percentage-only fallback and optional on-demand metrics when a positive cap is present). Live-sanitized fixtures and form-urlencoded OAuth token bodies for `auth.x.ai` are included; the integration is marked Experimental because the billing endpoint is undocumented.
+- Setup and provider docs explain the desktop parallel, the Grok Build vs xAI API split, and guided sign-in as a first-class Add Account route.
+
 ## 0.15.0 (21) — TestFlight internal candidate, 2026-07-30
 
 - Added a user guide for provider changes (`docs/user-guide/provider-changes.md`) covering the **Provider changed** state, retained-data honesty, the restored **Save anyway** recovery, and how to report a change with a sanitized capture. Added GitHub issue templates for provider change reports and bug reports. Aligned the setup, troubleshooting, and reading-limits guides with the restored **Save anyway** path and the one-minute polling floor with on-demand manual refresh shipped in build 19.

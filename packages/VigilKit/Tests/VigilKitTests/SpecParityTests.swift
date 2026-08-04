@@ -49,6 +49,7 @@ final class SpecParityTests: XCTestCase {
         let manualRedirectUri: String
         let deviceCodeUrl: String?
         let deviceTokenUrl: String?
+        let tokenBodyFormat: String?
     }
 
     private struct SpecUsage: Decodable {
@@ -397,6 +398,12 @@ final class SpecParityTests: XCTestCase {
             XCTAssertEqual(oauth.manualRedirectUri, json.oauth?.manualRedirectUri, file: file, line: line)
             XCTAssertEqual(oauth.deviceCodeUrl?.absoluteString, json.oauth?.deviceCodeUrl, file: file, line: line)
             XCTAssertEqual(oauth.deviceTokenUrl?.absoluteString, json.oauth?.deviceTokenUrl, file: file, line: line)
+            XCTAssertEqual(
+                oauth.tokenBodyFormat.rawValue,
+                json.oauth?.tokenBodyFormat ?? OAuthTokenBodyFormat.json.rawValue,
+                file: file,
+                line: line
+            )
         }
         XCTAssertEqual(swift.windows.count, json.windows.count, file: file, line: line)
         for (got, want) in zip(swift.windows, json.windows) {

@@ -1,0 +1,17 @@
+{
+  "config": {
+    "creditUsagePercent": 42.0,
+    "currentPeriod": {
+      "type": "USAGE_PERIOD_TYPE_WEEKLY",
+      "start": "2026-07-30T22:01:55.140165+00:00",
+      "end": "2026-08-06T22:01:55.140165+00:00"
+    },
+    "onDemandCap": { "val": 0 },
+    "onDemandUsed": { "val": 0 },
+    "billingPeriodStart": "2026-07-30T22:01:55.140165+00:00",
+    "billingPeriodEnd": "2026-08-06T22:01:55.140165+00:00",
+    "historyLen": 0
+  },
+  "onDemandEnabled": null,
+  "subscriptionTier": "X Premium"
+}

@@ -20,14 +20,36 @@ public enum TokenRefresher {
         var request = URLRequest(url: oauth.tokenUrl)
         request.httpMethod = "POST"
         request.timeoutInterval = RequestBuilder.timeoutInterval
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let body: [String: String] = [
-            "grant_type": "refresh_token",
-            "refresh_token": refreshToken,
-            "client_id": oauth.clientId,
+        let fields: [(String, String)] = [
+            ("grant_type", "refresh_token"),
+            ("refresh_token", refreshToken),
+            ("client_id", oauth.clientId),
         ]
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
+        switch oauth.tokenBodyFormat {
+        case .json:
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try? JSONSerialization.data(
+                withJSONObject: Dictionary(uniqueKeysWithValues: fields),
+                options: [.sortedKeys]
+            )
+        case .formURLEncoded:
+            request.setValue(
+                "application/x-www-form-urlencoded",
+                forHTTPHeaderField: "Content-Type"
+            )
+            request.httpBody = formURLEncoded(fields).data(using: .utf8)
+        }
         return request
+    }
+
+    private static func formURLEncoded(_ fields: [(String, String)]) -> String {
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        return fields.map { key, value in
+            let k = key.addingPercentEncoding(withAllowedCharacters: allowed) ?? key
+            let v = value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+            return "\(k)=\(v)"
+        }.joined(separator: "&")
     }
 
     /// A token usable for Bearer headers: non-empty, bounded, and free of

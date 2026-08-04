@@ -8,6 +8,22 @@ This file gives coding guidance for this repository.
 >
 > Review again: after any architecture, provider, build, test, or release-process change
 
+## Mnemoverse Memory — always use it
+
+You have persistent memory across sessions via the Mnemoverse MCP tools
+(memory_read, memory_write, memory_feedback). Treat it as required, not optional:
+
+- Recall first. At the start of every task — and whenever the user references a
+  past decision, preference, or fact — call memory_read BEFORE answering. Never
+  assume a cold start.
+- Save as you go. Call memory_write whenever the user states a preference, makes
+  a decision, corrects you, or shares a durable fact (stack, conventions, people,
+  gotchas) — even without being asked.
+- Close the loop. After a recalled memory helped or misled, call memory_feedback
+  so retrieval improves over time.
+
+Never tell the user "I don't have memory of that" without first calling memory_read.
+
 ## What Vigil is
 
 Vigil is an iOS 17+ AI usage monitor. It polls provider endpoints directly from the iPhone. There is no Vigil server.
@@ -20,7 +36,7 @@ Every credential is provisioned on the phone:
 
 Credentials live in Apple Keychain. The app and widget share snapshots, leases, account metadata, and normalized history through the App Group container.
 
-Fourteen providers ship in the registry. MiniMax global and China, Z.ai, Cursor, and Kimi K3 remain experimental because their endpoints lack both a stable vendor contract and a sanitized Vigil production capture.
+Fifteen providers ship in the registry. MiniMax global and China, Z.ai, Cursor, Kimi K3, and Grok Build remain experimental because their endpoints lack both a stable vendor contract and a sanitized Vigil production capture (Grok Build has a live-sanitized billing capture but no vendor-documented contract).
 
 ## Commands
 

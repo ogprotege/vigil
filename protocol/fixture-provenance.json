@@ -87,6 +87,16 @@
       "checkedOn": "2026-07-22",
       "notes": "Official prepaid balance contract, including signed cent-denominated values."
     },
+    "grok-build-cli-billing-2026-08-04": {
+      "url": "https://cli-chat-proxy.grok.com/v1/billing",
+      "checkedOn": "2026-08-04",
+      "notes": "Authenticated production GET against the Grok Build CLI chat-proxy billing endpoint using a mint-scoped session token from auth.x.ai OIDC (client b1a00492-073a-47ea-816f-4c329264a828). Response carries config.monthlyLimit.val, config.used.val, billing period bounds, and optional on-demand val wrappers. Endpoint is not documented on docs.x.ai."
+    },
+    "grok-build-cli-logs-2026-08-02": {
+      "url": "https://cli-chat-proxy.grok.com/v1/billing",
+      "checkedOn": "2026-08-02",
+      "notes": "Local Grok Build CLI unified.jsonl captures of billing: fetched credits config showing creditUsagePercent plus weekly currentPeriod bounds and subscriptionTier for an X Premium account before the monthly used/limit shape was observed on 2026-08-04."
+    },
     "zai-community-client": {
       "url": "https://github.com/robinebers/openusage/blob/9d2bf09f10e21f769494a525a9d65c84d7aeb1df/Sources/OpenUsage/Providers/ZAI/ZAIUsageMapper.swift",
       "checkedOn": "2026-07-22",
@@ -330,6 +340,30 @@
       "sourceIds": ["xai-docs"],
       "verifiedOn": "2026-07-22",
       "notes": "Hand-authored prepaid balance response using the vendor-documented signed-cent contract."
+    },
+    {
+      "input": "grok-usage-ok.json",
+      "expected": "grok-usage-ok-expected.json",
+      "evidenceClass": "live_sanitized",
+      "sourceIds": ["grok-build-cli-billing-2026-08-04"],
+      "verifiedOn": "2026-08-04",
+      "notes": "Sanitized production billing body: amounts replaced with non-identifying values while preserving val-wrapper monthly used/limit, period bounds, zero on-demand cap, and history cycle structure."
+    },
+    {
+      "input": "grok-usage-percent-fallback.json",
+      "expected": "grok-usage-percent-fallback-expected.json",
+      "evidenceClass": "live_sanitized",
+      "sourceIds": ["grok-build-cli-logs-2026-08-02"],
+      "verifiedOn": "2026-08-04",
+      "notes": "Sanitized from Grok Build CLI billing log captures: percentage-only creditUsagePercent with weekly period bounds and subscriptionTier when used/limit val wrappers are absent."
+    },
+    {
+      "input": "grok-usage-ondemand.json",
+      "expected": "grok-usage-ondemand-expected.json",
+      "evidenceClass": "synthetic_derived",
+      "sourceIds": ["grok-build-cli-billing-2026-08-04"],
+      "verifiedOn": "2026-08-04",
+      "notes": "Hand-authored positive on-demand cap/used pair derived from the live val-wrapper billing shape so on-demand metrics map only when the cap is positive."
     },
     {
       "input": "zai-quota-ok.json",

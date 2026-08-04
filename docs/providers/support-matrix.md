@@ -1,7 +1,7 @@
 # Provider support matrix
 
 - Status: Current
-- Last reviewed: 2026-07-30
+- Last reviewed: 2026-08-04
 - Review again: whenever `protocol/providers.json`, `ProviderRegistry`, or fixture provenance changes
 
 This is the canonical list of providers that Vigil can connect. It describes the current code, not a planned integration list.
@@ -34,6 +34,7 @@ Fixture coverage proves deterministic behavior for the committed body. It does n
 | OpenAI API (`openai`) | Dedicated organization Admin API key. Regular project keys cannot access the required organization endpoints. | Current month-to-date organization cost. An explicit import also stores daily completion quantities by model and daily costs by line item. | Vendor-documented organization Usage and Costs contracts with synthetic fixtures and client tests. | Established |
 | GitHub Copilot (`github`) | Fine-grained personal access token with Account Plan read access, plus GitHub username. | Monthly AI credits consumed, included credits, billable credits, and billable spend in USD. | Vendor-documented billing contract with synthetic fixtures. | Established |
 | xAI API (`xai`) | Management Key with billing read access, plus team ID. | Prepaid balance in USD. | Vendor-documented signed-cent contract with a synthetic fixture. | Established |
+| Grok Build (`grok`) | Guided xAI device authorization for setup and re-linking; manual session-token paste remains for recovery. | Monthly Grok Build credit utilization from used and limit values when returned; percentage-only credit utilization as a fallback; optional on-demand used and cap when the cap is positive. | Live-sanitized production billing body plus a percentage-only fallback capture from Grok Build CLI logs. The cli-chat-proxy billing endpoint is undocumented. | Experimental |
 | Z.ai Coding Plan (`zai`) | GLM Coding Plan API key. | A provider-declared four-hour or five-hour token session window, a weekly token window, and web-search used, limit, and remaining counters. | Community research plus synthetic duration and hostile-input cases. The endpoint is undocumented. | Experimental |
 | Cursor (`cursor`) | `WorkosCursorSessionToken` cookie value. | Plan quota, optional auto-selected and API-model percentages, billing reset, and compatible on-demand spend and limit pairs. | Community research plus synthetic fallback coverage. The web endpoint is undocumented. | Experimental |
 | Kimi K3 (`kimi_code`) | Kimi Code API key. | Five-hour and weekly coding-plan windows with exact used, limit, and remaining values when returned. | Community research plus a sanitized 2026-07-30 production capture confirming zero-valued amounts are omitted. The coding-plan endpoint is undocumented. | Experimental |

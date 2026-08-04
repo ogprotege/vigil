@@ -2,19 +2,20 @@
 
 Vigil requires iOS 17 or later. All account setup happens on the iPhone, except that some experimental credentials may first need to be copied from a provider website.
 
-> Last reviewed: 2026-07-30
+> Last reviewed: 2026-08-04
 >
 > Review again: when setup or provider support changes
 
 ## Choose a setup route
 
-On first launch, choose one of three routes:
+On first launch, choose one of the guided routes or the catalog:
 
 - **Connect Claude** uses Claude's browser approval flow.
 - **Connect ChatGPT / Codex** uses OpenAI's device authorization flow.
+- **Connect Grok Build** uses xAI's OIDC device authorization flow (the same family of code-and-URL sign-in as the Grok Build terminal).
 - **Other provider** opens the supported provider catalog.
 
-The current setup interface does not expose manual token entry for Claude or ChatGPT/Codex. Use their guided sign-in or the guided re-link action.
+The current setup interface does not expose manual token entry for Claude, ChatGPT/Codex, or Grok Build on the primary route. Use their guided sign-in or the guided re-link action.
 
 ## Connect Claude
 
@@ -38,6 +39,20 @@ Vigil exchanges that one-time code for the renewable credential pair used by thi
 
 ChatGPT/Codex subscription sign-in is separate from the OpenAI API organization integration. It cannot import OpenAI API usage or cost history.
 
+## Connect Grok Build
+
+This is essentially the same authentication pattern as the Grok Build desktop CLI. On a Mac or Linux terminal, `grok` / `/login` (or `grok login`) opens a URL with a short user code; after you approve in the browser, the CLI stores a renewable session in `~/.grok/auth.json`. In Vigil:
+
+1. Tap **Connect Grok Build**.
+2. Wait for Vigil to display a short code (the same kind of device code the CLI shows).
+3. Tap **Open sign-in page** (or open the xAI device URL on any browser).
+4. Sign in if needed, enter the code, and approve access.
+5. Return to Vigil. It finishes the connection and mints its **own** renewable credential pair for this iPhone.
+
+Vigil does **not** read `~/.grok/auth.json` or any other desktop client store. The phone completes device authorization itself and keeps the tokens in the iPhone Keychain. Only credentials marked as minted by Vigil auto-renew; a manually pasted session token does not.
+
+Grok Build is separate from the **xAI API** prepaid-balance integration under **Other provider**. Use Grok Build for Grok CLI / Grok Build credit usage; use xAI API only for Management Key prepaid balance. The integration is experimental because the billing endpoint is undocumented, even though it is the same chat-proxy path the CLI uses.
+
 ## Connect another provider
 
 Choose **Other provider**, select a provider, and follow the credential instructions shown in the app.
@@ -53,6 +68,7 @@ The current catalog contains:
 | OpenAI API | Organization Admin API key | Established, broad privilege |
 | GitHub Copilot | Fine-grained token with Account Plan read permission, plus username | Established |
 | xAI API | Management Key with billing-read access, plus team ID | Established |
+| Grok Build | Guided xAI device authorization (or a session token for recovery) | Experimental |
 | MiniMax Coding Plan | Global coding-plan key | Experimental |
 | MiniMax Coding Plan China | China coding-plan key | Experimental |
 | Z.ai Coding Plan | GLM Coding Plan key | Experimental |
