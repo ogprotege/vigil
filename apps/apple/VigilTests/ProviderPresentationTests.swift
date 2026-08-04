@@ -11,9 +11,9 @@ import VigilKit
 final class ProviderPresentationTests: XCTestCase {
     // MARK: - Manual entry provider coverage
 
-    func testRegistryExposesAllFourteenProvidersWithDistinctIds() {
+    func testRegistryExposesAllFifteenProvidersWithDistinctIds() {
         XCTAssertEqual(
-            ProviderRegistry.all.count, 14,
+            ProviderRegistry.all.count, 15,
             "The registry must retain every supported guided and direct-entry provider"
         )
         XCTAssertEqual(
@@ -26,9 +26,10 @@ final class ProviderPresentationTests: XCTestCase {
     func testOtherProviderCatalogExcludesGuidedSetupWithoutRemovingRecoverySpecs() {
         let catalogIDs = Set(ProviderCatalogView.availableProviders.map(\.id))
 
-        XCTAssertEqual(catalogIDs.count, ProviderRegistry.all.count - 2)
+        XCTAssertEqual(catalogIDs.count, ProviderRegistry.all.count - 3)
         XCTAssertFalse(catalogIDs.contains("claude"))
         XCTAssertFalse(catalogIDs.contains("codex"))
+        XCTAssertFalse(catalogIDs.contains("grok"))
         XCTAssertNotNil(
             ProviderRegistry.spec(for: "claude"),
             "Claude direct entry must remain available to targeted recovery flows"
@@ -36,6 +37,10 @@ final class ProviderPresentationTests: XCTestCase {
         XCTAssertNotNil(
             ProviderRegistry.spec(for: "codex"),
             "Codex direct entry must remain available to targeted recovery flows"
+        )
+        XCTAssertNotNil(
+            ProviderRegistry.spec(for: "grok"),
+            "Grok Build direct entry must remain available to targeted recovery flows"
         )
     }
 
@@ -94,7 +99,7 @@ final class ProviderPresentationTests: XCTestCase {
     func testExperimentalFlagCoversExactlyTheUnverifiedIntegrations() {
         XCTAssertEqual(
             Set(ProviderRegistry.all.filter(\.experimental).map(\.id)),
-            ["minimax", "minimax_cn", "zai", "cursor", "kimi_code"],
+            ["minimax", "minimax_cn", "zai", "cursor", "kimi_code", "grok"],
             "Experimental marks undocumented or community-researched endpoints; vendor-documented providers must not carry it"
         )
     }
@@ -104,6 +109,7 @@ final class ProviderPresentationTests: XCTestCase {
         XCTAssertTrue(ProviderPresentation.isExperimental(providerId: "zai"))
         XCTAssertTrue(ProviderPresentation.isExperimental(providerId: "minimax"))
         XCTAssertTrue(ProviderPresentation.isExperimental(providerId: "minimax_cn"))
+        XCTAssertTrue(ProviderPresentation.isExperimental(providerId: "grok"))
         XCTAssertFalse(ProviderPresentation.isExperimental(providerId: "moonshot"))
         XCTAssertFalse(ProviderPresentation.isExperimental(providerId: "moonshot_cn"))
         XCTAssertFalse(ProviderPresentation.isExperimental(providerId: "xai"))

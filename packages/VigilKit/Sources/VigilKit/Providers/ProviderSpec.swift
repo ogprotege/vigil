@@ -510,6 +510,14 @@ public struct MetricCollectionMapping: Sendable, Equatable {
     }
 }
 
+/// How the OAuth token endpoint expects its POST body.
+public enum OAuthTokenBodyFormat: String, Sendable, Equatable {
+    /// Claude and Codex token endpoints accept JSON objects.
+    case json
+    /// Standard OIDC (Grok Build / auth.x.ai) requires form-urlencoded bodies.
+    case formURLEncoded = "form_urlencoded"
+}
+
 /// The provider's OAuth block contains only the endpoints the iOS app needs:
 /// refresh plus the on-device authorization-code or device-code flow. Retired
 /// desktop discovery and loopback metadata are not part of the registry.
@@ -525,6 +533,9 @@ public struct OAuthEndpoint: Sendable, Equatable {
     /// then poll for tokens. nil for providers that use the auth-code flow.
     public let deviceCodeUrl: URL?
     public let deviceTokenUrl: URL?
+    /// Token and device-token POST body encoding. Defaults to JSON for Claude
+    /// and Codex; Grok Build uses standard OIDC form-urlencoded.
+    public let tokenBodyFormat: OAuthTokenBodyFormat
 
     public init(
         authorizeUrl: URL,
@@ -533,7 +544,8 @@ public struct OAuthEndpoint: Sendable, Equatable {
         scopes: [String],
         manualRedirectUri: String,
         deviceCodeUrl: URL? = nil,
-        deviceTokenUrl: URL? = nil
+        deviceTokenUrl: URL? = nil,
+        tokenBodyFormat: OAuthTokenBodyFormat = .json
     ) {
         self.authorizeUrl = authorizeUrl
         self.tokenUrl = tokenUrl
@@ -542,6 +554,7 @@ public struct OAuthEndpoint: Sendable, Equatable {
         self.manualRedirectUri = manualRedirectUri
         self.deviceCodeUrl = deviceCodeUrl
         self.deviceTokenUrl = deviceTokenUrl
+        self.tokenBodyFormat = tokenBodyFormat
     }
 }
 
@@ -1143,6 +1156,125 @@ public enum ProviderRegistry {
         manualEntryHint: "Create a Management Key with billing read access at console.x.ai -> Settings -> Management Keys and enter it with your team ID (visible in console URLs)."
     )
 
+    /// Grok Build consumer billing via the CLI chat-proxy. Undocumented
+    /// endpoint observed from the Grok Build CLI; experimental until a vendor
+    /// contract exists. Primary shape is monthly used/limit with val wrappers;
+    /// percentage-only shapes remain a fallback for earlier period layouts.
+    public static let grok = ProviderSpec(
+        id: "grok",
+        displayName: "Grok Build",
+        auth: "oauth_bearer",
+        experimental: true,
+        usageMethod: "GET",
+        usageURL: "https://cli-chat-proxy.grok.com/v1/billing",
+        headers: gatewayHeaders(),
+        poll: standardPoll,
+        responseFields: ResponseFields(
+            utilization: "creditUsagePercent",
+            resetsAt: "billingPeriodEnd",
+            windowSeconds: nil
+        ),
+        requiredOutputs: RequiredOutputs(
+            minimumWindows: 1,
+            minimumPrimaryWindows: 1,
+            windowIDs: ["monthly"]
+        ),
+        planKey: "subscriptionTier",
+        additionalWindows: nil,
+        windows: [
+            WindowMapping(
+                id: "monthly",
+                sourceKey: "config",
+                resetFormat: .iso8601,
+                windowSeconds: nil,
+                secondary: false,
+                label: "Monthly credits",
+                fields: WindowFieldOverride(
+                    resetsAt: "billingPeriodEnd",
+                    used: "used.val",
+                    limit: "monthlyLimit.val"
+                ),
+                requiredWhenPresent: false,
+                fallbackGroup: "monthly"
+            ),
+            WindowMapping(
+                id: "monthly",
+                sourceKey: "config",
+                resetFormat: .iso8601,
+                windowSeconds: nil,
+                secondary: false,
+                label: "Monthly credits",
+                fields: WindowFieldOverride(
+                    utilization: "creditUsagePercent",
+                    resetsAt: "billingPeriodEnd"
+                ),
+                requiredWhenPresent: false,
+                fallbackGroup: "monthly"
+            ),
+            WindowMapping(
+                id: "monthly",
+                sourceKey: "config",
+                resetFormat: .iso8601,
+                windowSeconds: nil,
+                secondary: false,
+                label: "Monthly credits",
+                fields: WindowFieldOverride(
+                    utilization: "creditUsagePercent",
+                    resetsAt: "currentPeriod.end"
+                ),
+                requiredWhenPresent: false,
+                fallbackGroup: "monthly"
+            ),
+        ],
+        metricMappings: [
+            // Live zero-cap accounts often omit onDemandUsed entirely. Require
+            // both amounts and a positive cap before mapping; do not mark a
+            // zero-only cap as incomplete partial money.
+            MetricMapping(
+                id: "spend_ondemand",
+                label: "On-demand used",
+                sourceKey: "config.onDemandUsed.val",
+                kind: .spend,
+                unit: "credits",
+                secondary: true,
+                requires: ["config.onDemandUsed.val", "config.onDemandCap.val"],
+                requiresPositive: ["config.onDemandCap.val"]
+            ),
+            MetricMapping(
+                id: "limit_ondemand",
+                label: "On-demand cap",
+                sourceKey: "config.onDemandCap.val",
+                kind: .limit,
+                unit: "credits",
+                secondary: true,
+                requires: ["config.onDemandUsed.val", "config.onDemandCap.val"],
+                requiresPositive: ["config.onDemandCap.val"]
+            ),
+        ],
+        manualEntryHint: "Prefer Sign in with Grok Build for a renewing account. Manual entry accepts a Grok Build session access token from an authenticated Grok CLI (Bearer token for cli-chat-proxy.grok.com). Manual tokens do not auto-renew. Experimental: the billing endpoint is undocumented and its schema may drift.",
+        oauth: OAuthEndpoint(
+            authorizeUrl: URL(string: "https://auth.x.ai/oauth2/authorize")!,
+            tokenUrl: URL(string: "https://auth.x.ai/oauth2/token")!,
+            clientId: "b1a00492-073a-47ea-816f-4c329264a828",
+            scopes: [
+                "openid",
+                "profile",
+                "email",
+                "offline_access",
+                "grok-cli:access",
+                "api:access",
+                "conversations:read",
+                "conversations:write",
+                "workspaces:read",
+                "workspaces:write",
+            ],
+            manualRedirectUri: "https://accounts.x.ai/oauth2/device",
+            deviceCodeUrl: URL(string: "https://auth.x.ai/oauth2/device/code")!,
+            deviceTokenUrl: URL(string: "https://auth.x.ai/oauth2/token")!,
+            tokenBodyFormat: .formURLEncoded
+        )
+    )
+
     public static let zAI = ProviderSpec(
         id: "zai",
         displayName: "Z.ai Coding Plan",
@@ -1339,7 +1471,7 @@ public enum ProviderRegistry {
     public static let all: [ProviderSpec] = [
         claude, codex, openRouter, deepSeek,
         moonshot, moonshotCN, miniMax, miniMaxCN,
-        openAI, gitHub, xAI, zAI, cursor, kimiCode,
+        openAI, gitHub, xAI, grok, zAI, cursor, kimiCode,
     ]
 
     public static func spec(for id: String) -> ProviderSpec? {

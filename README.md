@@ -19,7 +19,7 @@ complete set of accepted provider values one tap away.
 &nbsp;
 <a href="docs/user-guide/setup.md"><img src="https://img.shields.io/badge/iOS-17%2B-000000?logo=apple&amp;logoColor=white" alt="iOS 17 or later" /></a>
 &nbsp;
-<a href="docs/providers/support-matrix.md"><img src="https://img.shields.io/badge/integrations-14-65D6B4" alt="14 provider integrations" /></a>
+<a href="docs/providers/support-matrix.md"><img src="https://img.shields.io/badge/integrations-15-65D6B4" alt="15 provider integrations" /></a>
 </p>
 
 <p>
@@ -166,10 +166,10 @@ before linking a broad administrative credential.
 
 ## Providers
 
-Vigil ships 14 provider integrations. Nine are established and five remain
+Vigil ships 15 provider integrations. Nine are established and six remain
 visibly experimental because their endpoints lack a stable vendor contract or
 complete production evidence. Every integration uses the same minimum
-five-minute polling floor, but that floor is not a sampling promise.
+sixty-second polling floor, but that floor is not a sampling promise.
 
 The [provider support matrix](docs/providers/support-matrix.md) is the canonical
 list of credentials, accepted data, contract evidence, and stability labels.
@@ -210,13 +210,12 @@ The complete simulator command and CI-equivalent gate live in the
 
 ## Project status
 
-These docs describe **Vigil 0.15.0, build 21** in the current source tree. The
-latest Internal TestFlight candidate is build 21, which fixes account removal
-doing nothing, restores re-linking a provider whose response this build cannot
-read, makes degraded freshness honest on screen and in VoiceOver, and recovers
-Kimi K3 accounts stranded by the endpoint's omitted zero-valued fields.
-Consult the [build 21 release record](docs/releases/0.15.0-21.md)
-before further distribution work.
+These docs describe **Vigil 0.15.0, build 22** in the current source tree. The
+latest Internal TestFlight candidate in progress is build 22, which adds
+experimental **Grok Build** monitoring (device authorization like desktop
+`grok login`, distinct from the xAI API prepaid Management Key path). Consult
+the [build 22 release record](docs/releases/0.15.0-22.md) before further
+distribution work.
 
 Runtime provider behavior can change outside Vigil's control. Experimental
 integrations remain labeled during setup because their vendor contracts or

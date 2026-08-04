@@ -1,0 +1,16 @@
+{
+  "windows": [
+    {
+      "id": "monthly",
+      "label": "Monthly credits",
+      "utilization": 8,
+      "used": 1200,
+      "limit": 15000,
+      "remaining": 13800,
+      "resetsAt": "2026-09-01T00:00:00Z",
+      "windowSeconds": null,
+      "secondary": false
+    }
+  ],
+  "metrics": []
+}

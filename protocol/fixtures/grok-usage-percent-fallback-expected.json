@@ -1,0 +1,17 @@
+{
+  "planLabel": "X Premium",
+  "windows": [
+    {
+      "id": "monthly",
+      "label": "Monthly credits",
+      "utilization": 42,
+      "used": null,
+      "limit": null,
+      "remaining": null,
+      "resetsAt": "2026-08-06T22:01:55Z",
+      "windowSeconds": null,
+      "secondary": false
+    }
+  ],
+  "metrics": []
+}

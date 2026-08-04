@@ -51,6 +51,7 @@ enum ProviderPresentation {
         case "openai": return "chart.xyaxis.line"
         case "github": return "chevron.left.forwardslash.chevron.right"
         case "xai": return "xmark"
+        case "grok": return "hammer"
         case "zai": return "cpu"
         case "cursor": return "cursorarrow.rays"
         case "kimi_code": return "moon.stars.circle"
@@ -68,6 +69,7 @@ enum ProviderPresentation {
         case "minimax", "minimax_cn": return VigilPalette.caution
         case "github": return Color(red: 0.74, green: 0.79, blue: 0.83)
         case "xai": return Color(red: 0.82, green: 0.84, blue: 0.86)
+        case "grok": return Color(red: 0.92, green: 0.92, blue: 0.94)
         case "zai": return Color(red: 0.49, green: 0.69, blue: 0.88)
         case "cursor": return Color(red: 0.73, green: 0.62, blue: 0.90)
         case "kimi_code": return Color(red: 0.55, green: 0.60, blue: 0.95)
@@ -80,6 +82,7 @@ enum ProviderPresentation {
         case "github": return "Personal access token"
         case "openai": return "Admin API key"
         case "xai": return "Management key"
+        case "grok": return "Grok Build session token"
         case "cursor": return "Session cookie"
         default: break
         }

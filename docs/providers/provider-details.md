@@ -88,6 +88,16 @@ The normalized result separates credits consumed, included credits, billable cre
 
 The request requires a Management Key and team ID. The current provider contract returns a signed cent-denominated total. Vigil applies the contract's `-0.01` scale and presents the result as USD prepaid balance.
 
+This is the xAI **API platform** prepaid balance. It is not Grok Build subscription usage. Connect Grok Build separately.
+
+### Grok Build
+
+Grok Build is xAI's coding agent product (the terminal agent, not the xAI API prepaid balance). Setup prefers on-device OIDC **device authorization** against `auth.x.ai` with the public Grok CLI client id. That is the same family of flow the desktop CLI uses for `grok login` / `/login`: short user code, browser approval, renewable session. Vigil completes that flow on the phone and mints its own pair; it never copies tokens from `~/.grok/auth.json`. Manual entry of a session access token remains only for recovery and does not auto-renew.
+
+The usage request is a bearer GET to the Grok Build CLI chat-proxy billing endpoint (`cli-chat-proxy.grok.com/v1/billing`). The primary accepted shape returns monthly used and limit values under `config.*.val` wrappers plus a billing period end. When used and limit are absent, Vigil falls back to `creditUsagePercent` with the period end. On-demand used and cap appear only when both amounts are present and the cap is positive.
+
+The endpoint is experimental and undocumented. Unexpected shapes mark the response incompatible rather than inventing limits from a SuperGrok or X Premium plan name.
+
 ### Z.ai Coding Plan
 
 The mapper accepts either a four-hour or five-hour token session plus a weekly token window. It accepts both root-level and `data.limits` collections, and both `type` and `name` identity keys.

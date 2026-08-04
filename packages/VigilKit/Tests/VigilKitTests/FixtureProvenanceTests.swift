@@ -149,6 +149,8 @@ final class FixtureProvenanceTests: XCTestCase {
                 "claude-429.json",
                 "claude-usage-scoped-limits.json",
                 "codex-usage-live-spend-control.json",
+                "grok-usage-ok.json",
+                "grok-usage-percent-fallback.json",
                 "kimi_code-usage-zero-session-used.json",
             ]
         )

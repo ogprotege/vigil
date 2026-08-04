@@ -1087,6 +1087,128 @@
         "balance"
       ]
     },
+    "grok": {
+      "displayName": "Grok Build",
+      "experimental": true,
+      "auth": "oauth_bearer",
+      "usage": {
+        "method": "GET",
+        "url": "https://cli-chat-proxy.grok.com/v1/billing",
+        "headers": {
+          "Authorization": "Bearer {access_token}",
+          "Accept": "application/json",
+          "User-Agent": "Vigil/0.10"
+        }
+      },
+      "oauth": {
+        "authorizeUrl": "https://auth.x.ai/oauth2/authorize",
+        "tokenUrl": "https://auth.x.ai/oauth2/token",
+        "clientId": "b1a00492-073a-47ea-816f-4c329264a828",
+        "scopes": [
+          "openid",
+          "profile",
+          "email",
+          "offline_access",
+          "grok-cli:access",
+          "api:access",
+          "conversations:read",
+          "conversations:write",
+          "workspaces:read",
+          "workspaces:write"
+        ],
+        "manualRedirectUri": "https://accounts.x.ai/oauth2/device",
+        "deviceCodeUrl": "https://auth.x.ai/oauth2/device/code",
+        "deviceTokenUrl": "https://auth.x.ai/oauth2/token",
+        "tokenBodyFormat": "form_urlencoded"
+      },
+      "poll": {
+        "minSeconds": 60,
+        "jitterSeconds": 60,
+        "backoff429BaseSeconds": 900,
+        "backoffMaxSeconds": 3600
+      },
+      "manualEntryHint": "Prefer Sign in with Grok Build for a renewing account. Manual entry accepts a Grok Build session access token from an authenticated Grok CLI (Bearer token for cli-chat-proxy.grok.com). Manual tokens do not auto-renew. Experimental: the billing endpoint is undocumented and its schema may drift.",
+      "planKey": "subscriptionTier",
+      "responseFields": {
+        "utilization": "creditUsagePercent",
+        "resetsAt": "billingPeriodEnd"
+      },
+      "windows": [
+        {
+          "id": "monthly",
+          "label": "Monthly credits",
+          "sourceKey": "config",
+          "sourceContainer": "object",
+          "resetFormat": "iso8601",
+          "secondary": false,
+          "requiredWhenPresent": false,
+          "fallbackGroup": "monthly",
+          "fields": {
+            "resetsAt": "billingPeriodEnd",
+            "used": "used.val",
+            "limit": "monthlyLimit.val"
+          }
+        },
+        {
+          "id": "monthly",
+          "label": "Monthly credits",
+          "sourceKey": "config",
+          "sourceContainer": "object",
+          "resetFormat": "iso8601",
+          "secondary": false,
+          "requiredWhenPresent": false,
+          "fallbackGroup": "monthly",
+          "fields": {
+            "utilization": "creditUsagePercent",
+            "resetsAt": "billingPeriodEnd"
+          }
+        },
+        {
+          "id": "monthly",
+          "label": "Monthly credits",
+          "sourceKey": "config",
+          "sourceContainer": "object",
+          "resetFormat": "iso8601",
+          "secondary": false,
+          "requiredWhenPresent": false,
+          "fallbackGroup": "monthly",
+          "fields": {
+            "utilization": "creditUsagePercent",
+            "resetsAt": "currentPeriod.end"
+          }
+        }
+      ],
+      "metricMappings": [
+        {
+          "id": "spend_ondemand",
+          "label": "On-demand used",
+          "sourceKey": "config.onDemandUsed.val",
+          "kind": "spend",
+          "unit": "credits",
+          "secondary": true,
+          "requires": ["config.onDemandUsed.val", "config.onDemandCap.val"],
+          "requiresPositive": ["config.onDemandCap.val"]
+        },
+        {
+          "id": "limit_ondemand",
+          "label": "On-demand cap",
+          "sourceKey": "config.onDemandCap.val",
+          "kind": "limit",
+          "unit": "credits",
+          "secondary": true,
+          "requires": ["config.onDemandUsed.val", "config.onDemandCap.val"],
+          "requiresPositive": ["config.onDemandCap.val"]
+        }
+      ],
+      "requiredOutputs": {
+        "minimumWindows": 1,
+        "minimumPrimaryWindows": 1,
+        "windowIds": ["monthly"]
+      },
+      "capabilities": [
+        "rate_windows"
+      ]
+    },
     "zai": {
       "displayName": "Z.ai Coding Plan",
       "experimental": true,
