@@ -25,15 +25,17 @@ does not claim that inaccessible App Store Connect state has passed.
   account for account-based functionality, or a full demo mode with prior Apple
   approval when a demo account cannot be provided.
 
-### 2. Guidelines 2.1 and 5.1.1 — Listing URLs are not yet proven public
+### 2. Guidelines 2.1 and 5.1.1 — The final support URL is not live on `main`
 
 - **Evidence:** canonical metadata and the shipped app point to privacy and
-  support pages under `github.com/ogprotege/vigil`. The repository is not
-  publicly discoverable from an unauthenticated web search, so those URLs cannot
-  currently be treated as live public release URLs.
-- **Resolution:** publish `docs/privacy.md` and `docs/support.md` at stable,
-  unauthenticated HTTPS URLs; verify both from a signed-out browser and on a
-  physical device; then update both metadata and `VigilLinks.swift` together.
+  support pages under the public `github.com/ogprotege/vigil` repository. An
+  unauthenticated request returns HTTP 200 for the privacy URL on `main` and for
+  both documents on the release branch, but the canonical `main/docs/support.md`
+  URL still returns HTTP 404 because that document has not been merged.
+- **Resolution:** merge the reviewed support document to `main`, then verify the
+  canonical privacy and support URLs from a signed-out browser and on a physical
+  device. If either final URL changes, update metadata and `VigilLinks.swift`
+  together.
 - **Why this blocks:** Apple requires a public privacy-policy URL, an accessible
   in-app policy link, working support information, and fully functional URLs at
   submission.
@@ -70,9 +72,11 @@ does not claim that inaccessible App Store Connect state has passed.
 
 1. **App Store Connect source of truth unavailable.** Repair `asc` authentication,
    pull the existing record, and compare before applying local metadata.
-2. **GitHub source of truth unavailable.** Repair `gh` authentication, push only
-   the reviewed candidate, and require the `apple` workflow to pass before an
-   archive is made.
+2. **Pull-request operation still needs GitHub authentication.** The reviewed
+   source commit `6fafae2` is pushed and public `apple` workflow run
+   `31319117467` passed on that exact SHA. The local `gh` token remains invalid,
+   so repair `gh` authentication or open the branch's public pull-request URL;
+   require pull-request and merged-`main` CI before an archive is made.
 3. **Xcode 27 / iOS 27 gate unavailable.** The current Mac has Xcode 26.6 and an
    iOS 26.5 simulator. Repeat Liquid Glass and full-scheme validation with the
    publication toolchain before public submission.
@@ -93,7 +97,7 @@ does not claim that inaccessible App Store Connect state has passed.
    iPad, widgets, notifications, background work, appearance, app lock, account
    deletion, and the dedicated Grok Build flow.
 
-## Passed checks (14)
+## Passed checks (15)
 
 1. App name is 24/30 characters and subtitle is 26/30.
 2. Keywords are 97/100 characters, functional, non-duplicative with the title
@@ -125,14 +129,18 @@ does not claim that inaccessible App Store Connect state has passed.
 14. Local package, app, UI, documentation, plist, privacy-manifest, metadata,
     and screenshot validation passed with the evidence recorded in
     [`docs/releases/1.0.0-23.md`](../../../docs/releases/1.0.0-23.md).
+15. Reviewed source commit `6fafae2` was pushed to
+    `agent/vigil-1.0-public-release`, and public GitHub `apple` workflow run
+    `31319117467` passed on that exact SHA.
 
 ## Required order from here
 
-1. Resolve provider rights, reviewer access, public URLs, legal fields, and
-   China mainland availability.
+1. Resolve provider rights, reviewer access, the final `main` support URL, legal
+   fields, and China mainland availability.
 2. Repair App Store Connect authentication; pull and diff the remote record.
 3. Obtain owner approval for the final listing and all twelve screenshots.
-4. Commit the exact candidate, push it, and require green GitHub CI.
+4. Open and merge the reviewed pull request, requiring green pull-request and
+   merged-`main` CI. The source-branch candidate is already green.
 5. Repeat Xcode 27/iOS 27 and physical-device checks.
 6. Build and verify a signed archive from the exact green commit.
 7. Obtain the runbook's exact upload approval before TestFlight upload.

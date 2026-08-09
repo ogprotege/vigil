@@ -15,7 +15,8 @@ edge case, verification gap, background-task hardening, and portable screenshot
 configuration identified by this review were approved and resolved. The complete
 local scheme now passes 177/177 tests, VigilKit passes 206 tests with two
 explicitly opt-in live tests skipped, and fresh generic Debug and unsigned
-Release simulator builds pass.
+Release simulator builds pass. Public GitHub `apple` workflow run `31319117467`
+also passed on the exact reviewed source commit `6fafae2`.
 
 ## Critical Issues (must fix)
 
@@ -91,7 +92,8 @@ privacy state.
 
 ## Next Steps
 
-1. Stage only the reviewed release candidate, excluding unrelated `.claude/` and
-   `dev/active/suspension-guard-0xdead10cc/` files.
-2. Push only after GitHub authentication is repaired, and require green GitHub CI
-   before any signed archive or TestFlight action.
+1. Open the pull request for `agent/vigil-1.0-public-release`; the local `gh`
+   token must be repaired first if the CLI is used.
+2. Require green pull-request and merged-`main` CI before any signed archive or
+   TestFlight action. The exact reviewed source commit is already green on its
+   source branch.
