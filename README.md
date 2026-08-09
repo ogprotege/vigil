@@ -15,7 +15,7 @@ complete set of accepted provider values one tap away.
 <p>
 <a href="https://github.com/ogprotege/vigil/actions/workflows/apple.yml"><img src="https://github.com/ogprotege/vigil/actions/workflows/apple.yml/badge.svg" alt="Apple CI" /></a>
 &nbsp;
-<a href="docs/releases/0.15.0-17.md"><img src="https://img.shields.io/badge/source-0.15.0%20%2817%29-9D8CFF" alt="Source version 0.15.0 build 17" /></a>
+<a href="docs/releases/1.0.0-23.md"><img src="https://img.shields.io/badge/source-1.0.0%20%2823%29-9D8CFF" alt="Source version 1.0.0 build 23" /></a>
 &nbsp;
 <a href="docs/user-guide/setup.md"><img src="https://img.shields.io/badge/iOS-17%2B-000000?logo=apple&amp;logoColor=white" alt="iOS 17 or later" /></a>
 &nbsp;
@@ -86,6 +86,7 @@ Captured from the current iOS 17.5 simulator build. The Limits image uses gated 
 | **Real reset context** | Displays the provider's reset time and hides an expired quota until a new provider reading confirms it. |
 | **Honest history** | Archives successful local observations and labels supported official imports separately. |
 | **Widgets and alerts** | Supplies Home Screen and Lock Screen widgets, plus local alerts at 80% and 95% utilization. |
+| **Private, adaptive presentation** | Offers System, Light, and Dark appearance plus optional generic alert text and hidden widget values. |
 | **Bounded diagnostics** | Exports diagnostic JSON through a credential-free allow list. |
 
 Vigil has no Vigil account, collection server, analytics SDK, advertising SDK,
@@ -159,7 +160,8 @@ Perplexity usage credits are not supported in the current registry.
 
 **On this device** does not mean **never backed up**. Some local non-credential
 records can be included in Apple-managed device backups. The optional app lock
-also does not hide a configured widget or notification preview.
+does not itself hide a widget or notification preview; Settings can hide widget
+values and replace alert details with generic text.
 
 Read [Privacy, deletion, and notifications](docs/user-guide/privacy-deletion-notifications.md)
 before linking a broad administrative credential.
@@ -210,12 +212,11 @@ The complete simulator command and CI-equivalent gate live in the
 
 ## Project status
 
-These docs describe **Vigil 0.15.0, build 22** in the current source tree. The
-latest Internal TestFlight candidate in progress is build 22, which adds
-experimental **Grok Build** monitoring (device authorization like desktop
-`grok login`, distinct from the xAI API prepaid Management Key path). Consult
-the [build 22 release record](docs/releases/0.15.0-22.md) before further
-distribution work.
+These docs describe **Vigil 1.0.0, build 23** in the current source tree. This
+is the first public App Store candidate. It retains the build 22 Grok Build
+integration and adds adaptive appearance, native system Liquid Glass chrome,
+and focused privacy, alert, and automatic-check settings. Consult the
+[1.0.0 release record](docs/releases/1.0.0-23.md) before distribution work.
 
 Runtime provider behavior can change outside Vigil's control. Experimental
 integrations remain labeled during setup because their vendor contracts or
@@ -227,7 +228,7 @@ Vigil reports only data it can obtain and label honestly.
 
 > Documentation status: current
 >
-> Last reviewed: 2026-07-27
+> Last reviewed: 2026-08-09
 >
 > Review again: before each release
 

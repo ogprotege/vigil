@@ -20,7 +20,6 @@ struct RootView: View {
             launchView
         }
         .tint(VigilPalette.signal)
-        .preferredColorScheme(.dark)
     }
 
     @ViewBuilder

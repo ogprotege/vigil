@@ -3,6 +3,12 @@ import XCTest
 @testable import Vigil
 
 final class AppPrivacyPolicyTests: XCTestCase {
+    func testPublicPrivacyAndSupportLinksUseHTTPS() {
+        XCTAssertEqual(VigilLinks.privacyPolicyURL.scheme, "https")
+        XCTAssertEqual(VigilLinks.supportURL.scheme, "https")
+        XCTAssertNotEqual(VigilLinks.privacyPolicyURL, VigilLinks.supportURL)
+    }
+
     func testPrivacyCoverIsAbsentOnlyWhileSceneIsActive() {
         XCTAssertFalse(AppPrivacyPolicy.showsPrivacyCover(for: .active))
         XCTAssertTrue(AppPrivacyPolicy.showsPrivacyCover(for: .inactive))

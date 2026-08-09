@@ -38,7 +38,6 @@ struct GrokSignInView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .preferredColorScheme(.dark)
         .task { await run() }
     }
 

@@ -68,8 +68,6 @@ struct ManualEntryView: View {
         .navigationTitle("Direct setup")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(VigilPalette.canvas.opacity(0.96), for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
         #endif
     }
 

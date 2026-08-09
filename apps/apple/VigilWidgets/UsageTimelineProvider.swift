@@ -77,6 +77,8 @@ struct UsageEntry: TimelineEntry {
     let date: Date
     let account: AccountRef?
     let snapshot: ProviderSnapshot?
+    let appearance: VigilPreferences.Appearance
+    let hidesUsageValues: Bool
 }
 
 /// Reads snapshots from the shared container with zero network; fetches only
@@ -96,10 +98,18 @@ struct UsageTimelineProvider: AppIntentTimelineProvider {
     )
 
     func placeholder(in context: Context) -> UsageEntry {
-        UsageEntry(date: Date(), account: nil, snapshot: Self.sampleSnapshot)
+        let preferences = Self.preferences()
+        return UsageEntry(
+            date: Date(),
+            account: nil,
+            snapshot: Self.sampleSnapshot,
+            appearance: preferences.appearance,
+            hidesUsageValues: preferences.widgetValuesHidden
+        )
     }
 
     func snapshot(for configuration: SelectUsageAccountIntent, in context: Context) async -> UsageEntry {
+        let preferences = Self.preferences()
         var (account, snapshot, generation) = Self.load(
             accountIdentifier: configuration.account?.id
         )
@@ -111,18 +121,22 @@ struct UsageTimelineProvider: AppIntentTimelineProvider {
         return UsageEntry(
             date: Date(),
             account: account,
-            snapshot: snapshot ?? (context.isPreview ? Self.sampleSnapshot : nil)
+            snapshot: snapshot ?? (context.isPreview ? Self.sampleSnapshot : nil),
+            appearance: preferences.appearance,
+            hidesUsageValues: preferences.widgetValuesHidden
         )
     }
 
     func timeline(for configuration: SelectUsageAccountIntent, in context: Context) async -> Timeline<UsageEntry> {
+        let preferences = Self.preferences()
         var (account, snapshot, generation) = Self.load(
             accountIdentifier: configuration.account?.id
         )
         var refreshAfter: Date?
         let now = Date()
 
-        if let selectedAccount = account,
+        if !preferences.automaticChecksPaused,
+           let selectedAccount = account,
            (snapshot.map {
                now.timeIntervalSince($0.fetchedAt) > Self.staleAfter
                    || SnapshotFreshness.hasUnconfirmedReset(in: $0, at: now)
@@ -138,7 +152,11 @@ struct UsageTimelineProvider: AppIntentTimelineProvider {
                 guard let generation else {
                     account = nil
                     snapshot = nil
-                    return Self.timeline(account: account, snapshot: snapshot)
+                    return Self.timeline(
+                        account: account,
+                        snapshot: snapshot,
+                        preferences: preferences
+                    )
                 }
                 let vault = SharedKeychain.credentialsStore()
                 let credentials = try lifecycle.withCurrentGeneration(
@@ -155,6 +173,7 @@ struct UsageTimelineProvider: AppIntentTimelineProvider {
                         snapshots: SnapshotStore(directory: directory),
                         vault: vault,
                         surface: "widget",
+                        emitThresholdEvents: preferences.usageAlertsEnabled,
                         pendingEvents: PendingEventStore(directory: directory),
                         history: UsageHistoryStore(directory: directory),
                         lifecycle: lifecycle,
@@ -207,7 +226,8 @@ struct UsageTimelineProvider: AppIntentTimelineProvider {
         return Self.timeline(
             account: account,
             snapshot: snapshot,
-            refreshAfter: refreshAfter
+            refreshAfter: refreshAfter,
+            preferences: preferences
         )
     }
 
@@ -279,16 +299,21 @@ struct UsageTimelineProvider: AppIntentTimelineProvider {
     private static func timeline(
         account: AccountRef?,
         snapshot: ProviderSnapshot?,
-        refreshAfter: Date? = nil
+        refreshAfter: Date? = nil,
+        preferences: VigilPreferences
     ) -> Timeline<UsageEntry> {
         let now = Date()
         var entries = [UsageEntry(
             date: now,
             account: account,
-            snapshot: snapshot
+            snapshot: snapshot,
+            appearance: preferences.appearance,
+            hidesUsageValues: preferences.widgetValuesHidden
         )]
 
-        var reloadAt = now.addingTimeInterval(staleAfter)
+        var reloadAt = now.addingTimeInterval(
+            preferences.automaticChecksPaused ? 60 * 60 : staleAfter
+        )
         if let snapshot {
             let boundaries = snapshot.windows
                 .compactMap(\.resetsAt)
@@ -300,7 +325,9 @@ struct UsageTimelineProvider: AppIntentTimelineProvider {
                 entries.append(UsageEntry(
                     date: at,
                     account: account,
-                    snapshot: snapshot
+                    snapshot: snapshot,
+                    appearance: preferences.appearance,
+                    hidesUsageValues: preferences.widgetValuesHidden
                 ))
                 reloadAt = min(reloadAt, at)
             }
@@ -312,6 +339,10 @@ struct UsageTimelineProvider: AppIntentTimelineProvider {
         // Ask WidgetKit for a new timeline at the first reset or ledger retry,
         // while retaining the ordinary 5-minute upper bound.
         return Timeline(entries: entries, policy: .after(reloadAt))
+    }
+
+    private static func preferences() -> VigilPreferences {
+        VigilPreferences(defaults: SharedContainer.preferencesDefaults)
     }
 
     private static var sampleSnapshot: ProviderSnapshot {

@@ -15,119 +15,25 @@ struct SettingsView: View {
     @State private var fullRecoveryCompleted = false
 
     var body: some View {
-        @Bindable var model = model
+        recoveryPresentation
+    }
 
-        ZStack {
+    private var settingsContent: some View {
+        let preferences = model.preferences
+
+        return ZStack {
             VigilScreenBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: VigilSpacing.large) {
-                    settingsSection("Security") {
-                        adaptiveToggle(
-                            title: "Require Face ID or Touch ID",
-                            detail: "Lock Vigil whenever it returns to the foreground.",
-                            isOn: Binding(
-                                get: { model.lockEnabled },
-                                set: { model.lockEnabled = $0 }
-                            )
-                        )
-                    }
-
-                    settingsSection("Privacy") {
-                        VStack(spacing: 10) {
-                            NavigationLink {
-                                PrivacyView()
-                            } label: {
-                                SettingsNavigationRow(
-                                    symbol: "lock.shield",
-                                    title: "How Vigil handles your data",
-                                    detail: "Credentials, snapshots, and direct provider requests"
-                                )
-                            }
-                            .buttonStyle(.plain)
-
-                            Button(action: prepareDiagnosticExport) {
-                                SettingsNavigationRow(
-                                    symbol: "square.and.arrow.up",
-                                    title: "Export diagnostic report",
-                                    detail: "Bounded recent support data without credentials or raw responses",
-                                    showsChevron: false
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("vigil.settings.exportDiagnostics")
-
-                            if model.hasAccountRepairBackups {
-                                Button(role: .destructive) {
-                                    showRepairBackupDeletion = true
-                                } label: {
-                                    SettingsNavigationRow(
-                                        symbol: "trash",
-                                        title: "Delete account repair backup",
-                                        detail: "Remove the damaged account list preserved during recovery",
-                                        showsChevron: false
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityIdentifier("vigil.settings.deleteRepairBackup")
-                            }
-
-                            if model.requiresFullLocalDataRecovery {
-                                Button(role: .destructive) {
-                                    showFullRecoveryReset = true
-                                } label: {
-                                    SettingsNavigationRow(
-                                        symbol: "exclamationmark.arrow.triangle.2.circlepath",
-                                        title: model.isResettingAllLocalData
-                                            ? "Erasing local Vigil data..."
-                                            : "Erase Vigil data and start over",
-                                        detail: "Deletes every linked credential, snapshot, history record, and Vigil notification from this iPhone",
-                                        showsChevron: false
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                                .disabled(model.isResettingAllLocalData)
-                                .accessibilityIdentifier("vigil.settings.fullRecoveryReset")
-                            }
-                        }
-                    }
-
-                    settingsSection("Refresh") {
-                        VStack(spacing: 0) {
-                            SettingsValueRow(label: "Provider minimum", value: "5 min + jitter")
-                            Divider().overlay(VigilPalette.border.opacity(0.7))
-                            SettingsValueRow(label: "Background checks", value: "Scheduled by iOS")
-                        }
-                        .vigilInsetSurface()
-
-                        Text("Manual refresh, background work, and widgets share the same provider cooldown. Observed history can contain gaps.")
-                            .font(.caption)
-                            .foregroundStyle(VigilPalette.inkMuted)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
+                    appearanceSettingsSection
+                    alertsSettingsSection
+                    securitySettingsSection
+                    privacySettingsSection
+                    refreshSettingsSection
                     #if DEBUG
-                    settingsSection("Diagnostics") {
-                        Button { Task { await simulateThresholdCrossing() } } label: {
-                            SettingsNavigationRow(
-                                symbol: "bell.badge",
-                                title: "Simulate the 80% alert",
-                                detail: "Exercises the local notification path",
-                                showsChevron: false
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(model.accounts.isEmpty)
-                    }
+                    diagnosticsSettingsSection
                     #endif
-
-                    settingsSection("About") {
-                        VStack(spacing: 0) {
-                            SettingsValueRow(label: "Version", value: appVersion)
-                            Divider().overlay(VigilPalette.border.opacity(0.7))
-                            SettingsValueRow(label: "Storage", value: "This device only")
-                        }
-                        .vigilInsetSurface()
-                    }
+                    aboutSettingsSection
                 }
                 .frame(maxWidth: 680, alignment: .leading)
                 .padding(VigilSpacing.medium)
@@ -139,8 +45,22 @@ struct SettingsView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .toolbarBackground(VigilPalette.canvas.opacity(0.97), for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
+        .onChange(of: preferences.appearance) { _, _ in
+            model.presentationPreferencesDidChange()
+        }
+        .onChange(of: preferences.usageAlertsEnabled) { _, _ in
+            Task { await model.usageAlertsPreferenceDidChange() }
+        }
+        .onChange(of: preferences.automaticChecksPaused) { _, _ in
+            model.automaticChecksPreferenceDidChange()
+        }
+        .onChange(of: preferences.widgetValuesHidden) { _, _ in
+            model.presentationPreferencesDidChange()
+        }
+    }
+
+    private var diagnosticPresentation: some View {
+        settingsContent
         .fileExporter(
             isPresented: $showDiagnosticExporter,
             document: exportDocument,
@@ -163,6 +83,10 @@ struct SettingsView: View {
         } message: {
             Text(exportError ?? "")
         }
+    }
+
+    private var repairPresentation: some View {
+        diagnosticPresentation
         .confirmationDialog(
             "Delete account repair backup?",
             isPresented: $showRepairBackupDeletion,
@@ -190,6 +114,10 @@ struct SettingsView: View {
         } message: {
             Text(repairBackupError ?? "")
         }
+    }
+
+    private var recoveryPresentation: some View {
+        repairPresentation
         .confirmationDialog(
             "Erase all local Vigil data?",
             isPresented: $showFullRecoveryReset,
@@ -201,7 +129,7 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text(
-                "This permanently deletes Vigil's Keychain credentials, linked accounts, current snapshots, observed and imported history, polling metadata, and Vigil notifications from this iPhone. It does not delete your provider accounts. This cannot be undone."
+                "This permanently deletes Vigil's Keychain credentials, linked accounts, current snapshots, observed and imported history, polling metadata, and Vigil notifications from this device. It does not delete your provider accounts. This cannot be undone."
             )
         }
         .alert(
@@ -219,6 +147,187 @@ struct SettingsView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("All recoverable local Vigil data and Keychain credentials were deleted. You can now link accounts again.")
+        }
+    }
+
+    private var appearanceSettingsSection: some View {
+        @Bindable var preferences = model.preferences
+        return settingsSection("Appearance") {
+            appearanceControl(selection: $preferences.appearance)
+        }
+    }
+
+    private var alertsSettingsSection: some View {
+        @Bindable var preferences = model.preferences
+        return settingsSection("Alerts") {
+            VStack(spacing: 10) {
+                adaptiveToggle(
+                    title: "Usage alerts",
+                    detail: "Notify at the fixed 80% and 95% usage thresholds.",
+                    isOn: $preferences.usageAlertsEnabled
+                )
+                .accessibilityIdentifier("vigil.settings.usageAlerts")
+
+                adaptiveToggle(
+                    title: "Hide notification details",
+                    detail: "Use generic alert text without provider names, windows, or percentages.",
+                    isOn: $preferences.notificationDetailsHidden
+                )
+                .disabled(!preferences.usageAlertsEnabled)
+                .opacity(preferences.usageAlertsEnabled ? 1 : 0.62)
+                .accessibilityIdentifier("vigil.settings.notificationPrivacy")
+            }
+        }
+    }
+
+    private var securitySettingsSection: some View {
+        @Bindable var model = model
+        return settingsSection("Security") {
+            adaptiveToggle(
+                title: "Require Face ID or Touch ID",
+                detail: "Lock Vigil whenever it returns to the foreground.",
+                isOn: Binding(
+                    get: { model.lockEnabled },
+                    set: { model.lockEnabled = $0 }
+                )
+            )
+        }
+    }
+
+    private var privacySettingsSection: some View {
+        @Bindable var preferences = model.preferences
+        return settingsSection("Privacy") {
+            VStack(spacing: 10) {
+                adaptiveToggle(
+                    title: "Hide usage values in widgets",
+                    detail: "Show the linked provider and freshness without percentages, limits, spend, or balances.",
+                    isOn: $preferences.widgetValuesHidden
+                )
+                .accessibilityIdentifier("vigil.settings.widgetPrivacy")
+
+                NavigationLink {
+                    PrivacyView()
+                } label: {
+                    SettingsNavigationRow(
+                        symbol: "lock.shield",
+                        title: "How Vigil handles your data",
+                        detail: "Credentials, snapshots, and direct provider requests"
+                    )
+                }
+                .buttonStyle(.plain)
+
+                Button(action: prepareDiagnosticExport) {
+                    SettingsNavigationRow(
+                        symbol: "square.and.arrow.up",
+                        title: "Export diagnostic report",
+                        detail: "Bounded recent support data without credentials or raw responses",
+                        showsChevron: false
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("vigil.settings.exportDiagnostics")
+
+                if model.hasAccountRepairBackups {
+                    Button(role: .destructive) {
+                        showRepairBackupDeletion = true
+                    } label: {
+                        SettingsNavigationRow(
+                            symbol: "trash",
+                            title: "Delete account repair backup",
+                            detail: "Remove the damaged account list preserved during recovery",
+                            showsChevron: false
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("vigil.settings.deleteRepairBackup")
+                }
+
+                if model.requiresFullLocalDataRecovery {
+                    Button(role: .destructive) {
+                        showFullRecoveryReset = true
+                    } label: {
+                        SettingsNavigationRow(
+                            symbol: "exclamationmark.arrow.triangle.2.circlepath",
+                            title: model.isResettingAllLocalData
+                                ? "Erasing local Vigil data..."
+                                : "Erase Vigil data and start over",
+                            detail: "Deletes every linked credential, snapshot, history record, and Vigil notification from this device",
+                            showsChevron: false
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(model.isResettingAllLocalData)
+                    .accessibilityIdentifier("vigil.settings.fullRecoveryReset")
+                }
+            }
+        }
+    }
+
+    private var refreshSettingsSection: some View {
+        @Bindable var preferences = model.preferences
+        return settingsSection("Refresh") {
+            VStack(spacing: 10) {
+                adaptiveToggle(
+                    title: "Pause automatic checks",
+                    detail: "Stop foreground timer, background, and widget fetches. Pull to refresh still works.",
+                    isOn: $preferences.automaticChecksPaused
+                )
+                .accessibilityIdentifier("vigil.settings.pauseAutomaticChecks")
+
+                VStack(spacing: 0) {
+                    SettingsValueRow(label: "Provider floor", value: "1–2 min")
+                    Divider().overlay(VigilPalette.border.opacity(0.7))
+                    SettingsValueRow(label: "Background checks", value: "Scheduled by iOS")
+                }
+                .vigilInsetSurface()
+            }
+
+            Text("Manual refresh, background work, and widgets share one provider cooldown and honor provider backoff. Observed history can contain gaps.")
+                .font(.caption)
+                .foregroundStyle(VigilPalette.inkMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    #if DEBUG
+    private var diagnosticsSettingsSection: some View {
+        settingsSection("Diagnostics") {
+            Button { Task { await simulateThresholdCrossing() } } label: {
+                SettingsNavigationRow(
+                    symbol: "bell.badge",
+                    title: "Simulate the 80% alert",
+                    detail: "Exercises the local notification path",
+                    showsChevron: false
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(model.accounts.isEmpty)
+        }
+    }
+    #endif
+
+    private var aboutSettingsSection: some View {
+        settingsSection("About") {
+            VStack(spacing: 10) {
+                VStack(spacing: 0) {
+                    SettingsValueRow(label: "Version", value: appVersion)
+                    Divider().overlay(VigilPalette.border.opacity(0.7))
+                    SettingsValueRow(label: "Storage", value: "This device only")
+                }
+                .vigilInsetSurface()
+
+                Link(
+                    destination: VigilLinks.supportURL
+                ) {
+                    SettingsNavigationRow(
+                        symbol: "questionmark.circle",
+                        title: "Help and support",
+                        detail: "Read guidance or report a problem",
+                        showsChevron: false
+                    )
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 
@@ -258,6 +367,38 @@ struct SettingsView: View {
         .padding(14)
         .vigilInsetSurface()
         .accessibilityElement(children: .contain)
+    }
+
+    private func appearanceControl(
+        selection: Binding<VigilPreferences.Appearance>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            settingCopy(
+                title: "Color scheme",
+                detail: "System follows your device. Dark preserves Vigil's original low-light appearance."
+            )
+            if dynamicTypeSize.isAccessibilitySize {
+                Picker("Color scheme", selection: selection) {
+                    appearanceOptions
+                }
+                .pickerStyle(.menu)
+            } else {
+                Picker("Color scheme", selection: selection) {
+                    appearanceOptions
+                }
+                .pickerStyle(.segmented)
+            }
+        }
+        .padding(14)
+        .vigilInsetSurface()
+        .accessibilityIdentifier("vigil.settings.appearance")
+    }
+
+    @ViewBuilder
+    private var appearanceOptions: some View {
+        ForEach(VigilPreferences.Appearance.allCases) { appearance in
+            Text(appearance.title).tag(appearance)
+        }
     }
 
     private func settingCopy(title: String, detail: String) -> some View {
@@ -354,7 +495,8 @@ struct SettingsView: View {
         _ = await model.notifications.deliver(
             events: events,
             account: account,
-            deliveryScope: "settings-test-\(UUID().uuidString.lowercased())"
+            deliveryScope: "settings-test-\(UUID().uuidString.lowercased())",
+            hidesDetails: model.preferences.notificationDetailsHidden
         )
     }
     #endif

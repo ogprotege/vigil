@@ -39,4 +39,18 @@ final class RefreshReportTests: XCTestCase {
         XCTAssertTrue(report.userMessage.contains("rate limit"))
         XCTAssertTrue(report.userMessage.contains("failed"))
     }
+
+    func testRefreshReportExplainsAutomaticPauseWithoutClaimingRateLimit() {
+        let report = AppModel.RefreshReport(
+            fetched: 0,
+            deferred: 0,
+            failed: 0,
+            nextAllowedAt: nil,
+            paused: 2
+        )
+
+        XCTAssertTrue(report.userMessage.contains("Automatic checks are paused"))
+        XCTAssertTrue(report.userMessage.contains("Pull to refresh"))
+        XCTAssertFalse(report.userMessage.contains("rate limit"))
+    }
 }

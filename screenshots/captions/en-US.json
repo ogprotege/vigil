@@ -1,0 +1,42 @@
+{
+  "locale": "en-US",
+  "version": "1.0.0",
+  "screenshots": [
+    {
+      "order": 1,
+      "name": "home-dark",
+      "title": "Your AI limits, ranked",
+      "subtitle": "See the tightest quota first."
+    },
+    {
+      "order": 2,
+      "name": "account-detail",
+      "title": "Every reset and balance",
+      "subtitle": "Credits, spend, history, and provider details."
+    },
+    {
+      "order": 3,
+      "name": "settings-dark",
+      "title": "Dark mode stays yours",
+      "subtitle": "Control alerts, widgets, privacy, and checks."
+    },
+    {
+      "order": 4,
+      "name": "home-light",
+      "title": "Light when you want it",
+      "subtitle": "Adaptive contrast. The same focused dashboard."
+    },
+    {
+      "order": 5,
+      "name": "connections",
+      "title": "All accounts in one place",
+      "subtitle": "Manage connections without losing the overview."
+    },
+    {
+      "order": 6,
+      "name": "provider-setup",
+      "title": "Connect 15 integrations",
+      "subtitle": "Claude, ChatGPT / Codex, Grok Build, and more."
+    }
+  ]
+}

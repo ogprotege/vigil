@@ -6,6 +6,14 @@ Anything that changes shipped behavior gets an entry here: TestFlight app builds
 
 ## Unreleased
 
+## 1.0.0 (23) — public App Store candidate, 2026-08-09
+
+- Added a focused Settings experience with System, Light, and Dark appearance choices. Dark preserves Vigil's original palette; Light uses an adaptive high-contrast palette, and System follows the iPhone.
+- Returned navigation and toolbar chrome to standard SwiftUI controls so current iOS releases supply native Liquid Glass while usage cards remain opaque and readable.
+- Added controls for fixed 80%/95% usage alerts, generic notification text, hiding usage values in widgets, and pausing only automatic checks. Manual pull-to-refresh and account verification continue to work while automatic checks are paused.
+- Shared the preferences through the App Group so the app and widget honor the same appearance, privacy, alert, and polling choices. Disabling alerts consumes pending crossings instead of delivering them later.
+- Corrected Settings to describe the actual one-minute provider floor plus jitter and added an in-app support route.
+
 ## 0.15.0 (22) — TestFlight internal candidate, 2026-08-04
 
 - Added **Grok Build** (`grok`) as an experimental provider so Vigil can monitor Grok Build / Grok CLI credit usage. Setup uses the same kind of xAI OIDC **device authorization** flow as desktop `grok login` / `/login` (short code + browser approval), minting a renewable phone-owned session rather than reading `~/.grok/auth.json`. Distinct from the existing **xAI API** prepaid Management Key integration under Other provider.

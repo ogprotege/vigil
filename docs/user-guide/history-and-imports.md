@@ -56,7 +56,7 @@ Account detail loads a recent preview. Choose **View all records**, then **Load 
 
 ## What cannot be reconstructed
 
-Vigil cannot read another iPhone app's cache, protected database, cookies, or login state. iOS app sandboxing prevents that access, and Vigil does not attempt it.
+Vigil cannot read another iOS app's cache, protected database, cookies, or login state. iOS app sandboxing prevents that access, and Vigil does not attempt it.
 
 Unless a provider offers a supported history API, Vigil cannot recover activity from before the account was connected. Current Claude and ChatGPT/Codex subscription integrations return present provider quota state, not a complete historical token ledger.
 

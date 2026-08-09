@@ -132,14 +132,16 @@ struct VigilApp: App {
                 }
             }
             .environment(model)
-            .preferredColorScheme(.dark)
+            .preferredColorScheme(model.preferences.appearance.colorScheme)
             .task { model.ensureLoadedFromDisk() }
             .onChange(of: scenePhase) { _, phase in
                 model.scenePhaseChanged(to: phase)
                 switch phase {
                 case .background:
                     if model.lockEnabled { locked = true }
-                    BackgroundRefresh.schedule()
+                    if !model.preferences.automaticChecksPaused {
+                        BackgroundRefresh.schedule()
+                    }
                 default:
                     break
                 }

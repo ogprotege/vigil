@@ -1,0 +1,121 @@
+defaults:
+  background:
+    colors:
+    - '#0B1020'
+    - '#18243D'
+    direction: 160
+    type: linear
+project:
+  device: iPhone 17 Pro Max - Silver - Portrait
+  name: Vigil 1.0 iPhone App Store screenshots
+  output_dir: ../screenshots/framed/iphone/en-US
+  output_size: iPhone6_9
+screenshots:
+  01-home-dark:
+    content:
+    - color: '#65D6B4'
+      content: Your AI limits, ranked
+      position: [50%, 8%]
+      size: 64
+      type: text
+      weight: bold
+    - color: '#D8E2F0'
+      content: See the tightest quota first.
+      position: [50%, 13%]
+      size: 34
+      type: text
+    - asset: ../screenshots/raw/iphone/en-US/01-home-dark.png
+      frame: true
+      position: [50%, 63%]
+      scale: 0.73
+      type: image
+  02-account-detail:
+    content:
+    - color: '#65D6B4'
+      content: Every reset and balance
+      position: [50%, 8%]
+      size: 64
+      type: text
+      weight: bold
+    - color: '#D8E2F0'
+      content: Credits, spend, history, and provider details.
+      position: [50%, 13%]
+      size: 34
+      type: text
+    - asset: ../screenshots/raw/iphone/en-US/02-account-detail.png
+      frame: true
+      position: [50%, 63%]
+      scale: 0.73
+      type: image
+  03-settings-dark:
+    content:
+    - color: '#65D6B4'
+      content: Dark mode stays yours
+      position: [50%, 8%]
+      size: 64
+      type: text
+      weight: bold
+    - color: '#D8E2F0'
+      content: Control alerts, widgets, privacy, and checks.
+      position: [50%, 13%]
+      size: 34
+      type: text
+    - asset: ../screenshots/raw/iphone/en-US/03-settings-dark.png
+      frame: true
+      position: [50%, 63%]
+      scale: 0.73
+      type: image
+  04-home-light:
+    content:
+    - color: '#65D6B4'
+      content: Light when you want it
+      position: [50%, 8%]
+      size: 64
+      type: text
+      weight: bold
+    - color: '#D8E2F0'
+      content: Adaptive contrast. The same focused dashboard.
+      position: [50%, 13%]
+      size: 34
+      type: text
+    - asset: ../screenshots/raw/iphone/en-US/04-home-light.png
+      frame: true
+      position: [50%, 63%]
+      scale: 0.73
+      type: image
+  05-connections:
+    content:
+    - color: '#65D6B4'
+      content: All accounts in one place
+      position: [50%, 8%]
+      size: 64
+      type: text
+      weight: bold
+    - color: '#D8E2F0'
+      content: Manage connections without losing the overview.
+      position: [50%, 13%]
+      size: 34
+      type: text
+    - asset: ../screenshots/raw/iphone/en-US/05-connections.png
+      frame: true
+      position: [50%, 63%]
+      scale: 0.73
+      type: image
+  06-provider-setup:
+    content:
+    - color: '#65D6B4'
+      content: Connect 15 integrations
+      position: [50%, 8%]
+      size: 64
+      type: text
+      weight: bold
+    - color: '#D8E2F0'
+      content: Claude, ChatGPT / Codex, Grok Build, and more.
+      position: [50%, 13%]
+      size: 34
+      type: text
+    - asset: ../screenshots/raw/iphone/en-US/06-provider-setup.png
+      frame: true
+      position: [50%, 63%]
+      scale: 0.73
+      type: image

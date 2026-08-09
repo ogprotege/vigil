@@ -2,7 +2,7 @@
 
 Vigil minimizes where data goes, but local quota and billing data can still be sensitive.
 
-> Last reviewed: 2026-07-26
+> Last reviewed: 2026-08-09
 >
 > Review again: for every storage, networking, notification, or export change
 
@@ -14,7 +14,7 @@ Vigil's provider sessions are ephemeral, do not use an HTTP response cache, and 
 
 Browser pages used to approve Claude or OpenAI sign-in run in the user's browser. Browser cookies and provider login state remain under the browser and provider's control.
 
-Vigil cannot read private storage belonging to Claude, ChatGPT, Perplexity, or another iPhone app.
+Vigil cannot read private storage belonging to Claude, ChatGPT, Perplexity, or another iOS app.
 
 ## Credentials
 
@@ -41,7 +41,7 @@ Vigil does not implement cloud sync. It also does not mark its App Group records
 
 ## Notifications
 
-After an account is linked, Vigil can request permission for local alerts. It detects crossings at 80% and 95% utilization. An account already above a threshold at its first accepted reading does not generate a retroactive crossing alert.
+When **Usage alerts** is enabled, Vigil can request permission for local alerts after an account is linked. It detects crossings at fixed 80% and 95% utilization. An account already above a threshold at its first accepted reading does not generate a retroactive crossing alert. Turning alerts off also clears Vigil notifications and consumes pending crossings so they do not appear later if alerts are re-enabled.
 
 A notification can show:
 
@@ -50,7 +50,7 @@ A notification can show:
 - the current utilization percentage; and
 - wording that the limit is close.
 
-This information can appear on the Lock Screen or in Notification Center. Use iOS **Settings → Notifications → Vigil** to disable alerts or hide previews if that disclosure is not acceptable.
+This information can appear on the Lock Screen or in Notification Center. Enable **Hide notification details** in Vigil Settings to replace it with generic copy containing no provider, account label, quota window, threshold, or utilization. iOS **Settings → Notifications → Vigil** still controls permission and system preview behavior.
 
 Notification identifiers use opaque hashes in current builds. Removing an account also removes queued and delivered Vigil threshold notifications for that account.
 
@@ -58,7 +58,13 @@ Notification identifiers use opaque hashes in current builds. Removing an accoun
 
 **Require Face ID or Touch ID** uses device-owner authentication with passcode fallback. When enabled, Vigil locks after entering the background. The app also places an opaque cover over inactive and background scenes so app-switcher snapshots do not expose account content.
 
-The lock protects the app surface. It does not add another encryption layer to local files, hide notification previews, or hide a configured widget. Remove the widget if quota information should not remain visible outside the app.
+The lock protects the app surface. It does not add another encryption layer to local files and does not automatically change system widgets or notifications. Enable **Hide usage values in widgets** to keep the provider identity and freshness while removing percentages, limits, spend, and balances. Enable **Hide notification details** for generic alert text, or remove/disable those system surfaces entirely.
+
+## Appearance and automatic checks
+
+Settings offers **System**, **Light**, and **Dark** appearance. System follows the device; Dark preserves Vigil's original low-light palette. Appearance is presentation-only and does not change provider data or credential handling.
+
+**Pause automatic checks** stops foreground timer, background-task, and widget network fetches. Pull-to-refresh and account verification remain available. Existing snapshots stay visible with their real freshness state; pausing does not fabricate a new reading or complete history.
 
 ## Diagnostic exports
 
@@ -89,7 +95,7 @@ Account removal does not:
 
 ## Full local recovery reset
 
-**Erase Vigil data and start over** appears only when Vigil cannot safely reconcile its local account identity stores. After confirmation, it attempts to remove all recoverable Vigil Keychain credentials, linked accounts, snapshots, observed and imported history, polling metadata, repair backups, app-scoped network residue, and Vigil notifications from the iPhone.
+**Erase Vigil data and start over** appears only when Vigil cannot safely reconcile its local account identity stores. After confirmation, it attempts to remove all recoverable Vigil Keychain credentials, linked accounts, snapshots, observed and imported history, polling metadata, repair backups, app-scoped network residue, and Vigil notifications from the device.
 
 The reset reports failures instead of claiming deletion succeeded. It does not affect provider accounts, provider-side data, existing Apple backups, or prior exports.
 
