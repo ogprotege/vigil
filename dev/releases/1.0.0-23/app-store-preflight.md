@@ -2,9 +2,10 @@
 
 > Audited: 2026-08-09
 >
-> Status: source, CI, signed archive, listing assets, canonical metadata, and
-> accessible App Store Connect checks pass; external submission blockers remain.
-> Submitting in the current state would be premature.
+> Status: source, CI, signed archive, listing assets, canonical metadata, live
+> App Store Connect checks, and Internal TestFlight delivery pass; external
+> submission blockers remain. Submitting in the current state would be
+> premature.
 
 This report covers the iOS app, widget, canonical en-US metadata, privacy
 manifests, entitlements, icon, screenshots, live App Store Connect state, and
@@ -65,7 +66,7 @@ current release evidence.
    iPad, widgets, notifications, background work, appearance, app lock, account
    deletion, and the dedicated Grok Build flow.
 
-## Passed checks (15)
+## Passed checks (16)
 
 1. App name is 24/30 characters and subtitle is 26/30.
 2. Keywords are 97/100 characters, functional, non-duplicative with the title
@@ -99,16 +100,18 @@ current release evidence.
 15. Merged-main artifact commit `7e0803a97b1a79445207e913fc8a41bc13b0a3af`
     passed public GitHub `apple` workflow run `31322413383`; its signed archive
     passed `scripts/verify-ios-archive.sh` for version `1.0.0`, build `23`.
+16. The exact archive was owner-approved, uploaded, processed `VALID`, and
+    assigned to the one-tester all-builds `Internal` group. The upload is
+    `COMPLETE`, the beta state is `IN_BETA_TESTING`, release-specific en-US test
+    notes are present, and strict TestFlight validation reports zero findings.
 
 ## Required order from here
 
-1. Obtain the runbook's exact upload approval for the verified archive.
-2. Recheck Apple service status and build-number availability, upload to
-   Internal TestFlight, and verify processing and group assignment.
-3. Complete physical iPhone and iPad acceptance, including the dedicated
+1. Complete physical iPhone and iPad acceptance, including the dedicated
    reviewer credential and recording.
-4. Resolve provider rights and complete the legally accurate DSA declaration.
-5. Repeat Xcode 27/iOS 27 validation when that publication toolchain is
+2. Resolve provider rights and complete the legally accurate DSA declaration.
+3. Repeat Xcode 27/iOS 27 validation when that publication toolchain is
    available.
-6. Run final strict validation and obtain separate exact App Review submission
+4. Recheck mainland-China exclusion and all mutable App Store Connect state,
+   run final strict App Store validation, and obtain separate exact submission
    approval before submitting.
