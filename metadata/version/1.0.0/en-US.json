@@ -3,6 +3,5 @@
   "keywords": "quota,reset,balance,credits,spend,widget,billing,budget,tracker,alerts,accounts,refresh,threshold",
   "marketingUrl": "https://github.com/ogprotege/vigil",
   "promotionalText": "See your AI limits before they surprise you. Vigil keeps provider quotas, resets, balances, spend, and widgets together—direct from your device.",
-  "supportUrl": "https://github.com/ogprotege/vigil/blob/main/docs/support.md",
-  "whatsNew": "Vigil 1.0 launches with 15 AI provider integrations, Home and Lock Screen widgets, usage alerts, local history, System, Light, and Dark appearance, and native system Liquid Glass chrome. Grok Build support is included as an experimental integration."
+  "supportUrl": "https://github.com/ogprotege/vigil/blob/main/docs/support.md"
 }
