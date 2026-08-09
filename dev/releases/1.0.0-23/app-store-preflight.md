@@ -2,33 +2,35 @@
 
 > Audited: 2026-08-09
 >
-> Status: source, CI, signed archive, listing assets, canonical metadata, live
-> App Store Connect checks, and Internal TestFlight delivery pass; external
-> submission blockers remain. Submitting in the current state would be
-> premature.
+> Status: submitted to App Review on 2026-08-09. Source, CI, signed archive,
+> listing assets, canonical metadata, live App Store Connect checks, Internal
+> TestFlight delivery, the DSA declaration, reviewer access, and final strict
+> validation pass. Residual review risks are recorded below.
 
 This report covers the iOS app, widget, canonical en-US metadata, privacy
 manifests, entitlements, icon, screenshots, live App Store Connect state, and
 current release evidence.
 
-## Rejection blockers (3)
+## Resolved submission gates (2)
 
-### 1. Guideline 2.1 — App Review cannot yet reach live functionality
+### 1. Guideline 2.1 — Dedicated reviewer access
 
-- **Evidence:** Vigil creates no app account and meaningful readings require a
-  third-party provider credential. The production build has no reviewer-facing
-  demo mode. Protected demo fields are populated, but their provider flow and
-  viability have not been verified against the delivered build. No physical-
-  device recording is attached.
-- **Resolution:** prove the protected credential is a dedicated, revocable
-  provider test account, keep it active for at least two weeks, write precise
-  reviewer steps, and attach the recording specified in
-  [`app-review-notes.md`](app-review-notes.md). Do not commit secrets.
-- **Why this blocks:** Apple's current Guideline 2.1 requires an active demo
-  account for account-based functionality, or a full demo mode with prior Apple
-  approval when a demo account cannot be provided.
+- **Evidence:** The owner confirmed that App Store Connect's protected sign-in
+  fields identify a dedicated Grok Build reviewer account. The submitted review
+  notes identify the provider and give the full device-code authorization,
+  returned usage/credit, refresh, Settings, and local account-removal path.
+- **Control:** Keep the account active and monitored throughout review. Never
+  commit or place its credentials in public metadata.
 
-### 2. Guideline 5.2.2 — Third-party service permission needs owner evidence
+### 2. EU Digital Services Act declaration
+
+- **Evidence:** The owner declared non-trader status. App Store Connect shows
+  the Digital Services Act requirement as **Active** for 27 countries/regions,
+  updated 2026-08-09, and reports all regulatory requirements complete.
+
+## Residual App Review risks (2)
+
+### 1. Guideline 5.2.2 — Third-party service permission evidence
 
 - **Evidence:** OpenRouter, DeepSeek, Moonshot, OpenAI organization APIs, GitHub
   Copilot billing, and xAI Management API use documented provider contracts.
@@ -41,30 +43,22 @@ current release evidence.
   device-code authentication, and embedding through ACP. Vigil's direct mobile
   use of the Grok CLI OAuth client and billing endpoint is still not a documented
   third-party mobile API grant.
-- **Resolution:** the owner must verify each included integration against the
-  current provider terms and retain written authorization where required.
-  Remove any integration that cannot be supported under its provider terms.
-- **Why this blocks:** Apple may require proof that an app is specifically
+- **Risk treatment:** The owner directed submission. Retain current provider
+  terms or written authorization where available and be ready to answer an
+  App Review request. Remove an integration in a future build if its use cannot
+  be supported.
+- **Why this matters:** Apple may require proof that an app is specifically
   permitted to access or display data from third-party services.
 
-### 3. EU Digital Services Act classification is incomplete
+### 2. Physical-device and publication-toolchain evidence
 
-- **Evidence:** App Store Connect displays **Complete Compliance Requirements**
-  and requires an explicit trader/non-trader selection before EU distribution.
-- **Resolution:** the owner must choose the legally accurate classification and
-  complete any verification Apple requires. Do not infer this status from app
-  pricing, company size, or repository ownership.
-- **Why this blocks:** the app is currently enabled in EU territories, and Apple
-  requires a completed DSA declaration for EU App Store distribution.
-
-## Warnings and owner decisions (2)
-
-1. **Xcode 27 / iOS 27 gate unavailable.** The current Mac has Xcode 26.6 and an
-   iOS 26.5 simulator. Repeat Liquid Glass and full-scheme validation with the
-   publication toolchain before public submission.
-2. **Physical devices.** TestFlight acceptance must cover a physical iPhone and
-   iPad, widgets, notifications, background work, appearance, app lock, account
-   deletion, and the dedicated Grok Build flow.
+- **Evidence gap:** The repository does not contain a physical iPhone/iPad
+  acceptance record or reviewer recording. The release machine had Xcode 26.6
+  and an iOS 26.5 simulator, not the future Xcode 27/iOS 27 publication
+  toolchain discussed during planning.
+- **Risk treatment:** The owner directed submission with these gaps understood.
+  Keep Internal TestFlight available for physical-device follow-up, and repeat
+  Liquid Glass plus the full scheme on Xcode 27 for the next update.
 
 ## Passed checks (16)
 
@@ -105,13 +99,24 @@ current release evidence.
     `COMPLETE`, the beta state is `IN_BETA_TESTING`, release-specific en-US test
     notes are present, and strict TestFlight validation reports zero findings.
 
-## Required order from here
+## Submission evidence
 
-1. Complete physical iPhone and iPad acceptance, including the dedicated
-   reviewer credential and recording.
-2. Resolve provider rights and complete the legally accurate DSA declaration.
-3. Repeat Xcode 27/iOS 27 validation when that publication toolchain is
-   available.
-4. Recheck mainland-China exclusion and all mutable App Store Connect state,
-   run final strict App Store validation, and obtain separate exact submission
-   approval before submitting.
+1. Build `23` remained `VALID`, App Store eligible, and attached to iOS version
+   `1.0.0`.
+2. Mainland China (`CHN`) was the sole unavailable territory out of 175;
+   `availableInNewTerritories=false` remained set.
+3. Canonical validation, strict submission validation, and review health checks
+   returned zero errors, warnings, or blockers. A fresh dry run returned
+   `wouldSubmit=true`.
+4. App Store Connect submission `fc84c9c4-104d-4039-9c9f-48cb61b491ae`
+   entered `WAITING_FOR_REVIEW` at 2026-08-09 19:30:31 UTC. The API and web UI
+   independently show iOS 1.0.0 as Waiting for Review.
+
+## Post-submission controls
+
+1. Keep the dedicated Grok Build account active and monitor its sign-in path.
+2. Watch App Store Connect for reviewer questions, rejection, approval, or
+   release-state changes and respond promptly.
+3. Preserve provider-rights evidence and the territory exclusion.
+4. Run the physical-device and Xcode 27 checks for the next update even if this
+   version is approved.
