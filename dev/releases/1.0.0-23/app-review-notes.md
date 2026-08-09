@@ -48,10 +48,12 @@ privacy controls.
 
 ## 3. Access instructions and test credentials
 
-**BLOCKED:** Create a dedicated provider account or revocable provider
-credential that will remain active for at least two weeks after submission.
-Enter its username/key and password only in App Store Connect's demo-account
-fields and set **Sign-in required** accurately. Do not use a personal account.
+**BLOCKED ON VERIFICATION:** App Store Connect's protected demo-account fields
+are populated and **Sign-in required** is enabled, but the credential has not
+been proven against the delivered build or identified in reviewer notes as a
+specific supported provider flow. Confirm that it is a dedicated, revocable
+provider credential that will remain active for at least two weeks after
+submission. Do not copy the protected value into this repository.
 
 Recommended review flow after credentials are present:
 
@@ -102,10 +104,9 @@ crash-reporting, payment, cloud-storage, or generative-AI SDKs.
 
 ## 5. Regional differences
 
-**BLOCKED:** Confirm the final territory list in App Store Connect. The current
-recommendation is to exclude China mainland because the app and all en-US
-listing assets name AI providers whose consumer services may not have the
-required local permissions.
+**RESOLVED:** App Store Connect has 174 of 175 territories enabled. China
+mainland (`CHN`) is the sole exclusion, and automatic availability in future
+territories is disabled. Recheck this immediately before App Review submission.
 
 For every included storefront, Vigil's feature set is the same. A provider's
 own account eligibility, endpoint availability, plan values, and regional
@@ -121,6 +122,6 @@ balances, and budget controls, not financial products.
 
 ## App Review contact fields
 
-**BLOCKED:** The owner must enter a monitored first name, last name, email
-address, and phone number directly in App Store Connect. The contact must be
-available during review. No placeholder values are acceptable.
+**CONFIGURED:** The protected App Store Connect review record contains first
+name, last name, email, and phone values. Confirm the contact remains monitored
+during review; never copy those values into this repository.
