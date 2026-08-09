@@ -2,45 +2,32 @@
 
 > Audited: 2026-08-09
 >
-> Status: local binary and listing assets pass; external submission blockers
-> remain. Submitting in the current state would be premature.
+> Status: source, CI, signed archive, listing assets, canonical metadata, and
+> accessible App Store Connect checks pass; external submission blockers remain.
+> Submitting in the current state would be premature.
 
 This report covers the iOS app, widget, canonical en-US metadata, privacy
-manifests, entitlements, icon, screenshots, and current release evidence. It
-does not claim that inaccessible App Store Connect state has passed.
+manifests, entitlements, icon, screenshots, live App Store Connect state, and
+current release evidence.
 
-## Rejection blockers (4)
+## Rejection blockers (3)
 
 ### 1. Guideline 2.1 — App Review cannot yet reach live functionality
 
 - **Evidence:** Vigil creates no app account and meaningful readings require a
   third-party provider credential. The production build has no reviewer-facing
-  demo mode. No dedicated review credential or physical-device recording has
-  been supplied.
-- **Resolution:** provide a dedicated, revocable provider test account in App
-  Store Connect's protected demo fields, keep it active for at least two weeks,
-  and attach the physical-device recording specified in
+  demo mode. Protected demo fields are populated, but their provider flow and
+  viability have not been verified against the delivered build. No physical-
+  device recording is attached.
+- **Resolution:** prove the protected credential is a dedicated, revocable
+  provider test account, keep it active for at least two weeks, write precise
+  reviewer steps, and attach the recording specified in
   [`app-review-notes.md`](app-review-notes.md). Do not commit secrets.
 - **Why this blocks:** Apple's current Guideline 2.1 requires an active demo
   account for account-based functionality, or a full demo mode with prior Apple
   approval when a demo account cannot be provided.
 
-### 2. Guidelines 2.1 and 5.1.1 — The final support URL is not live on `main`
-
-- **Evidence:** canonical metadata and the shipped app point to privacy and
-  support pages under the public `github.com/ogprotege/vigil` repository. An
-  unauthenticated request returns HTTP 200 for the privacy URL on `main` and for
-  both documents on the release branch, but the canonical `main/docs/support.md`
-  URL still returns HTTP 404 because that document has not been merged.
-- **Resolution:** merge the reviewed support document to `main`, then verify the
-  canonical privacy and support URLs from a signed-out browser and on a physical
-  device. If either final URL changes, update metadata and `VigilLinks.swift`
-  together.
-- **Why this blocks:** Apple requires a public privacy-policy URL, an accessible
-  in-app policy link, working support information, and fully functional URLs at
-  submission.
-
-### 3. Guideline 5.2.2 — Third-party service permission needs owner evidence
+### 2. Guideline 5.2.2 — Third-party service permission needs owner evidence
 
 - **Evidence:** OpenRouter, DeepSeek, Moonshot, OpenAI organization APIs, GitHub
   Copilot billing, and xAI Management API use documented provider contracts.
@@ -59,41 +46,22 @@ does not claim that inaccessible App Store Connect state has passed.
 - **Why this blocks:** Apple may require proof that an app is specifically
   permitted to access or display data from third-party services.
 
-### 4. Guideline 5 / local law — China mainland availability is unresolved
+### 3. EU Digital Services Act classification is incomplete
 
-- **Evidence:** metadata, screenshots, and in-app setup name ChatGPT, Claude,
-  Grok, and other AI services. App Store Connect territory availability cannot
-  be inspected while `asc` authentication is unavailable.
-- **Resolution:** unless documented local compliance exists, exclude China
-  mainland before submission and verify the final availability record. This
-  report does not authorize that external change.
+- **Evidence:** App Store Connect displays **Complete Compliance Requirements**
+  and requires an explicit trader/non-trader selection before EU distribution.
+- **Resolution:** the owner must choose the legally accurate classification and
+  complete any verification Apple requires. Do not infer this status from app
+  pricing, company size, or repository ownership.
+- **Why this blocks:** the app is currently enabled in EU territories, and Apple
+  requires a completed DSA declaration for EU App Store distribution.
 
-## Warnings and owner decisions (8)
+## Warnings and owner decisions (2)
 
-1. **App Store Connect source of truth unavailable.** Repair `asc` authentication,
-   pull the existing record, and compare before applying local metadata.
-2. **Pull-request operation still needs GitHub authentication.** The reviewed
-   source commit `6fafae2` is pushed and public `apple` workflow run
-   `31319117467` passed on that exact SHA. The local `gh` token remains invalid,
-   so repair `gh` authentication or open the branch's public pull-request URL;
-   require pull-request and merged-`main` CI before an archive is made.
-3. **Xcode 27 / iOS 27 gate unavailable.** The current Mac has Xcode 26.6 and an
+1. **Xcode 27 / iOS 27 gate unavailable.** The current Mac has Xcode 26.6 and an
    iOS 26.5 simulator. Repeat Liquid Glass and full-scheme validation with the
    publication toolchain before public submission.
-4. **Screenshot approval pending.** Twelve valid, fictional-data images are
-   ready, but all twelve remain pending owner approval in the local review
-   manifest.
-5. **App Privacy attestation.** The architecture and manifests support **Data
-   Not Collected**: the developer has no backend or SDK collection, and local
-   values stay on device. The owner must still confirm the declaration against
-   current provider request/retention behavior before publishing it.
-6. **Content rights declaration.** Select that the app accesses third-party
-   service data and keep the provider-permission evidence supporting that
-   declaration.
-7. **Commercial and legal fields.** The owner must choose price, manual versus
-   automatic release, copyright holder, DSA trader status, and monitored review
-   contact information. No value is inferred here.
-8. **Physical devices.** TestFlight acceptance must cover a physical iPhone and
+2. **Physical devices.** TestFlight acceptance must cover a physical iPhone and
    iPad, widgets, notifications, background work, appearance, app lock, account
    deletion, and the dedicated Grok Build flow.
 
@@ -123,26 +91,24 @@ does not claim that inaccessible App Store Connect state has passed.
 12. The native app provides substantial functionality beyond a web wrapper:
     local history, ranking, widgets, alerts, refresh coordination, privacy
     controls, biometric surface lock, and deletion.
-13. The Utilities category in `Info.plist` matches the product's function. A
-    4+ / all-none age questionnaire is technically consistent, pending remote
-    verification.
+13. The Utilities category matches the product's function, and App Store
+    Connect reports a 4+ / all-none age questionnaire.
 14. Local package, app, UI, documentation, plist, privacy-manifest, metadata,
     and screenshot validation passed with the evidence recorded in
     [`docs/releases/1.0.0-23.md`](../../../docs/releases/1.0.0-23.md).
-15. Reviewed source commit `6fafae2` was pushed to
-    `agent/vigil-1.0-public-release`, and public GitHub `apple` workflow run
-    `31319117467` passed on that exact SHA.
+15. Merged-main artifact commit `7e0803a97b1a79445207e913fc8a41bc13b0a3af`
+    passed public GitHub `apple` workflow run `31322413383`; its signed archive
+    passed `scripts/verify-ios-archive.sh` for version `1.0.0`, build `23`.
 
 ## Required order from here
 
-1. Resolve provider rights, reviewer access, the final `main` support URL, legal
-   fields, and China mainland availability.
-2. Repair App Store Connect authentication; pull and diff the remote record.
-3. Obtain owner approval for the final listing and all twelve screenshots.
-4. Open and merge the reviewed pull request, requiring green pull-request and
-   merged-`main` CI. The source-branch candidate is already green.
-5. Repeat Xcode 27/iOS 27 and physical-device checks.
-6. Build and verify a signed archive from the exact green commit.
-7. Obtain the runbook's exact upload approval before TestFlight upload.
-8. Complete Internal TestFlight acceptance.
-9. Obtain separate exact App Review submission approval before submitting.
+1. Obtain the runbook's exact upload approval for the verified archive.
+2. Recheck Apple service status and build-number availability, upload to
+   Internal TestFlight, and verify processing and group assignment.
+3. Complete physical iPhone and iPad acceptance, including the dedicated
+   reviewer credential and recording.
+4. Resolve provider rights and complete the legally accurate DSA declaration.
+5. Repeat Xcode 27/iOS 27 validation when that publication toolchain is
+   available.
+6. Run final strict validation and obtain separate exact App Review submission
+   approval before submitting.
