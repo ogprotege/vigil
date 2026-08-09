@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "app": {
+    "bundle_id": "app.vigil.app",
+    "udid": "booted",
+    "output_dir": "./screenshots/raw/iphone/en-US"
+  },
+  "steps": [
+    {
+      "action": "launch"
+    },
+    {
+      "action": "wait",
+      "duration_ms": 800
+    },
+    {
+      "action": "screenshot",
+      "name": "smoke-home"
+    }
+  ]
+}

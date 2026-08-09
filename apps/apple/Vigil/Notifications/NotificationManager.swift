@@ -15,6 +15,12 @@ protocol NotificationManaging: Sendable {
         account: AccountRef,
         deliveryScope: String
     ) async -> [ThresholdEvent]
+    func deliver(
+        events: [ThresholdEvent],
+        account: AccountRef,
+        deliveryScope: String,
+        hidesDetails: Bool
+    ) async -> [ThresholdEvent]
     func removeNotifications(accountKey: String) async
     func removeNotifications(identifiers: [String]) async
 }
@@ -24,6 +30,21 @@ extension NotificationManaging {
     /// migration work. NotificationManager supplies the production cleanup.
     func removeLegacyNotifications() async {}
     func removeAllVigilNotifications() async {}
+
+    /// Existing test doubles can continue recording delivery without knowing
+    /// how production notification copy is rendered.
+    func deliver(
+        events: [ThresholdEvent],
+        account: AccountRef,
+        deliveryScope: String,
+        hidesDetails: Bool
+    ) async -> [ThresholdEvent] {
+        await deliver(
+            events: events,
+            account: account,
+            deliveryScope: deliveryScope
+        )
+    }
 }
 
 final class NotificationManager: NotificationManaging, Sendable {
@@ -105,15 +126,32 @@ final class NotificationManager: NotificationManaging, Sendable {
         account: AccountRef,
         deliveryScope: String
     ) async -> [ThresholdEvent] {
+        await deliver(
+            events: events,
+            account: account,
+            deliveryScope: deliveryScope,
+            hidesDetails: false
+        )
+    }
+
+    func deliver(
+        events: [ThresholdEvent],
+        account: AccountRef,
+        deliveryScope: String,
+        hidesDetails: Bool
+    ) async -> [ThresholdEvent] {
         guard Self.canUseSystemNotifications else { return events }
         let center = UNUserNotificationCenter.current()
         var failed: [ThresholdEvent] = []
         for event in events {
             let content = UNMutableNotificationContent()
-            content.title = "\(account.displayName) \(windowName(event.windowId)) at \(Int(event.utilization.rounded()))%"
-            content.body = event.threshold >= 95
-                ? "You're nearly out — heavy work will hit the limit soon."
-                : "Crossed \(event.threshold)% of the \(windowName(event.windowId)) window."
+            let copy = Self.notificationCopy(
+                event: event,
+                account: account,
+                hidesDetails: hidesDetails
+            )
+            content.title = copy.title
+            content.body = copy.body
             content.sound = .default
             let request = UNNotificationRequest(
                 identifier: Self.notificationIdentifier(
@@ -134,6 +172,31 @@ final class NotificationManager: NotificationManaging, Sendable {
             }
         }
         return failed
+    }
+
+    struct Copy: Equatable {
+        let title: String
+        let body: String
+    }
+
+    static func notificationCopy(
+        event: ThresholdEvent,
+        account: AccountRef,
+        hidesDetails: Bool
+    ) -> Copy {
+        guard !hidesDetails else {
+            return Copy(
+                title: "Vigil usage alert",
+                body: "Open Vigil to view the latest limit for a linked account."
+            )
+        }
+        let window = windowName(event.windowId)
+        return Copy(
+            title: "\(account.displayName) \(window) at \(Int(event.utilization.rounded()))%",
+            body: event.threshold >= 95
+                ? "You're nearly out — heavy work will hit the limit soon."
+                : "Crossed \(event.threshold)% of the \(window) window."
+        )
     }
 
     /// Removes every queued or already-presented threshold notification for
@@ -227,7 +290,7 @@ final class NotificationManager: NotificationManaging, Sendable {
         }
     }
 
-    private func windowName(_ id: String) -> String {
+    private static func windowName(_ id: String) -> String {
         switch id {
         case "session": return "session"
         case "weekly": return "weekly"

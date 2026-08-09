@@ -833,6 +833,137 @@ final class AppModelReliabilityTests: XCTestCase {
         XCTAssertNil(model.storageErrorMessage)
     }
 
+    func testDisablingUsageAlertsConsumesPendingEventsWithoutDelivery() async throws {
+        let directory = try makeTemporaryDirectory()
+        let notifications = RecordingNotificationManager()
+        let account = AccountRef(
+            key: "claude:alerts-disabled",
+            providerId: "claude",
+            label: nil,
+            plan: nil
+        )
+        let observedAt = Date(timeIntervalSince1970: 2_000_000_000)
+        let resetAt = observedAt.addingTimeInterval(3_600)
+        try seedPendingSnapshot(
+            account: account,
+            directory: directory,
+            fetchedAt: observedAt,
+            resetAt: resetAt,
+            windows: [("session", 82)]
+        )
+        let suiteName = "vigil-alert-preferences-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let preferences = VigilPreferences(defaults: defaults, environment: [:])
+        preferences.usageAlertsEnabled = false
+        let model = AppModel(
+            vault: InMemoryCredentialsStore(),
+            directory: directory,
+            notifications: notifications,
+            preferences: preferences
+        )
+        model.ensureLoadedFromDisk()
+        try model.pendingEvents.append(
+            [
+                ThresholdEvent(
+                    windowId: "session",
+                    threshold: 80,
+                    utilization: 82,
+                    observedAt: observedAt,
+                    resetAt: resetAt
+                ),
+            ],
+            accountKey: account.key
+        )
+
+        await model.usageAlertsPreferenceDidChange()
+
+        let deliveredEvents = await notifications.deliveredEvents()
+        let removedAll = await notifications.didRemoveAllVigilNotifications()
+        XCTAssertTrue(deliveredEvents.isEmpty)
+        XCTAssertTrue(removedAll)
+        XCTAssertTrue(try model.pendingEvents.load(accountKey: account.key).isEmpty)
+    }
+
+    func testEnablingUsageAlertsRequestsAuthorizationWithoutUnrelatedPrompts() async throws {
+        let directory = try makeTemporaryDirectory()
+        let notifications = RecordingNotificationManager()
+        let suiteName = "vigil-alert-enable-preferences-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let preferences = VigilPreferences(defaults: defaults, environment: [:])
+        preferences.usageAlertsEnabled = false
+        let model = AppModel(
+            vault: InMemoryCredentialsStore(),
+            directory: directory,
+            notifications: notifications,
+            preferences: preferences
+        )
+        model.ensureLoadedFromDisk()
+
+        model.presentationPreferencesDidChange()
+        let countAfterPresentationChange = await notifications.authorizationRequestCount()
+        XCTAssertEqual(countAfterPresentationChange, 0)
+
+        preferences.usageAlertsEnabled = true
+        await model.usageAlertsPreferenceDidChange()
+
+        let countAfterEnablingAlerts = await notifications.authorizationRequestCount()
+        XCTAssertEqual(countAfterEnablingAlerts, 1)
+    }
+
+    func testPausedAutomaticRefreshMakesNoRequestButManualRefreshStillFetches() async throws {
+        let directory = try makeTemporaryDirectory()
+        StubURLProtocol.reset()
+        defer { StubURLProtocol.reset() }
+        StubURLProtocol.respond(
+            statusCode: 200,
+            body: Data(Self.openRouterSuccessBody.utf8)
+        )
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let suiteName = "vigil-paused-refresh-preferences-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let preferences = VigilPreferences(defaults: defaults, environment: [:])
+        preferences.usageAlertsEnabled = false
+        preferences.automaticChecksPaused = true
+        let model = AppModel(
+            vault: InMemoryCredentialsStore(),
+            directory: directory,
+            notifications: RecordingNotificationManager(),
+            preferences: preferences,
+            usageSession: session
+        )
+        model.ensureLoadedFromDisk()
+        try await model.addAccount(
+            credentials: Credentials(
+                providerId: "openrouter",
+                accessToken: "paused-refresh-test",
+                source: "manual"
+            ),
+            allowUnverified: true
+        )
+
+        let automatic = await model.refreshAll(surface: "pause-test")
+
+        XCTAssertEqual(automatic.paused, 1)
+        XCTAssertEqual(StubURLProtocol.requestCount, 0)
+
+        let manual = await model.refreshAll(
+            surface: "pull",
+            bypassPollFloor: true
+        )
+
+        XCTAssertEqual(manual.fetched, 1)
+        XCTAssertEqual(manual.paused, 0)
+        XCTAssertEqual(StubURLProtocol.requestCount, 1)
+        let account = try XCTUnwrap(model.accounts.first)
+        let historyReloaded = await waitForHistoryCount(1, account: account, model: model)
+        XCTAssertTrue(historyReloaded)
+    }
+
     func testRemovalDuringNotificationDeliveryClearsTheLateNotification() async throws {
         let directory = try makeTemporaryDirectory()
         let notifications = PausingNotificationManager()

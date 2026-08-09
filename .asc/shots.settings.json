@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "app": {
+    "bundle_id": "app.vigil.app",
+    "project": "apps/apple/Vigil.xcodeproj",
+    "scheme": "Vigil",
+    "simulator_udid": "booted"
+  },
+  "paths": {
+    "plan": ".asc/screenshots.json",
+    "raw_dir": "./screenshots/raw",
+    "framed_dir": "./screenshots/framed"
+  },
+  "pipeline": {
+    "frame_enabled": true,
+    "upload_enabled": false
+  },
+  "upload": {
+    "version_localization_id": "",
+    "device_type": "IPHONE_69",
+    "source_dir": "./screenshots/framed/iphone/en-US/iPhone_17_Pro_Max_-_Silver_-_Portrait"
+  }
+}

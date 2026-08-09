@@ -1,8 +1,8 @@
 # Set up Vigil
 
-Vigil requires iOS 17 or later. All account setup happens on the iPhone, except that some experimental credentials may first need to be copied from a provider website.
+Vigil requires iOS 17 or later. All account setup happens in Vigil on the iPhone or iPad, except that some experimental credentials may first need to be copied from a provider website.
 
-> Last reviewed: 2026-08-04
+> Last reviewed: 2026-08-09
 >
 > Review again: when setup or provider support changes
 
@@ -47,9 +47,9 @@ This is essentially the same authentication pattern as the Grok Build desktop CL
 2. Wait for Vigil to display a short code (the same kind of device code the CLI shows).
 3. Tap **Open sign-in page** (or open the xAI device URL on any browser).
 4. Sign in if needed, enter the code, and approve access.
-5. Return to Vigil. It finishes the connection and mints its **own** renewable credential pair for this iPhone.
+5. Return to Vigil. It finishes the connection and mints its **own** renewable credential pair for this device.
 
-Vigil does **not** read `~/.grok/auth.json` or any other desktop client store. The phone completes device authorization itself and keeps the tokens in the iPhone Keychain. Only credentials marked as minted by Vigil auto-renew; a manually pasted session token does not.
+Vigil does **not** read `~/.grok/auth.json` or any other desktop client store. The iOS device completes device authorization itself and keeps the tokens in its Keychain. Only credentials marked as minted by Vigil auto-renew; a manually pasted session token does not.
 
 Grok Build is separate from the **xAI API** prepaid-balance integration under **Other provider**. Use Grok Build for Grok CLI / Grok Build credit usage; use xAI API only for Management Key prepaid balance. The integration is experimental because the billing endpoint is undocumented, even though it is the same chat-proxy path the CLI uses.
 
@@ -99,12 +99,14 @@ Vigil supports a small Home Screen widget and a circular Lock Screen widget. An 
 
 Widgets share the app's provider cooldown. WidgetKit controls their schedules, so a countdown can move while the provider reading becomes stale.
 
+In Vigil Settings, **Hide usage values in widgets** keeps provider identity and freshness visible but removes quota percentages, exact limits, spend, and balances. **Pause automatic checks** prevents widget network fetches until automatic checks are resumed; opening Vigil and pulling to refresh remains available.
+
 ## Re-link or remove an account
 
 Open **Accounts** from the Limits toolbar.
 
 - Open an account and choose **Re-link** when Vigil says **Re-link needed**.
-- Choose **Remove account** to delete that account's credential and saved Vigil data from the iPhone.
+- Choose **Remove account** to delete that account's credential and saved Vigil data from the device.
 
 Removal does not close the provider account or revoke provider-side credentials. Revoke a copied API key, management key, or session credential with the provider when appropriate.
 

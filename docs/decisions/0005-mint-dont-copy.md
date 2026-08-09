@@ -80,7 +80,7 @@ return.
 Rejected because refresh-token rotation would create shared ownership and
 could break either client.
 
-### Read another iPhone app's cache or login store
+### Read another iOS app's cache or login store
 
 Rejected because iOS application sandboxing does not grant Vigil access. It
 would also violate the product's credential boundary.

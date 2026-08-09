@@ -30,7 +30,7 @@ Perplexity currently documents billing and usage views for API groups and report
 
 A published subscription allowance can explain the context of a provider-returned percentage. It cannot prove an account's current usage, reset segment, exceptions, temporary promotions, model-specific rules, or provider-side enforcement state.
 
-Vigil requires authenticated account data. It does not derive live usage from a plan name alone. It also cannot read another iPhone app's private container, Keychain entries, or browser session storage.
+Vigil requires authenticated account data. It does not derive live usage from a plan name alone. It also cannot read another iOS app's private container, Keychain entries, or browser session storage.
 
 ## Candidate acceptance requirements
 

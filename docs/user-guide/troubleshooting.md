@@ -2,7 +2,7 @@
 
 Start with the status shown beside the account. Vigil keeps failed, deferred, and stale checks visible so an old value does not look current.
 
-> Last reviewed: 2026-07-30
+> Last reviewed: 2026-08-09
 >
 > Review again: when an error state or recovery flow changes
 
@@ -42,7 +42,7 @@ If the provider explicitly rejected a credential, correct it or sign in again. S
 
 ## No Perplexity option appears
 
-This is expected. Perplexity usage credits are not supported in the current provider registry. Vigil cannot read them from the Perplexity iPhone app's cache or login session.
+This is expected. Perplexity usage credits are not supported in the current provider registry. Vigil cannot read them from the Perplexity iOS app's cache or login session.
 
 ## A subscription shows a percentage but no token limit
 
@@ -73,11 +73,13 @@ The import covers API organization completion usage and costs only. It does not 
 - Check the account's last accepted reading in Vigil.
 - Remember that WidgetKit controls refresh timing.
 
-The app lock does not hide widgets. Remove a widget if its contents are too sensitive for the Home or Lock Screen.
+The app lock does not hide widgets by itself. Enable **Hide usage values in widgets** or remove a widget if even the provider identity and freshness are too sensitive for the Home or Lock Screen.
+
+If **Pause automatic checks** is enabled, widgets keep the last accepted snapshot and do not fetch from providers. Pull to refresh in Vigil or resume automatic checks before treating the widget as current.
 
 ## Notifications reveal too much
 
-Vigil notifications can include a provider name, quota window, and utilization. In iOS **Settings → Notifications → Vigil**, disable alerts or set previews to a more private option.
+Vigil notifications can include a provider name, quota window, and utilization. In Vigil Settings, enable **Hide notification details** for generic copy or turn **Usage alerts** off. iOS **Settings → Notifications → Vigil** also controls permission and system previews.
 
 Deleting a notification does not change the quota. Removing an account removes Vigil's queued and delivered threshold notifications for that account.
 

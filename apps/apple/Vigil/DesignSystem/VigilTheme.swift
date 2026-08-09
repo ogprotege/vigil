@@ -1,26 +1,91 @@
 import SwiftUI
+import UIKit
 import VigilKit
 
 /// Vigil's quiet instrument palette. Carbon and graphite carry the chrome;
 /// frost carries content; violet identifies interaction; mint and amber carry
 /// provider truth. Status color never substitutes for a written status.
 enum VigilPalette {
-    static let canvas = Color(red: 0.043, green: 0.051, blue: 0.063)
-    static let canvasLift = Color(red: 0.075, green: 0.086, blue: 0.106)
-    static let surface = Color(red: 0.086, green: 0.102, blue: 0.125)
-    static let surfaceRaised = Color(red: 0.125, green: 0.145, blue: 0.176)
-    static let surfaceInset = Color(red: 0.055, green: 0.067, blue: 0.082)
-    static let border = Color(red: 0.180, green: 0.204, blue: 0.239)
-    static let borderStrong = Color(red: 0.286, green: 0.318, blue: 0.365)
+    private struct RGB {
+        let red: CGFloat
+        let green: CGFloat
+        let blue: CGFloat
+    }
 
-    static let ink = Color(red: 0.957, green: 0.965, blue: 0.976)
-    static let inkMuted = Color(red: 0.667, green: 0.698, blue: 0.745)
-    static let inkFaint = Color(red: 0.486, green: 0.522, blue: 0.584)
+    // Dark values are the exact pre-1.0 palette. Light values preserve the
+    // same hierarchy with darker semantic accents that remain legible on
+    // pale surfaces.
+    static let canvas = adaptive(
+        light: RGB(red: 0.957, green: 0.961, blue: 0.976),
+        dark: RGB(red: 0.043, green: 0.051, blue: 0.063)
+    )
+    static let canvasLift = adaptive(
+        light: RGB(red: 1.000, green: 1.000, blue: 1.000),
+        dark: RGB(red: 0.075, green: 0.086, blue: 0.106)
+    )
+    static let surface = adaptive(
+        light: RGB(red: 1.000, green: 1.000, blue: 1.000),
+        dark: RGB(red: 0.086, green: 0.102, blue: 0.125)
+    )
+    static let surfaceRaised = adaptive(
+        light: RGB(red: 0.929, green: 0.918, blue: 0.992),
+        dark: RGB(red: 0.125, green: 0.145, blue: 0.176)
+    )
+    static let surfaceInset = adaptive(
+        light: RGB(red: 0.925, green: 0.937, blue: 0.957),
+        dark: RGB(red: 0.055, green: 0.067, blue: 0.082)
+    )
+    static let border = adaptive(
+        light: RGB(red: 0.773, green: 0.796, blue: 0.843),
+        dark: RGB(red: 0.180, green: 0.204, blue: 0.239)
+    )
+    static let borderStrong = adaptive(
+        light: RGB(red: 0.596, green: 0.631, blue: 0.694),
+        dark: RGB(red: 0.286, green: 0.318, blue: 0.365)
+    )
 
-    static let signal = Color(red: 0.616, green: 0.549, blue: 1.000)
-    static let safe = Color(red: 0.396, green: 0.839, blue: 0.706)
-    static let caution = Color(red: 0.949, green: 0.737, blue: 0.400)
-    static let critical = Color(red: 0.941, green: 0.424, blue: 0.451)
+    static let ink = adaptive(
+        light: RGB(red: 0.082, green: 0.094, blue: 0.129),
+        dark: RGB(red: 0.957, green: 0.965, blue: 0.976)
+    )
+    static let inkMuted = adaptive(
+        light: RGB(red: 0.286, green: 0.318, blue: 0.373),
+        dark: RGB(red: 0.667, green: 0.698, blue: 0.745)
+    )
+    static let inkFaint = adaptive(
+        light: RGB(red: 0.373, green: 0.416, blue: 0.482),
+        dark: RGB(red: 0.486, green: 0.522, blue: 0.584)
+    )
+
+    static let signal = adaptive(
+        light: RGB(red: 0.329, green: 0.235, blue: 0.729),
+        dark: RGB(red: 0.616, green: 0.549, blue: 1.000)
+    )
+    static let safe = adaptive(
+        light: RGB(red: 0.047, green: 0.420, blue: 0.302),
+        dark: RGB(red: 0.396, green: 0.839, blue: 0.706)
+    )
+    static let caution = adaptive(
+        light: RGB(red: 0.502, green: 0.298, blue: 0.000),
+        dark: RGB(red: 0.949, green: 0.737, blue: 0.400)
+    )
+    static let critical = adaptive(
+        light: RGB(red: 0.647, green: 0.129, blue: 0.192),
+        dark: RGB(red: 0.941, green: 0.424, blue: 0.451)
+    )
+    private static func adaptive(light: RGB, dark: RGB) -> Color {
+        Color(
+            uiColor: UIColor { traits in
+                let value = traits.userInterfaceStyle == .dark ? dark : light
+                return UIColor(
+                    red: value.red,
+                    green: value.green,
+                    blue: value.blue,
+                    alpha: 1
+                )
+            }
+        )
+    }
 
     static func limitColor(utilization: Double) -> Color {
         if utilization >= 95 { return critical }
@@ -76,6 +141,9 @@ private struct VigilCardModifier: ViewModifier {
     let padding: CGFloat
 
     func body(content: Content) -> some View {
+        // Cards are the content layer, so they stay opaque and readable.
+        // Navigation bars and toolbar controls remain system-owned and adopt
+        // Liquid Glass automatically on current iOS releases.
         content
             .padding(padding)
             .background(

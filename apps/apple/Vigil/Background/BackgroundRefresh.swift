@@ -43,8 +43,6 @@ enum BackgroundRefresh {
     }
 
     private static func handle(_ task: BGAppRefreshTask, model: AppModel) {
-        schedule() // keep the chain alive
-
         // setTaskCompleted must fire exactly once — the work Task and the
         // expiration handler race on process suspension.
         let completed = OSAllocatedUnfairLock(initialState: false)
@@ -58,6 +56,12 @@ enum BackgroundRefresh {
         }
 
         let work = Task {
+            let shouldContinueScheduling = await MainActor.run {
+                !model.preferences.automaticChecksPaused
+            }
+            if shouldContinueScheduling {
+                schedule() // keep the enabled chain alive
+            }
             await performRefresh(model: model)
             completeOnce(success: true)
         }

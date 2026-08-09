@@ -38,6 +38,40 @@ struct PrivacyView: View {
                             title: "Visible deletion",
                             text: "Removing an account deletes its Keychain item and local usage metadata. Vigil reports any failed deletion."
                         )
+
+                        Link(destination: VigilLinks.privacyPolicyURL) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "doc.text")
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(VigilPalette.signal)
+                                    .frame(width: 36, height: 36)
+                                    .background(
+                                        VigilPalette.signal.opacity(0.11),
+                                        in: RoundedRectangle(cornerRadius: 11)
+                                    )
+                                    .accessibilityHidden(true)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Read the full privacy policy")
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(VigilPalette.ink)
+                                    Text("Data handling, provider boundaries, retention, and deletion")
+                                        .font(.caption)
+                                        .foregroundStyle(VigilPalette.inkMuted)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer(minLength: 8)
+                                Image(systemName: "arrow.up.right")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(VigilPalette.inkFaint)
+                                    .accessibilityHidden(true)
+                            }
+                            .padding(14)
+                            .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
+                            .vigilInsetSurface()
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("vigil.privacy.fullPolicy")
                     }
                     .vigilCard(padding: VigilSpacing.medium)
                 }
@@ -49,8 +83,6 @@ struct PrivacyView: View {
         }
         .navigationTitle("Privacy")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(VigilPalette.canvas.opacity(0.96), for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
     }
 
     private func privacyPoint(

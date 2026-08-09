@@ -17,6 +17,7 @@ struct UsageWidget: Widget {
             provider: UsageTimelineProvider()
         ) { entry in
             UsageWidgetEntryView(entry: entry)
+                .preferredColorScheme(entry.appearance.colorScheme)
                 .containerBackground(.fill.tertiary, for: .widget)
         }
         .configurationDisplayName("Usage")
@@ -54,7 +55,9 @@ struct SmallUsageView: View {
     }
 
     var body: some View {
-        if let snapshot = entry.snapshot {
+        if entry.hidesUsageValues, let snapshot = entry.snapshot {
+            privateSummary(snapshot)
+        } else if let snapshot = entry.snapshot {
             let resetPending = SnapshotFreshness.hasUnconfirmedReset(
                 in: snapshot,
                 at: entry.date
@@ -194,6 +197,48 @@ struct SmallUsageView: View {
         }
     }
 
+    private func privateSummary(_ snapshot: ProviderSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(
+                    entry.account.map(UsagePresentation.accountTitle)
+                        ?? snapshot.providerId.capitalized
+                )
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                Spacer()
+                Image(systemName: "eye.slash")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Label("Usage values hidden", systemImage: "lock.shield")
+                .font(.caption.weight(.semibold))
+            Text("Open Vigil to view current limits and account values.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Group {
+                if snapshot.fetchedAt > .distantPast {
+                    Text(snapshot.fetchedAt, style: .relative)
+                } else {
+                    Text("No update yet")
+                }
+            }
+            .font(.caption2)
+            .foregroundStyle(
+                SnapshotFreshness.isStale(fetchedAt: snapshot.fetchedAt, at: entry.date)
+                    ? .orange : .secondary
+            )
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            Text(
+                "\(entry.account.map(UsagePresentation.accountTitle) ?? snapshot.providerId.capitalized), usage values hidden"
+            )
+        )
+    }
+
     private func statusSymbol(_ status: SnapshotStatus) -> String {
         switch status {
         case .rateLimited: return "hourglass"
@@ -227,7 +272,19 @@ struct CircularUsageView: View {
     }
 
     var body: some View {
-        if let snapshot = entry.snapshot,
+        if entry.hidesUsageValues, entry.snapshot != nil {
+            VStack(spacing: 1) {
+                Text(providerLetter)
+                    .font(.caption2.weight(.semibold))
+                Image(systemName: "eye.slash")
+                    .font(.caption.weight(.semibold))
+            }
+            .widgetAccentable()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(
+                Text("\(entry.account?.displayName ?? "Vigil"), usage values hidden")
+            )
+        } else if let snapshot = entry.snapshot,
            let tightest = SnapshotFreshness.confirmedWindows(
                in: snapshot,
                at: entry.date

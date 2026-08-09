@@ -4,7 +4,7 @@ Vigil shows which linked AI limit needs attention next. Every feature must suppo
 
 > Status: current contract
 >
-> Last reviewed: 2026-07-26
+> Last reviewed: 2026-08-09
 >
 > Review again: for every behavior or provider-contract change
 
@@ -14,7 +14,7 @@ Vigil shows which linked AI limit needs attention next. Every feature must suppo
 2. Home ranks linked accounts by required action and remaining quota.
 3. Each Home card shows one decisive provider value with freshness and reset context.
 4. Account detail shows every accepted window, metric, model-specific cap, and retained history item for that account.
-5. Accounts and Settings contain setup, removal, security, and diagnostics controls.
+5. Accounts and Settings contain setup, removal, appearance, alert, privacy, security, refresh, support, and diagnostics controls.
 
 Home is an attention list. It is not a calendar report, provider directory, or complete analytics dashboard.
 
@@ -57,6 +57,8 @@ Provider costs stay separate from token quantities. Imported provider buckets st
 
 Manual refresh, foreground refresh, background work, and widgets share one provider polling gate: a one-minute provider floor plus jitter as a minimum delay, not a sampling promise. Rate limits can extend it. A manual pull-to-refresh fetches on demand — it skips the floor but never an in-flight fetch or a rate-limit backoff. iOS decides when background tasks and widgets run.
 
+Pausing automatic checks stops foreground timer, background-task, and widget network fetches. It must not disable a user-initiated refresh or account verification.
+
 Countdowns may advance locally without a network request. A moving countdown is not proof of fresh provider data.
 
 ## Privacy boundary
@@ -65,13 +67,13 @@ Vigil has no user account, collection server, analytics, advertising, crash-repo
 
 Credentials remain in a device-bound Keychain access group shared by the app and widget. Normalized account references, snapshots, history, pending threshold events, and polling metadata remain in the App Group container. These local records can reveal provider relationships, usage, balances, spend, and timing even though they do not contain bearer credentials.
 
-The app lock protects the app surface and app-switcher snapshot. It does not hide a configured widget or a local notification preview.
+The app lock protects the app surface and app-switcher snapshot. It does not itself hide a configured widget or a local notification preview. Separate settings can hide widget values and use generic notification copy without provider, window, or utilization details.
 
 ## Deletion boundary
 
 Removing an account must delete its credential and account-scoped local state, including observed and imported history, snapshots, polling records, and Vigil notifications. If a damaged shared history database prevents safe account-scoped deletion, Vigil must ask before deleting all local history.
 
-The full recovery reset is shown only when Vigil cannot safely reconcile its local identity stores. It removes recoverable Vigil credentials and local state from the iPhone. Neither removal path deletes the user's provider account, provider-side records, Apple-managed backups, or diagnostic files already exported outside Vigil.
+The full recovery reset is shown only when Vigil cannot safely reconcile its local identity stores. It removes recoverable Vigil credentials and local state from the device. Neither removal path deletes the user's provider account, provider-side records, Apple-managed backups, or diagnostic files already exported outside Vigil.
 
 ## Acceptance test for a claim
 

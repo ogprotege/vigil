@@ -20,8 +20,8 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    CURRENT_PROJECT_VERSION: 22
-    MARKETING_VERSION: 0.15.0
+    CURRENT_PROJECT_VERSION: 23
+    MARKETING_VERSION: 1.0.0
     # Local simulator builds need no team. Distribution settings below provide
     # the team and profiles for device and App Store builds.
     CODE_SIGN_STYLE: Automatic
@@ -128,6 +128,7 @@ targets:
       - path: Vigil/Support/SnapshotFreshness.swift
       - path: Vigil/Support/UsageService.swift
       - path: Vigil/Support/UsagePresentation.swift
+      - path: Vigil/Support/VigilPreferences.swift
     dependencies:
       - package: VigilKit
     settings:

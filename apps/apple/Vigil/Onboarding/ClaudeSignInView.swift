@@ -57,7 +57,6 @@ struct ClaudeSignInView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .overlay { if exchangeAttempt.isRunning { exchangingOverlay } }
-        .preferredColorScheme(.dark)
         .onDisappear { exchangeAttempt.cancel() }
     }
 

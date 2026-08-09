@@ -69,8 +69,6 @@ struct AccountDetailView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .toolbarBackground(VigilPalette.canvas.opacity(0.97), for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
         .sheet(isPresented: $showRelink) {
             AddAccountView(relinkTarget: account)
         }

@@ -13,6 +13,10 @@ DerivedData/
 # Local web-research captures
 .firecrawl/
 
+# Generated local App Store screenshot review page. The approved source images,
+# captions, and framing configuration remain tracked separately.
+screenshots/review/
+
 # Xcode archive/export artifacts
 apps/apple/build/
 

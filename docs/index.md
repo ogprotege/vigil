@@ -14,7 +14,7 @@
 
 > Status: current documentation
 >
-> Last reviewed: 2026-07-30
+> Last reviewed: 2026-08-09
 >
 > Review again: before each release
 
@@ -34,7 +34,9 @@ These guides describe the current product from the user's side of the screen.
 - **[Setup](user-guide/setup.md)** covers the guided Claude and ChatGPT/Codex routes, the supported provider catalog, widgets, re-linking, and removal.
 - **[Reading limits](user-guide/reading-limits.md)** explains urgency ranking, percentages, exact amounts, reset handling, freshness, and degraded states.
 - **[History and imports](user-guide/history-and-imports.md)** separates local observations from official provider history.
-- **[Privacy, deletion, and notifications](user-guide/privacy-deletion-notifications.md)** covers Keychain storage, local files, backups, alerts, app lock, exports, and deletion.
+- **[Privacy, deletion, and notifications](user-guide/privacy-deletion-notifications.md)** covers Keychain storage, local files, backups, appearance, automatic checks, alert and widget privacy, app lock, exports, and deletion.
+- **[Privacy Policy](privacy.md)** is the public policy linked from the app and App Store listing.
+- **[Support](support.md)** routes setup help, credential-free diagnostics, bug reports, and private security reports.
 - **[Troubleshooting](user-guide/troubleshooting.md)** gives the correct response for common setup, provider, and storage states.
 - **[When a provider changes](user-guide/provider-changes.md)** explains the **Provider changed** state, retained data, unverified saves, and how to report a change so a fix can ship.
 
@@ -54,7 +56,7 @@ These guides describe the current product from the user's side of the screen.
 - **[Provider contribution](development/provider-contribution.md)** is the complete integration checklist.
 - **[Diagnostic schema](development/diagnostic-schema.md)** defines the credential-free export boundary.
 - **[iOS release runbook](development/release.md)** controls archive, signing, approval, upload, and TestFlight verification.
-- **[Current 0.15.0 (22) release record](releases/0.15.0-22.md)** records the exact release state and remaining gates for the Grok Build integration candidate.
+- **[Current 1.0.0 (23) release record](releases/1.0.0-23.md)** records the exact public-release candidate and every remaining gate.
 - **[Architecture decisions](decisions/README.md)** preserves durable technical decisions and their status.
 - **[Documentation health](documentation-health.md)** tracks review triggers and known documentation debt.
 

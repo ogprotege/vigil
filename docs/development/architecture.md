@@ -1,7 +1,7 @@
 # Vigil architecture
 
 - Status: Current
-- Last reviewed: 2026-07-26
+- Last reviewed: 2026-08-09
 - Review again: after changes to provider contracts, persistence, account lifecycle, background work, widgets, or diagnostics
 
 ## Product boundary
@@ -14,11 +14,11 @@ It connects directly to supported providers, normalizes their current quota or a
 
 ```mermaid
 flowchart LR
-    User[User on iPhone]
+    User[User on iPhone or iPad]
     Browser[System browser approval]
     Providers[Provider usage and auth endpoints]
 
-    subgraph Phone[iPhone]
+    subgraph Device[iOS device]
         App[SwiftUI app]
         Widget[WidgetKit extension]
         Core[VigilKit]
@@ -42,7 +42,7 @@ flowchart LR
     App --> Notifications
 ```
 
-The app and widget share account state, snapshots, history, polling state, lifecycle state, and pending threshold events through the App Group. They share credentials through the configured Keychain access group.
+The app and widget share account state, snapshots, history, polling state, lifecycle state, pending threshold events, and user behavior preferences through the App Group. They share credentials through the configured Keychain access group.
 
 ## Repository boundaries
 
@@ -148,6 +148,8 @@ Files use owner-only permissions and iOS data protection. JSON stores use same-d
 
 Unsigned builds and previews can lack the App Group entitlement. In that case each process falls back to its Application Support `VigilShared` directory. The app records and surfaces this degraded state because the app and widget then cannot share one polling ledger.
 
+`VigilPreferences` uses the App Group `UserDefaults` suite for appearance, alert enablement, notification copy privacy, widget value privacy, and the automatic-check pause. The values contain no credential or usage payload. The app reloads widget timelines when a presentation preference changes.
+
 ### Snapshot state
 
 `SnapshotStore` preserves current and previous normalized snapshots. Failed provider checks can carry the last accepted values with a degraded status. Presentation code must not label those values Live.
@@ -193,7 +195,7 @@ Full reset blocks new notification drains, waits for older cleanup and delivery 
 
 `ThresholdEngine` detects upward crossings at 80 and 95 percent between accepted snapshots. The first snapshot does not create a crossing. A new provider reset segment does not inherit a crossing from the old segment.
 
-The widget cannot deliver the app's local notifications. It parks crossing events in `PendingEventStore`. The app later revalidates each event against fresh provider truth before delivery. Events older than 30 minutes, no longer crossed, or from another reset segment are not actionable.
+The widget cannot deliver the app's local notifications. When alerts are enabled, it parks crossing events in `PendingEventStore`. The app later revalidates each event against fresh provider truth before delivery. Events older than 30 minutes, no longer crossed, or from another reset segment are not actionable. Disabling alerts stops new threshold-event emission, removes owned Vigil notifications, and acknowledges already-pending events.
 
 Notification identifiers include an opaque lifecycle scope. Removing an account clears pending and delivered Vigil notifications without exposing the raw account key in new identifiers.
 
@@ -201,7 +203,7 @@ Notification identifiers include an opaque lifecycle scope. Removing an account 
 
 The app registers `app.vigil.refresh` as a `BGAppRefreshTask`. When the app enters the background, it submits a request with an earliest begin date 15 minutes later. iOS may run it later or not at all.
 
-The widget reads shared account and snapshot state. It can attempt a provider refresh only through the same scheduler used by the app. Widget configurations use a SHA-256-derived opaque account identifier for new selections.
+The widget reads shared account, snapshot, and preference state. It can attempt a provider refresh only through the same scheduler used by the app and does not fetch while automatic checks are paused. Widget configurations use a SHA-256-derived opaque account identifier for new selections. Widget presentation follows System, Light, or Dark and can replace numeric or monetary values with a privacy summary.
 
 Neither background tasks nor WidgetKit can guarantee a fixed sampling interval. History can contain gaps.
 

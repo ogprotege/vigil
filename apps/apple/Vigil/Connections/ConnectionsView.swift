@@ -14,7 +14,7 @@ struct ConnectionsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: VigilSpacing.large) {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text("Accounts on this iPhone")
+                        Text("Accounts on this device")
                             .font(.title2.weight(.bold))
                             .foregroundStyle(VigilPalette.ink)
                         Text("Add, inspect, or remove the accounts Vigil watches.")
@@ -44,8 +44,6 @@ struct ConnectionsView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .toolbarBackground(VigilPalette.canvas.opacity(0.97), for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button { showAddAccount = true } label: {

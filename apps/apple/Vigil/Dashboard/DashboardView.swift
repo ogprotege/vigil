@@ -38,8 +38,6 @@ struct DashboardView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .toolbarBackground(VigilPalette.canvas.opacity(0.97), for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
         .toolbar { connectedToolbar }
         .sheet(item: $activeSetup) { route in
             AddAccountView(initialRoute: route)
@@ -93,7 +91,7 @@ struct DashboardView: View {
                     SetupChoiceRow(
                         symbol: "terminal",
                         title: "Connect ChatGPT / Codex",
-                        detail: "Use OpenAI's device authorization on this iPhone."
+                        detail: "Use OpenAI's device authorization on this device."
                     )
                 }
                 .accessibilityIdentifier("vigil.setup.codex")
@@ -110,7 +108,7 @@ struct DashboardView: View {
             .buttonStyle(.plain)
 
             Label(
-                "Credentials stay in this iPhone's Keychain. There is no Vigil account or analytics service.",
+                "Credentials stay in this device's Keychain. There is no Vigil account or analytics service.",
                 systemImage: "lock.shield"
             )
             .font(.caption)

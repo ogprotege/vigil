@@ -126,7 +126,9 @@ Simulator tests cannot prove these behaviors:
 - Face ID or Touch ID behavior
 - Local notification authorization and threshold delivery
 - Opportunistic `BGAppRefreshTask` execution
-- Widget configuration, refresh, and privacy behavior
+- System, Light, and Dark appearance on supported iOS runtimes
+- Usage-alert disablement and generic notification copy
+- Widget configuration, refresh, value redaction, and paused-automatic-check behavior
 - OpenAI Admin history with an authorized organization account
 
 Use dedicated test credentials. Never capture or commit raw tokens, cookies, Admin API keys, or unsanitized provider bodies.

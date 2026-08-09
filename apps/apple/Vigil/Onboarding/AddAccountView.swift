@@ -80,8 +80,6 @@ struct AddAccountView: View {
                 }
                 .toolbar { closeToolbar }
         }
-        .toolbarBackground(VigilPalette.canvas.opacity(0.97), for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
         .accessibilityHidden(isLinking)
         .overlay { if isLinking { linkingOverlay } }
         .alert(
@@ -96,7 +94,6 @@ struct AddAccountView: View {
             Text(alertMessage)
         }
         .onDisappear { cancelLinking() }
-        .preferredColorScheme(.dark)
     }
 
     @ToolbarContentBuilder
@@ -141,7 +138,7 @@ struct AddAccountView: View {
                             SetupChoiceRow(
                                 symbol: "terminal",
                                 title: "Connect ChatGPT / Codex",
-                                detail: "Use OpenAI's device authorization on this iPhone."
+                                detail: "Use OpenAI's device authorization on this device."
                             )
                         }
                         NavigationLink(value: SetupRoute.grok) {
@@ -200,7 +197,7 @@ struct AddAccountView: View {
 
     private var privacyNote: some View {
         Label(
-            "Credentials stay in this iPhone's Keychain. Vigil contacts providers directly.",
+            "Credentials stay in this device's Keychain. Vigil contacts providers directly.",
             systemImage: "lock.shield"
         )
         .font(.caption)

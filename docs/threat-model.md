@@ -4,7 +4,7 @@ Vigil is an iOS-only local client. It has no collection server. This document st
 
 > Status: current
 >
-> Last reviewed: 2026-07-26
+> Last reviewed: 2026-08-09
 >
 > Review again: after any storage, authentication, networking, notification, widget, export, or deletion change
 
@@ -19,7 +19,7 @@ Vigil is an iOS-only local client. It has no collection server. This document st
 
 ## Trust boundaries
 
-### iPhone and Keychain
+### iOS device and Keychain
 
 The app stores credentials in Apple Keychain with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. The app and widget share access through the configured Keychain group.
 
@@ -27,7 +27,7 @@ Keychain protects credentials at rest under Apple's platform security model. Vig
 
 ### App Group container
 
-The app and widget share snapshots, account metadata, poll leases, normalized history, and notification events through `group.app.vigil.shared`.
+The app and widget share snapshots, account metadata, poll leases, normalized history, notification events, and non-secret behavior preferences through `group.app.vigil.shared`.
 
 These files contain no bearer credential. They can still reveal account relationships, usage, balance, spending, and timing. Apple sandboxing and device data protection guard them. Vigil does not mark them as excluded from Apple-managed device backups.
 
@@ -51,7 +51,7 @@ iOS, TestFlight, background tasks, notifications, and WidgetKit remain under App
 
 ### Credential handling
 
-- Every credential is minted or entered on the iPhone.
+- Every credential is minted or entered on the iOS device.
 - Vigil refreshes only credentials it minted.
 - Manually pasted tokens and keys are treated as externally owned.
 - Credentials never enter the App Group snapshot store.
@@ -83,10 +83,10 @@ HTTP 429 advances provider-configured backoff. Manual refresh cannot bypass an a
 - Snapshot age remains visible.
 - Countdowns are identified as local projections from the last reset timestamp.
 - Experimental providers remain labeled.
-- Device-owner app lock can reduce casual access while the device is unlocked. It does not hide widgets or notification previews.
+- Device-owner app lock can reduce casual access while the device is unlocked. Separate settings can hide widget values or use generic notification text; the lock itself does not alter system surfaces.
 - Device observations and provider-imported historical buckets carry different provenance labels.
 
-Local threshold notifications can reveal the provider, quota window, and utilization on the Lock Screen or in Notification Center. The user controls notification permission and preview settings through iOS.
+Detailed local threshold notifications can reveal the provider, quota window, and utilization on the Lock Screen or in Notification Center. Vigil can replace them with generic copy and can disable future alert generation; the user also controls notification permission and preview behavior through iOS.
 
 ### Diagnostic export
 

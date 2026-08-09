@@ -77,6 +77,7 @@ final class AppModel {
     let pendingEvents: PendingEventStore
     let lifecycleStore: AccountLifecycleStore
     let notifications: any NotificationManaging
+    let preferences: VigilPreferences
     private let accountIndexURL: URL
     private let fullRecoveryDirectories: [URL]
     private let legacyObservationStore: LegacyUsageObservationStore
@@ -149,6 +150,7 @@ final class AppModel {
         vault: (any CredentialsStore)? = nil,
         directory: URL = SharedContainer.directory,
         notifications: any NotificationManaging = NotificationManager(),
+        preferences: VigilPreferences? = nil,
         usageSession: URLSession = ProviderUsageSession.shared,
         scheduler: FetchScheduler? = nil,
         additionalRecoveryDirectories: [URL] = []
@@ -161,6 +163,23 @@ final class AppModel {
         self.pendingEvents = PendingEventStore(directory: directory)
         self.lifecycleStore = AccountLifecycleStore(directory: directory)
         self.notifications = notifications
+        if let preferences {
+            self.preferences = preferences
+        } else if Self.isRunningUnitTests {
+            // AppModel tests create many isolated storage roots. They must not
+            // inherit whichever settings a developer last selected in the
+            // simulator's real App Group suite, or alert and polling tests
+            // become order-dependent. Preference persistence has its own
+            // explicit injected-suite tests.
+            let suite = UserDefaults(
+                suiteName: "app.vigil.tests.preferences.\(UUID().uuidString)"
+            ) ?? .standard
+            self.preferences = VigilPreferences(defaults: suite, environment: [:])
+        } else {
+            self.preferences = VigilPreferences(
+                defaults: SharedContainer.preferencesDefaults
+            )
+        }
         self.usageSession = usageSession
         self.accountIndexURL = directory.appendingPathComponent("account-index.json")
         let discoveredRecoveryDirectories = Self.isRunningUnitTests
@@ -1125,7 +1144,9 @@ final class AppModel {
                 )
             }
         }
-        await notifications.requestAuthorizationIfNeeded()
+        if preferences.usageAlertsEnabled {
+            await notifications.requestAuthorizationIfNeeded()
+        }
         try ensureIdentityOperationCurrent(operationEpoch)
         reloadWidgets()
     }
@@ -1984,10 +2005,14 @@ final class AppModel {
         var failed: Int
         /// Earliest time any deferred account may be checked again.
         var nextAllowedAt: Date?
+        var paused: Int = 0
 
         var didFetchAnything: Bool { fetched > 0 }
 
         var userMessage: String {
+            if paused > 0 {
+                return "Automatic checks are paused. Pull to refresh whenever you want current values."
+            }
             if fetched > 0 && deferred == 0 && failed == 0 {
                 return "Updated \(fetched) account\(fetched == 1 ? "" : "s") from providers."
             }
@@ -2022,6 +2047,15 @@ final class AppModel {
         }
         // Refreshing an unloaded model would report "nothing to refresh".
         ensureLoadedFromDisk()
+        guard bypassPollFloor || !preferences.automaticChecksPaused else {
+            return RefreshReport(
+                fetched: 0,
+                deferred: 0,
+                failed: 0,
+                nextAllowedAt: nil,
+                paused: accounts.count
+            )
+        }
         guard !isResettingAllLocalData,
               accountIndexUsable,
               lifecycleUsable,
@@ -2136,6 +2170,7 @@ final class AppModel {
                 vault: vault,
                 surface: surface,
                 session: usageSession,
+                emitThresholdEvents: preferences.usageAlertsEnabled,
                 bypassPollFloor: bypassPollFloor,
                 pendingEvents: pendingEvents,
                 history: historyStore,
@@ -2225,6 +2260,30 @@ final class AppModel {
         }
         guard !events.isEmpty else { return }
 
+        // Turning alerts off is authoritative. Consume durable events under
+        // the same lifecycle generation instead of leaving a surprise alert
+        // queued for the next time the preference is enabled.
+        guard preferences.usageAlertsEnabled else {
+            do {
+                try lifecycleStore.withCurrentGeneration(
+                    generation,
+                    accountKey: account.key
+                ) {
+                    try pendingEvents.acknowledge(events, accountKey: account.key)
+                }
+            } catch let error as AccountLifecycleError
+                where error == .inactiveAccount || error == .staleGeneration {
+                return
+            } catch {
+                reportStorageError(
+                    "Vigil couldn't clear disabled pending notifications for \(account.displayName).",
+                    error: error,
+                    priority: 2
+                )
+            }
+            return
+        }
+
         let currentSnapshot: ProviderSnapshot?
         do {
             // A widget may have persisted both a newer snapshot and its
@@ -2308,7 +2367,8 @@ final class AppModel {
         let failed = await notifications.deliver(
             events: actionable,
             account: account,
-            deliveryScope: deliveryScope
+            deliveryScope: deliveryScope,
+            hidesDetails: preferences.notificationDetailsHidden
         )
         let delivered = actionable.filter { !failed.contains($0) }
         do {
@@ -2358,6 +2418,38 @@ final class AppModel {
         }
     }
 
+    /// Appearance and widget privacy are shared with WidgetKit, which does not
+    /// observe App Group defaults directly.
+    func presentationPreferencesDidChange() {
+        reloadWidgets()
+    }
+
+    /// Applies the timer and WidgetKit side effects of changing the automatic
+    /// checks preference. Manual refresh remains available while paused.
+    func automaticChecksPreferenceDidChange() {
+        if preferences.automaticChecksPaused {
+            foregroundTimer?.cancel()
+            foregroundTimer = nil
+        } else {
+            startForegroundTimer()
+        }
+        reloadWidgets()
+    }
+
+    /// Applies notification side effects after the alert preference has been
+    /// persisted. Enabling from an initially-disabled setup must still present
+    /// the system authorization request; disabling is authoritative for both
+    /// presented and durably queued Vigil alerts.
+    func usageAlertsPreferenceDidChange() async {
+        reloadWidgets()
+        if !preferences.usageAlertsEnabled {
+            await notifications.removeAllVigilNotifications()
+            await drainAllPendingEvents()
+        } else {
+            await notifications.requestAuthorizationIfNeeded()
+        }
+    }
+
     // MARK: - Foreground timer (fetch triggers, docs/architecture.md)
 
     func scenePhaseChanged(to phase: ScenePhase) {
@@ -2380,6 +2472,7 @@ final class AppModel {
 
     func startForegroundTimer() {
         guard foregroundTimer == nil,
+              !preferences.automaticChecksPaused,
               !isResettingAllLocalData,
               accountIndexUsable,
               lifecycleUsable,
@@ -2531,7 +2624,7 @@ final class AppModel {
             }
         }
         if error is URLError {
-            return "Vigil couldn't reach OpenAI to import completion usage and cost records. Try again when this iPhone is online."
+            return "Vigil couldn't reach OpenAI to import completion usage and cost records. Try again when this device is online."
         }
         return "Vigil couldn't save the imported provider records. Existing history was not changed."
     }

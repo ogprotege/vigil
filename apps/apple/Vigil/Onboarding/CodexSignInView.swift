@@ -40,7 +40,6 @@ struct CodexSignInView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .preferredColorScheme(.dark)
         .task { await run() }
         .onDisappear { retryAttempt.cancel() }
     }

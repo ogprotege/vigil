@@ -366,7 +366,9 @@ declared version, and the declared build.
 
 ## 11. Test the delivered build
 
-Install the processed build from TestFlight on a physical iPhone. At minimum:
+Install the processed build from TestFlight on a physical iPhone. Because Vigil
+also supports iPad, repeat the layout, appearance, setup, account-detail,
+Settings, and app-lock checks on a physical iPad before App Review. At minimum:
 
 1. Complete clean first launch.
 2. Link Claude through the phone-native flow.

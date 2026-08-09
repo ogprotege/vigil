@@ -13,6 +13,13 @@ enum SharedContainer {
     static let appGroupID = "group.app.vigil.shared"
     static let refreshTaskID = "app.vigil.refresh"
 
+    /// Appearance and behavior preferences need to be visible to the widget.
+    /// Unsigned previews and simulator builds may lack the App Group suite;
+    /// falling back to standard defaults mirrors the shared-file fallback.
+    static var preferencesDefaults: UserDefaults {
+        UserDefaults(suiteName: appGroupID) ?? .standard
+    }
+
     private static let fallbackState = OSAllocatedUnfairLock(initialState: false)
 
     /// True when `directory` last resolved to the per-process Application
