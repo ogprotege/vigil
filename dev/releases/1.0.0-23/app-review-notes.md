@@ -1,16 +1,16 @@
 # Vigil 1.0.0 App Review notes
 
-> Status: prepared text with submission blockers; do not paste into App Store
-> Connect until every `BLOCKED` item is resolved
+> Status: configured in App Store Connect and submitted with iOS 1.0.0 (23)
 >
 > Never commit reviewer credentials, personal contact information, or a private
 > recording URL to this repository. Put those values directly into App Store
 > Connect's protected review fields.
 
-## 1. Physical-device screen recording
+## 1. Supplemental physical-device recording
 
-**BLOCKED:** Attach or link a recording captured on a physical iPhone. It must
-begin at launch and show:
+No physical-device recording is evidenced in this repository. If Apple asks
+for supplemental evidence, attach or link a recording captured on a physical
+iPhone that begins at launch and shows:
 
 1. the empty first-run dashboard;
 2. linking the dedicated reviewer provider account;
@@ -48,28 +48,26 @@ privacy controls.
 
 ## 3. Access instructions and test credentials
 
-**BLOCKED ON VERIFICATION:** App Store Connect's protected demo-account fields
-are populated and **Sign-in required** is enabled, but the credential has not
-been proven against the delivered build or identified in reviewer notes as a
-specific supported provider flow. Confirm that it is a dedicated, revocable
-provider credential that will remain active for at least two weeks after
-submission. Do not copy the protected value into this repository.
+**CONFIGURED:** App Store Connect's protected demo-account fields are populated,
+**Sign-in required** is enabled, and the owner confirmed that the credential is
+for a dedicated Grok Build reviewer account. The submitted notes identify the
+provider and give exact device-code instructions. Keep the account active
+through review. Do not copy the protected value into this repository.
 
-Recommended review flow after credentials are present:
+Configured review flow:
 
 1. Launch Vigil and choose **Add account**.
-2. Select the provider named in the secure review credential fields.
-3. Follow that provider's setup screen. For a device-code flow, approve the
-   code in the provider-controlled browser page. For an API key, paste the
-   dedicated review key and any required account identifier.
-4. Choose **Verify and Save**. The dashboard will show only data returned by
-   that provider.
-5. Open the account card to inspect windows, reset times, metrics, freshness,
-   and bounded observed history.
-6. Pull down on the dashboard to request a manual refresh.
-7. Open **Settings** to inspect appearance, privacy, alerts, automatic-check,
+2. Select **Connect Grok Build**.
+3. Wait for the device code and choose **Open sign-in page**.
+4. Sign in on xAI's provider-controlled page using the protected review fields,
+   approve access, and enter the one-time device code.
+5. Return to Vigil. The dashboard will show only data returned by Grok Build.
+6. Open the account card to inspect usage, credits, windows, reset times,
+   metrics, freshness, and bounded observed history.
+7. Pull down on the dashboard to request a manual refresh.
+8. Open **Settings** to inspect appearance, privacy, alerts, automatic-check,
    app-lock, policy, support, and version controls.
-8. Open **Accounts**, choose the linked account, and remove it to delete its
+9. Open **Accounts**, choose the linked account, and remove it to delete its
    local credential and Vigil data.
 
 Provider values vary by account and can legitimately be percentage-only,
@@ -104,9 +102,9 @@ crash-reporting, payment, cloud-storage, or generative-AI SDKs.
 
 ## 5. Regional differences
 
-**RESOLVED:** App Store Connect has 174 of 175 territories enabled. China
-mainland (`CHN`) is the sole exclusion, and automatic availability in future
-territories is disabled. Recheck this immediately before App Review submission.
+**RESOLVED AND RECHECKED:** App Store Connect had 174 of 175 territories enabled
+at final submission. China mainland (`CHN`) was the sole exclusion, and
+automatic availability in future territories was disabled.
 
 For every included storefront, Vigil's feature set is the same. A provider's
 own account eligibility, endpoint availability, plan values, and regional
@@ -125,3 +123,9 @@ balances, and budget controls, not financial products.
 **CONFIGURED:** The protected App Store Connect review record contains first
 name, last name, email, and phone values. Confirm the contact remains monitored
 during review; never copy those values into this repository.
+
+## Submission record
+
+App Review submission `fc84c9c4-104d-4039-9c9f-48cb61b491ae` entered
+`WAITING_FOR_REVIEW` at 2026-08-09 19:30:31 UTC. App Store Connect identifies
+the submitted item as iOS 1.0.0 with build 23 attached.
