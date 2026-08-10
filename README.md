@@ -213,11 +213,11 @@ The complete simulator command and CI-equivalent gate live in the
 ## Project status
 
 These docs describe **Vigil 1.0.0, build 24** in the current source tree. This
-is the public App Store candidate after the build 23 TestFlight 0xdead10cc
-lifecycle-lock fix. It retains the build 22 Grok Build integration and the
-build 23 Settings surface (adaptive appearance, native Liquid Glass chrome,
-privacy, alerts, automatic-check pause). Consult the
-[1.0.0 release record](docs/releases/1.0.0-24.md) before distribution work.
+is the binary in App Review and Internal TestFlight after the build 23
+TestFlight 0xdead10cc lifecycle-lock fix. It retains the build 22 Grok Build
+integration and the build 23 Settings surface (adaptive appearance, native
+Liquid Glass chrome, privacy, alerts, automatic-check pause). Consult the
+[1.0.0 release record](docs/releases/1.0.0-24.md) for gate evidence.
 
 Runtime provider behavior can change outside Vigil's control. Experimental
 integrations remain labeled during setup because their vendor contracts or
