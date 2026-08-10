@@ -796,7 +796,24 @@ struct AccountLifecycleStore: Sendable {
         }
     }
 
+    /// Every cross-process lifecycle flock runs under SuspensionGuard in the
+    /// app process so a mid-lock suspend cannot become RUNNINGBOARD 0xdead10cc.
+    /// The assertion is taken before flock so the process is protected for the
+    /// entire acquire/work/release window — including Keychain or snapshot
+    /// work callers perform inside `withCurrentGeneration` / rotation bodies.
+    /// Widget builds omit `VIGIL_APP_HOST` and take the flock without an
+    /// assertion (extensions cannot hold UIApplication background tasks).
     private func withLock<T>(_ body: () throws -> T) throws -> T {
+        #if VIGIL_APP_HOST
+        return try SuspensionGuard.withProtection(named: "AccountLifecycle") {
+            try withLockHoldingFlock(body)
+        }
+        #else
+        return try withLockHoldingFlock(body)
+        #endif
+    }
+
+    private func withLockHoldingFlock<T>(_ body: () throws -> T) throws -> T {
         let descriptor = try acquireLock()
         defer { releaseLock(descriptor) }
         return try body()

@@ -15,7 +15,7 @@ complete set of accepted provider values one tap away.
 <p>
 <a href="https://github.com/ogprotege/vigil/actions/workflows/apple.yml"><img src="https://github.com/ogprotege/vigil/actions/workflows/apple.yml/badge.svg" alt="Apple CI" /></a>
 &nbsp;
-<a href="docs/releases/1.0.0-23.md"><img src="https://img.shields.io/badge/source-1.0.0%20%2823%29-9D8CFF" alt="Source version 1.0.0 build 23" /></a>
+<a href="docs/releases/1.0.0-24.md"><img src="https://img.shields.io/badge/source-1.0.0%20%2824%29-9D8CFF" alt="Source version 1.0.0 build 24" /></a>
 &nbsp;
 <a href="docs/user-guide/setup.md"><img src="https://img.shields.io/badge/iOS-17%2B-000000?logo=apple&amp;logoColor=white" alt="iOS 17 or later" /></a>
 &nbsp;
@@ -212,11 +212,12 @@ The complete simulator command and CI-equivalent gate live in the
 
 ## Project status
 
-These docs describe **Vigil 1.0.0, build 23** in the current source tree. This
-is the first public App Store candidate. It retains the build 22 Grok Build
-integration and adds adaptive appearance, native system Liquid Glass chrome,
-and focused privacy, alert, and automatic-check settings. Consult the
-[1.0.0 release record](docs/releases/1.0.0-23.md) before distribution work.
+These docs describe **Vigil 1.0.0, build 24** in the current source tree. This
+is the public App Store candidate after the build 23 TestFlight 0xdead10cc
+lifecycle-lock fix. It retains the build 22 Grok Build integration and the
+build 23 Settings surface (adaptive appearance, native Liquid Glass chrome,
+privacy, alerts, automatic-check pause). Consult the
+[1.0.0 release record](docs/releases/1.0.0-24.md) before distribution work.
 
 Runtime provider behavior can change outside Vigil's control. Experimental
 integrations remain labeled during setup because their vendor contracts or

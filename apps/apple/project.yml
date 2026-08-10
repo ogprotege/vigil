@@ -20,7 +20,7 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    CURRENT_PROJECT_VERSION: 23
+    CURRENT_PROJECT_VERSION: 24
     MARKETING_VERSION: 1.0.0
     # Local simulator builds need no team. Distribution settings below provide
     # the team and profiles for device and App Store builds.
@@ -47,6 +47,10 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.vigil.app
         ENABLE_PREVIEWS: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Marks the app process so SharedContainer/SuspensionGuard can assert
+        # against suspension. The widget target omits this flag and never
+        # compiles UIApplication background-task code.
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) VIGIL_APP_HOST
         # Device/App Store builds use manual distribution signing (the team
         # has no registered devices, so automatic development signing cannot
         # mint profiles). Simulator builds stay signing-free.
@@ -100,6 +104,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.vigil.tests
         GENERATE_INFOPLIST_FILE: YES
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) VIGIL_APP_HOST
 
   VigilUITests:
     type: bundle.ui-testing

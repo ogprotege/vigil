@@ -1,25 +1,40 @@
 import Foundation
-#if canImport(UIKit)
+#if VIGIL_APP_HOST
 import UIKit
 #endif
 
 /// Holds a UIApplication background-task assertion across short critical
-/// sections that own cross-process file locks (the history flock and SQLite
-/// WAL locks).
+/// sections that own cross-process file locks (lifecycle, history, snapshot,
+/// pending-event, and ledger flocks, plus SQLite WAL locks).
 ///
 /// iOS kills a suspended process that still holds file locks
 /// (RUNNINGBOARD 0xdead10cc). History reads run on a detached queue and
-/// history/snapshot writes run inside fetches that can outlive the
+/// history/snapshot/lifecycle writes run inside work that can outlive the
 /// foreground — including the BGAppRefreshTask path, whose completion hands
 /// the process back to the suspendor — so without an assertion the system
 /// can suspend the app mid-lock. The assertion defers suspension until the
 /// locks are released.
 ///
-/// This lives in the app target on purpose: VigilKit stays UI-free and the
-/// widget extension cannot touch UIApplication.
+/// Compiled only into the app host (`VIGIL_APP_HOST`). VigilKit stays UI-free.
+/// The widget extension cannot hold UIApplication background tasks and does
+/// not compile this type; `AccountLifecycleStore` still takes flocks there
+/// (accepted residual 0xdead10cc risk — integrity-safe because flock releases
+/// on process death). Nested calls each open their own assertion, which is
+/// intentional when one guarded section calls another.
 enum SuspensionGuard {
+    /// True in the app host where `beginBackgroundTask` can keep the process
+    /// unsuspended. Always true under `VIGIL_APP_HOST`; false if this type is
+    /// ever linked without that flag.
+    static var canHoldBackgroundTaskAssertion: Bool {
+        #if VIGIL_APP_HOST
+        true
+        #else
+        false
+        #endif
+    }
+
     static func withProtection<T>(named name: String, _ body: () throws -> T) rethrows -> T {
-        #if canImport(UIKit)
+        #if VIGIL_APP_HOST
         let assertion = BackgroundTaskAssertion(name: name)
         defer { assertion.end() }
         #endif
@@ -30,7 +45,7 @@ enum SuspensionGuard {
         named name: String,
         _ body: () async throws -> T
     ) async rethrows -> T {
-        #if canImport(UIKit)
+        #if VIGIL_APP_HOST
         let assertion = BackgroundTaskAssertion(name: name)
         defer { assertion.end() }
         #endif
@@ -38,7 +53,7 @@ enum SuspensionGuard {
     }
 }
 
-#if canImport(UIKit)
+#if VIGIL_APP_HOST
 /// UIApplication permits begin/endBackgroundTask from any thread, but the
 /// expiration handler arrives on the main queue and can race the defer that
 /// ends the assertion normally, so ending is made idempotent under a lock.
