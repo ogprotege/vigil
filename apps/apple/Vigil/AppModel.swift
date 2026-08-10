@@ -506,10 +506,13 @@ final class AppModel {
     }
 
     private func deleteRetiredLocalState(accountKey: String) throws {
-        try snapshotStore.deleteRetiredAccount(accountKey: accountKey)
-        try pendingEvents.deleteRetiredAccount(accountKey: accountKey)
-        try legacyObservationStore.removeAll(accountKey: accountKey)
-        try SuspensionGuard.withProtection(named: "HistoryDelete") {
+        // Snapshot and pending-event stores take their own App Group flocks;
+        // history takes flock + WAL. One assertion covers the whole retirement
+        // sweep so suspension cannot land mid-delete (0xdead10cc).
+        try SuspensionGuard.withProtection(named: "AccountRetirement") {
+            try snapshotStore.deleteRetiredAccount(accountKey: accountKey)
+            try pendingEvents.deleteRetiredAccount(accountKey: accountKey)
+            try legacyObservationStore.removeAll(accountKey: accountKey)
             try historyStore.delete(accountKey: accountKey)
         }
         try AccountIndex.deleteCorruptBackups(
@@ -643,16 +646,25 @@ final class AppModel {
     /// Reconciles the cross-process history without decoding the full archive.
     /// One extra row per source lets the preview identify the previous reset
     /// segment without presenting more than eight visible readings.
+    ///
+    /// Lifecycle generation capture and the history flock both hold App Group
+    /// locks. They run under suspension protection so a backgrounded process
+    /// cannot be suspended mid-lock (TestFlight 0xdead10cc on 1.0.0 build 23
+    /// died exactly on `captureActiveGeneration` during this reload).
     private func reloadHistoryState() async {
         historyReloadRevision += 1
         let revision = historyReloadRevision
         let targets: [(account: AccountRef, generation: AccountLifecycleGeneration)]
         do {
-            targets = try accounts.compactMap { account in
-                guard let generation = try lifecycleStore.captureActiveGeneration(
-                    accountKey: account.key
-                ) else { return nil }
-                return (account, generation)
+            // AccountLifecycleStore.withLock also asserts; an outer guard keeps
+            // one continuous assertion across the whole compactMap of accounts.
+            targets = try SuspensionGuard.withProtection(named: "HistoryReloadLifecycle") {
+                try accounts.compactMap { account in
+                    guard let generation = try lifecycleStore.captureActiveGeneration(
+                        accountKey: account.key
+                    ) else { return nil }
+                    return (account, generation)
+                }
             }
         } catch {
             reportStorageError(
@@ -1116,11 +1128,14 @@ final class AppModel {
             }
             if verifiedSnapshot.status == .ok {
                 do {
-                    try lifecycleStore.withCurrentGeneration(
-                        commitGeneration,
-                        accountKey: ref.key
-                    ) {
-                        try SuspensionGuard.withProtection(named: "HistoryAppend") {
+                    // Assertion before lifecycle flock: never take the shared
+                    // generation lock without a suspension guard around the
+                    // history flock that follows (0xdead10cc residual #2).
+                    try SuspensionGuard.withProtection(named: "HistoryAppend") {
+                        try lifecycleStore.withCurrentGeneration(
+                            commitGeneration,
+                            accountKey: ref.key
+                        ) {
                             try historyStore.append(snapshot: verifiedSnapshot)
                         }
                     }
@@ -1135,7 +1150,9 @@ final class AppModel {
             }
         } else {
             do {
-                snapshots[ref.key] = try snapshotStore.current(accountKey: ref.key)
+                snapshots[ref.key] = try SuspensionGuard.withProtection(named: "SnapshotRead") {
+                    try snapshotStore.current(accountKey: ref.key)
+                }
             } catch {
                 snapshots[ref.key] = nil
                 reportStorageError(
@@ -1393,11 +1410,11 @@ final class AppModel {
                     try snapshotStore.save(verifiedSnapshot, accountKey: target.key)
                 }
                 if verifiedSnapshot.status == .ok {
-                    try lifecycleStore.withCurrentGeneration(
-                        commitGeneration,
-                        accountKey: target.key
-                    ) {
-                        try SuspensionGuard.withProtection(named: "HistoryAppend") {
+                    try SuspensionGuard.withProtection(named: "HistoryAppend") {
+                        try lifecycleStore.withCurrentGeneration(
+                            commitGeneration,
+                            accountKey: target.key
+                        ) {
                             try historyStore.append(snapshot: verifiedSnapshot)
                         }
                     }
@@ -1466,11 +1483,11 @@ final class AppModel {
                 accountLabel: account.label,
                 planLabel: snapshots[account.key]?.planLabel ?? account.plan
             )
-            try lifecycleStore.withCurrentGeneration(
-                generation,
-                accountKey: account.key
-            ) {
-                try SuspensionGuard.withProtection(named: "HistoryBackfill") {
+            try SuspensionGuard.withProtection(named: "HistoryBackfill") {
+                try lifecycleStore.withCurrentGeneration(
+                    generation,
+                    accountKey: account.key
+                ) {
                     try historyStore.importBackfill(samples)
                 }
             }
@@ -1603,31 +1620,32 @@ final class AppModel {
         // being left with unreachable metadata.
         var cleanupError: Error?
         var historyCleanupError: Error?
-        do {
-            try snapshotStore.deleteRetiredAccount(accountKey: account.key)
-        } catch {
-            cleanupError = error
-        }
-        do {
-            try pendingEvents.deleteRetiredAccount(accountKey: account.key)
-        } catch {
-            cleanupError = cleanupError ?? error
-        }
-        do {
-            // Needed only when a failed startup migration left the retired
-            // file in place. A removed account must not remain in that file.
-            try legacyObservationStore.removeAll(accountKey: account.key)
-        } catch {
-            historyCleanupError = historyCleanupError ?? error
-        }
-        do {
-            try SuspensionGuard.withProtection(named: "HistoryDelete") {
-                try historyStore.delete(accountKey: account.key)
+        // One assertion around every App Group flock taken during retirement.
+        SuspensionGuard.withProtection(named: "AccountRetirement") {
+            do {
+                try snapshotStore.deleteRetiredAccount(accountKey: account.key)
+            } catch {
+                cleanupError = error
             }
-            historySummaries[account.key] = nil
-            recentHistorySamples[account.key] = nil
-        } catch {
-            historyCleanupError = historyCleanupError ?? error
+            do {
+                try pendingEvents.deleteRetiredAccount(accountKey: account.key)
+            } catch {
+                cleanupError = cleanupError ?? error
+            }
+            do {
+                // Needed only when a failed startup migration left the retired
+                // file in place. A removed account must not remain in that file.
+                try legacyObservationStore.removeAll(accountKey: account.key)
+            } catch {
+                historyCleanupError = historyCleanupError ?? error
+            }
+            do {
+                try historyStore.delete(accountKey: account.key)
+                historySummaries[account.key] = nil
+                recentHistorySamples[account.key] = nil
+            } catch {
+                historyCleanupError = historyCleanupError ?? error
+            }
         }
         if let historyCleanupError {
             reportStorageError(
@@ -1969,29 +1987,29 @@ final class AppModel {
         } catch {
             Self.log.error("late credential sweep failed: \(error.localizedDescription, privacy: .private(mask: .hash))")
         }
-        do {
-            try snapshotStore.deleteRetiredAccount(accountKey: accountKey)
-        } catch {
-            Self.log.error("late snapshot sweep failed: \(error.localizedDescription, privacy: .private(mask: .hash))")
-        }
-        do {
-            try legacyObservationStore.removeAll(accountKey: accountKey)
-        } catch {
-            Self.log.error("late legacy-history sweep failed: \(error.localizedDescription, privacy: .private(mask: .hash))")
-        }
-        do {
-            try SuspensionGuard.withProtection(named: "HistoryDelete") {
-                try historyStore.delete(accountKey: accountKey)
+        SuspensionGuard.withProtection(named: "AccountRetirement") {
+            do {
+                try snapshotStore.deleteRetiredAccount(accountKey: accountKey)
+            } catch {
+                Self.log.error("late snapshot sweep failed: \(error.localizedDescription, privacy: .private(mask: .hash))")
             }
-            historySummaries[accountKey] = nil
-            recentHistorySamples[accountKey] = nil
-        } catch {
-            Self.log.error("late history sweep failed: \(error.localizedDescription, privacy: .private(mask: .hash))")
-        }
-        do {
-            try pendingEvents.deleteRetiredAccount(accountKey: accountKey)
-        } catch {
-            Self.log.error("late event sweep failed: \(error.localizedDescription, privacy: .private(mask: .hash))")
+            do {
+                try legacyObservationStore.removeAll(accountKey: accountKey)
+            } catch {
+                Self.log.error("late legacy-history sweep failed: \(error.localizedDescription, privacy: .private(mask: .hash))")
+            }
+            do {
+                try historyStore.delete(accountKey: accountKey)
+                historySummaries[accountKey] = nil
+                recentHistorySamples[accountKey] = nil
+            } catch {
+                Self.log.error("late history sweep failed: \(error.localizedDescription, privacy: .private(mask: .hash))")
+            }
+            do {
+                try pendingEvents.deleteRetiredAccount(accountKey: accountKey)
+            } catch {
+                Self.log.error("late event sweep failed: \(error.localizedDescription, privacy: .private(mask: .hash))")
+            }
         }
         snapshots[accountKey] = nil
         nextAllowed[accountKey] = nil
@@ -2121,9 +2139,16 @@ final class AppModel {
         bypassPollFloor: Bool = false
     ) async -> AccountRefreshOutcome {
         guard !isDemo else { return .deferred }
+        // Lifecycle capture and Keychain load take the App Group lifecycle
+        // flock (AccountLifecycleStore asserts per withLock). UsageService
+        // then persists under snapshot/history/ledger flocks. The refresh
+        // assertion covers that long persistence tail so a BGAppRefreshTask
+        // completion cannot suspend the process mid-lock (0xdead10cc).
         let generation: AccountLifecycleGeneration
         do {
-            guard let captured = try lifecycleStore.captureActiveGeneration(accountKey: account.key) else {
+            guard let captured = try lifecycleStore.captureActiveGeneration(
+                accountKey: account.key
+            ) else {
                 return .failed
             }
             generation = captured
@@ -2157,10 +2182,6 @@ final class AppModel {
             )
             return .failed
         }
-        // The fetch persists snapshots, history rows, and pending events under
-        // cross-process file locks. The guard keeps the process unsuspended —
-        // including after a BGAppRefreshTask completes — until they are
-        // released; a mid-lock suspension is a 0xdead10cc kill.
         let result = await SuspensionGuard.withProtection(named: "AccountRefresh") {
             await UsageService.refresh(
                 account: account,
@@ -2250,7 +2271,9 @@ final class AppModel {
         }
         let events: [ThresholdEvent]
         do {
-            events = try pendingEvents.load(accountKey: account.key)
+            events = try SuspensionGuard.withProtection(named: "PendingEvents") {
+                try pendingEvents.load(accountKey: account.key)
+            }
         } catch {
             reportStorageError(
                 "Vigil couldn't read pending notifications for \(account.displayName).",

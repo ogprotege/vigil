@@ -6,6 +6,12 @@ Anything that changes shipped behavior gets an entry here: TestFlight app builds
 
 ## Unreleased
 
+## 1.0.0 (24) — 0xdead10cc lifecycle lock fix, 2026-08-10
+
+- Fixed a TestFlight `RUNNINGBOARD 0xdead10cc` kill on 1.0.0 (23): after ~10 hours uptime, a history reload took the account-lifecycle App Group flock (`captureActiveGeneration` → `fileExists`) while iOS suspended the process. Every `AccountLifecycleStore` exclusive lock now begins under a `SuspensionGuard` assertion *before* `flock`, so generation capture, rotation (including Keychain work in the rotation body), tombstones, and `withCurrentGeneration` mutations cannot be suspended mid-lock in the app process.
+- Closed residual guard-ordering gaps: history append/backfill take the suspension assertion before the lifecycle generation lock; account retirement deletes snapshot, pending-event, and history stores under one assertion; pending-event loads and unguarded snapshot reads after link are protected the same way.
+- `SuspensionGuard` and its `UIApplication` background-task code compile only under the app-host flag `VIGIL_APP_HOST`. The widget extension omits that flag (extensions cannot usefully hold UIApplication background tasks). Widget-process lock exposure remains an accepted residual risk; integrity is safe because flock releases on process death.
+
 ## 1.0.0 (23) — public App Store candidate, 2026-08-09
 
 - Added a focused Settings experience with System, Light, and Dark appearance choices. Dark preserves Vigil's original palette; Light uses an adaptive high-contrast palette, and System follows the iPhone.
