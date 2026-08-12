@@ -1,0 +1,4 @@
+{
+  "name": "Vigil",
+  "install": "bash .cursor/install.sh"
+}
