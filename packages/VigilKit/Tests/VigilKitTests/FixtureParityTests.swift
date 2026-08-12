@@ -495,6 +495,15 @@ final class FixtureParityTests: XCTestCase {
         let openaiURL = try XCTUnwrap(openai.url?.absoluteString)
         XCTAssertTrue(openaiURL.contains("start_time=1782864000"), "month start must be 2026-07-01T00:00:00Z — \(openaiURL)")
         XCTAssertTrue(openaiURL.contains("bucket_width=1d"), openaiURL)
+
+        let grok = try XCTUnwrap(RequestBuilder.usageRequest(
+            spec: ProviderRegistry.grok,
+            credentials: Credentials(providerId: "grok", accessToken: "session")
+        ))
+        XCTAssertEqual(
+            grok.url?.absoluteString,
+            "https://cli-chat-proxy.grok.com/v1/billing?format=credits"
+        )
     }
 }
 

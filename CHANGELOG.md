@@ -6,6 +6,10 @@ Anything that changes shipped behavior gets an entry here: TestFlight app builds
 
 ## Unreleased
 
+## 1.0.0 (25) — Grok weekly credits contract fix, 2026-08-12
+
+- Fixed Grok Build accounts getting stuck on **Provider changed** after xAI retired the legacy monthly limit: the bare billing response can now return a zero `monthlyLimit` alongside nonzero `used`, which cannot form a valid quota. Vigil now requests the Grok CLI's current `format=credits` contract and maps its shared weekly `creditUsagePercent` plus `currentPeriod` reset. Nonzero legacy monthly responses remain a compatibility fallback, and sanitized live fixtures pin both the new weekly response and the retired zero-limit failure.
+
 ## 1.0.0 (24) — 0xdead10cc lifecycle lock fix, 2026-08-10
 
 - Fixed a TestFlight `RUNNINGBOARD 0xdead10cc` kill on 1.0.0 (23): after ~10 hours uptime, a history reload took the account-lifecycle App Group flock (`captureActiveGeneration` → `fileExists`) while iOS suspended the process. Every `AccountLifecycleStore` exclusive lock now begins under a `SuspensionGuard` assertion *before* `flock`, so generation capture, rotation (including Keychain work in the rotation body), tombstones, and `withCurrentGeneration` mutations cannot be suspended mid-lock in the app process.

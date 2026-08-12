@@ -15,7 +15,7 @@ final class ProviderClassifierTests: XCTestCase {
         ("openai", "openai-costs-ok.json"),
         ("github", "github-billing-ok.json"),
         ("xai", "xai-balance-ok.json"),
-        ("grok", "grok-usage-ok.json"),
+        ("grok", "grok-usage-weekly.json"),
         ("zai", "zai-quota-ok.json"),
         ("cursor", "cursor-usage-ok.json"),
         ("kimi_code", "kimi_code-usage-ok.json"),
@@ -38,6 +38,42 @@ final class ProviderClassifierTests: XCTestCase {
             XCTAssertEqual(outcome.status, .ok, testCase.providerID)
             XCTAssertGreaterThan(outcome.windows.count + outcome.metrics.count, 0, testCase.providerID)
         }
+    }
+
+    func testGrokUsesWeeklyCreditsAndRejectsRetiredZeroMonthlyLimit() throws {
+        let weekly = try TestSupport.protocolFile("fixtures/grok-usage-weekly.json")
+        var outcome = UsageClient.classify(
+            data: weekly,
+            statusCode: 200,
+            spec: ProviderRegistry.grok
+        )
+        XCTAssertEqual(outcome.status, .ok)
+        XCTAssertEqual(outcome.windows.map(\.id), ["weekly"])
+        XCTAssertEqual(outcome.windows.first?.label, "Weekly credits")
+
+        let retiredMonthly = try TestSupport.protocolFile(
+            "fixtures/grok-usage-retired-monthly.json"
+        )
+        outcome = UsageClient.classify(
+            data: retiredMonthly,
+            statusCode: 200,
+            spec: ProviderRegistry.grok
+        )
+        XCTAssertEqual(
+            outcome.status,
+            .schemaChanged,
+            "the retired zero monthly limit cannot produce a trustworthy usage window"
+        )
+        XCTAssertTrue(outcome.windows.isEmpty)
+
+        let legacyMonthly = try TestSupport.protocolFile("fixtures/grok-usage-ok.json")
+        outcome = UsageClient.classify(
+            data: legacyMonthly,
+            statusCode: 200,
+            spec: ProviderRegistry.grok
+        )
+        XCTAssertEqual(outcome.status, .ok, "nonzero legacy monthly responses remain compatible")
+        XCTAssertEqual(outcome.windows.map(\.id), ["monthly"])
     }
 
     func testCodexCurrentSpendControlAndOptionalWindowContractIsAccepted() throws {

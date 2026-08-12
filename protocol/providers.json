@@ -1098,6 +1098,11 @@
           "Authorization": "Bearer {access_token}",
           "Accept": "application/json",
           "User-Agent": "Vigil/0.10"
+        },
+        "query": {
+          "format": {
+            "value": "credits"
+          }
         }
       },
       "oauth": {
@@ -1131,9 +1136,30 @@
       "planKey": "subscriptionTier",
       "responseFields": {
         "utilization": "creditUsagePercent",
-        "resetsAt": "billingPeriodEnd"
+        "resetsAt": "currentPeriod.end"
       },
       "windows": [
+        {
+          "id": "weekly",
+          "label": "Weekly credits",
+          "sourceKey": "config",
+          "sourceContainer": "object",
+          "resetFormat": "iso8601",
+          "secondary": false,
+          "conditions": [
+            {
+              "key": "currentPeriod.type",
+              "equals": "USAGE_PERIOD_TYPE_WEEKLY",
+              "valueType": "string"
+            }
+          ],
+          "requiredWhenPresent": true,
+          "fallbackGroup": "grok_primary",
+          "fields": {
+            "utilization": "creditUsagePercent",
+            "resetsAt": "currentPeriod.end"
+          }
+        },
         {
           "id": "monthly",
           "label": "Monthly credits",
@@ -1142,39 +1168,11 @@
           "resetFormat": "iso8601",
           "secondary": false,
           "requiredWhenPresent": false,
-          "fallbackGroup": "monthly",
+          "fallbackGroup": "grok_primary",
           "fields": {
             "resetsAt": "billingPeriodEnd",
             "used": "used.val",
             "limit": "monthlyLimit.val"
-          }
-        },
-        {
-          "id": "monthly",
-          "label": "Monthly credits",
-          "sourceKey": "config",
-          "sourceContainer": "object",
-          "resetFormat": "iso8601",
-          "secondary": false,
-          "requiredWhenPresent": false,
-          "fallbackGroup": "monthly",
-          "fields": {
-            "utilization": "creditUsagePercent",
-            "resetsAt": "billingPeriodEnd"
-          }
-        },
-        {
-          "id": "monthly",
-          "label": "Monthly credits",
-          "sourceKey": "config",
-          "sourceContainer": "object",
-          "resetFormat": "iso8601",
-          "secondary": false,
-          "requiredWhenPresent": false,
-          "fallbackGroup": "monthly",
-          "fields": {
-            "utilization": "creditUsagePercent",
-            "resetsAt": "currentPeriod.end"
           }
         }
       ],
@@ -1202,8 +1200,7 @@
       ],
       "requiredOutputs": {
         "minimumWindows": 1,
-        "minimumPrimaryWindows": 1,
-        "windowIds": ["monthly"]
+        "minimumPrimaryWindows": 1
       },
       "capabilities": [
         "rate_windows"
