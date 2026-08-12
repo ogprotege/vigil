@@ -97,6 +97,16 @@
       "checkedOn": "2026-08-02",
       "notes": "Local Grok Build CLI unified.jsonl captures of billing: fetched credits config showing creditUsagePercent plus weekly currentPeriod bounds and subscriptionTier for an X Premium account before the monthly used/limit shape was observed on 2026-08-04."
     },
+    "grok-build-cli-billing-credits-2026-08-12": {
+      "url": "https://cli-chat-proxy.grok.com/v1/billing?format=credits",
+      "checkedOn": "2026-08-12",
+      "notes": "Authenticated production comparison using a local Grok CLI 1.0.3 session. The current format=credits request returned a weekly currentPeriod with creditUsagePercent; the bare legacy request returned a retired zero monthlyLimit alongside nonzero used. Tokens, identity, and account values were never recorded."
+    },
+    "grok-weekly-usage-docs": {
+      "url": "https://docs.x.ai/grok/faq",
+      "checkedOn": "2026-08-12",
+      "notes": "Official Grok usage documentation describes one shared weekly usage pool, a percentage-used display, product breakdown, and the reset shown in Settings. It does not document the chat-proxy response schema."
+    },
     "zai-community-client": {
       "url": "https://github.com/robinebers/openusage/blob/9d2bf09f10e21f769494a525a9d65c84d7aeb1df/Sources/OpenUsage/Providers/ZAI/ZAIUsageMapper.swift",
       "checkedOn": "2026-07-22",
@@ -364,6 +374,22 @@
       "sourceIds": ["grok-build-cli-billing-2026-08-04"],
       "verifiedOn": "2026-08-04",
       "notes": "Hand-authored positive on-demand cap/used pair derived from the live val-wrapper billing shape so on-demand metrics map only when the cap is positive."
+    },
+    {
+      "input": "grok-usage-retired-monthly.json",
+      "expected": null,
+      "evidenceClass": "live_sanitized",
+      "sourceIds": ["grok-build-cli-billing-credits-2026-08-12"],
+      "verifiedOn": "2026-08-12",
+      "notes": "Sanitized from the current bare billing response: the retired monthlyLimit is zero while used remains nonzero, so the legacy endpoint must classify as changed rather than emit an impossible monthly window."
+    },
+    {
+      "input": "grok-usage-weekly.json",
+      "expected": "grok-usage-weekly-expected.json",
+      "evidenceClass": "live_sanitized",
+      "sourceIds": ["grok-build-cli-billing-credits-2026-08-12", "grok-weekly-usage-docs"],
+      "verifiedOn": "2026-08-12",
+      "notes": "Sanitized from the current format=credits production response. Numeric values and product/top-up labels were replaced while preserving the weekly currentPeriod, percentage, unified-billing fields, and val-wrapper nullability."
     },
     {
       "input": "zai-quota-ok.json",

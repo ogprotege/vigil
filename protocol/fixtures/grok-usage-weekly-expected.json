@@ -1,14 +1,13 @@
 {
-  "planLabel": "X Premium",
   "windows": [
     {
       "id": "weekly",
       "label": "Weekly credits",
-      "utilization": 42,
+      "utilization": 23.5,
       "used": null,
       "limit": null,
       "remaining": null,
-      "resetsAt": "2026-08-06T22:01:55Z",
+      "resetsAt": "2026-08-17T19:30:00Z",
       "windowSeconds": null,
       "secondary": false
     }

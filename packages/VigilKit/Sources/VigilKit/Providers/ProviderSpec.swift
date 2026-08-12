@@ -1158,8 +1158,10 @@ public enum ProviderRegistry {
 
     /// Grok Build consumer billing via the CLI chat-proxy. Undocumented
     /// endpoint observed from the Grok Build CLI; experimental until a vendor
-    /// contract exists. Primary shape is monthly used/limit with val wrappers;
-    /// percentage-only shapes remain a fallback for earlier period layouts.
+    /// contract exists. The current `format=credits` shape exposes the shared
+    /// weekly pool as a percentage. Older nonzero monthly used/limit responses
+    /// remain a compatibility fallback, but a retired zero monthly limit must
+    /// not hide or replace the current weekly contract.
     public static let grok = ProviderSpec(
         id: "grok",
         displayName: "Grok Build",
@@ -1168,20 +1170,41 @@ public enum ProviderRegistry {
         usageMethod: "GET",
         usageURL: "https://cli-chat-proxy.grok.com/v1/billing",
         headers: gatewayHeaders(),
+        query: [
+            (name: "format", param: .value("credits")),
+        ],
         poll: standardPoll,
         responseFields: ResponseFields(
             utilization: "creditUsagePercent",
-            resetsAt: "billingPeriodEnd",
+            resetsAt: "currentPeriod.end",
             windowSeconds: nil
         ),
         requiredOutputs: RequiredOutputs(
             minimumWindows: 1,
-            minimumPrimaryWindows: 1,
-            windowIDs: ["monthly"]
+            minimumPrimaryWindows: 1
         ),
         planKey: "subscriptionTier",
         additionalWindows: nil,
         windows: [
+            WindowMapping(
+                id: "weekly",
+                sourceKey: "config",
+                resetFormat: .iso8601,
+                windowSeconds: nil,
+                secondary: false,
+                conditions: [FieldCondition(
+                    key: "currentPeriod.type",
+                    equals: "USAGE_PERIOD_TYPE_WEEKLY",
+                    valueType: "string"
+                )],
+                label: "Weekly credits",
+                fields: WindowFieldOverride(
+                    utilization: "creditUsagePercent",
+                    resetsAt: "currentPeriod.end"
+                ),
+                requiredWhenPresent: true,
+                fallbackGroup: "grok_primary"
+            ),
             WindowMapping(
                 id: "monthly",
                 sourceKey: "config",
@@ -1195,35 +1218,7 @@ public enum ProviderRegistry {
                     limit: "monthlyLimit.val"
                 ),
                 requiredWhenPresent: false,
-                fallbackGroup: "monthly"
-            ),
-            WindowMapping(
-                id: "monthly",
-                sourceKey: "config",
-                resetFormat: .iso8601,
-                windowSeconds: nil,
-                secondary: false,
-                label: "Monthly credits",
-                fields: WindowFieldOverride(
-                    utilization: "creditUsagePercent",
-                    resetsAt: "billingPeriodEnd"
-                ),
-                requiredWhenPresent: false,
-                fallbackGroup: "monthly"
-            ),
-            WindowMapping(
-                id: "monthly",
-                sourceKey: "config",
-                resetFormat: .iso8601,
-                windowSeconds: nil,
-                secondary: false,
-                label: "Monthly credits",
-                fields: WindowFieldOverride(
-                    utilization: "creditUsagePercent",
-                    resetsAt: "currentPeriod.end"
-                ),
-                requiredWhenPresent: false,
-                fallbackGroup: "monthly"
+                fallbackGroup: "grok_primary"
             ),
         ],
         metricMappings: [

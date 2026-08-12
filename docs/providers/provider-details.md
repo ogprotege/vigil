@@ -1,7 +1,7 @@
 # Provider details
 
 - Status: Current
-- Last reviewed: 2026-07-30
+- Last reviewed: 2026-08-12
 - Review again: whenever provider authentication, mapping, or user-facing setup changes
 
 The [support matrix](support-matrix.md) is the canonical provider list. This guide explains how to interpret each integration without repeating its evidence table.
@@ -94,7 +94,9 @@ This is the xAI **API platform** prepaid balance. It is not Grok Build subscript
 
 Grok Build is xAI's coding agent product (the terminal agent, not the xAI API prepaid balance). Setup prefers on-device OIDC **device authorization** against `auth.x.ai` with the public Grok CLI client id. That is the same family of flow the desktop CLI uses for `grok login` / `/login`: short user code, browser approval, renewable session. Vigil completes that flow on the phone and mints its own pair; it never copies tokens from `~/.grok/auth.json`. Manual entry of a session access token remains only for recovery and does not auto-renew.
 
-The usage request is a bearer GET to the Grok Build CLI chat-proxy billing endpoint (`cli-chat-proxy.grok.com/v1/billing`). The primary accepted shape returns monthly used and limit values under `config.*.val` wrappers plus a billing period end. When used and limit are absent, Vigil falls back to `creditUsagePercent` with the period end. On-demand used and cap appear only when both amounts are present and the cap is positive.
+The usage request is a bearer GET to the Grok Build CLI chat-proxy billing endpoint with `format=credits` (`cli-chat-proxy.grok.com/v1/billing?format=credits`). The current accepted shape returns the shared weekly pool as `creditUsagePercent` with `currentPeriod` bounds. Vigil uses the weekly period end as the reset and does not invent exact used or limit amounts from a percentage.
+
+Older responses with a positive monthly used/limit pair remain a compatibility fallback. They do not override the weekly contract. In particular, the retired bare-endpoint shape can return a zero monthly limit alongside nonzero usage; Vigil rejects that impossible ratio rather than showing it as live. On-demand used and cap appear only when both amounts are present and the cap is positive.
 
 The endpoint is experimental and undocumented. Unexpected shapes mark the response incompatible rather than inventing limits from a SuperGrok or X Premium plan name.
 

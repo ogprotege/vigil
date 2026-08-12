@@ -2,7 +2,7 @@
 
 Vigil requires iOS 17 or later. All account setup happens in Vigil on the iPhone or iPad, except that some experimental credentials may first need to be copied from a provider website.
 
-> Last reviewed: 2026-08-09
+> Last reviewed: 2026-08-12
 >
 > Review again: when setup or provider support changes
 
@@ -52,6 +52,8 @@ This is essentially the same authentication pattern as the Grok Build desktop CL
 Vigil does **not** read `~/.grok/auth.json` or any other desktop client store. The iOS device completes device authorization itself and keeps the tokens in its Keychain. Only credentials marked as minted by Vigil auto-renew; a manually pasted session token does not.
 
 Grok Build is separate from the **xAI API** prepaid-balance integration under **Other provider**. Use Grok Build for Grok CLI / Grok Build credit usage; use xAI API only for Management Key prepaid balance. The integration is experimental because the billing endpoint is undocumented, even though it is the same chat-proxy path the CLI uses.
+
+The current Grok Build reading is the provider's shared weekly usage percentage and reset time. Vigil leaves exact used and limit amounts empty when the response supplies only a percentage.
 
 ## Connect another provider
 
