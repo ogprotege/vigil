@@ -13,33 +13,53 @@ enum DemoData {
     /// True only for an exact `VIGIL_DEMO=1`. Anything else — absent, empty,
     /// "true", "0" — is off, so the flag can never be tripped by accident.
     static func requested(in environment: [String: String]) -> Bool {
-        environment["VIGIL_DEMO"] == "1"
+        #if DEBUG
+        return environment["VIGIL_DEMO"] == "1"
+        #else
+        return false
+        #endif
     }
 
     /// UI-test-only state for exercising the expired-credential recovery flow.
     /// It has no effect unless demo mode is also enabled by the caller.
     static func claudeAuthExpiredRequested(in environment: [String: String]) -> Bool {
-        environment["VIGIL_DEMO_CLAUDE_AUTH_EXPIRED"] == "1"
+        #if DEBUG
+        return environment["VIGIL_DEMO_CLAUDE_AUTH_EXPIRED"] == "1"
+        #else
+        return false
+        #endif
     }
 
     /// UI-test-only state for exercising the drifted-provider presentation.
     /// It has no effect unless demo mode is also enabled by the caller.
     static func claudeProviderChangedRequested(in environment: [String: String]) -> Bool {
-        environment["VIGIL_DEMO_CLAUDE_PROVIDER_CHANGED"] == "1"
+        #if DEBUG
+        return environment["VIGIL_DEMO_CLAUDE_PROVIDER_CHANGED"] == "1"
+        #else
+        return false
+        #endif
     }
 
     /// UI-test-only state modeling a damaged history archive, so the
     /// history-recovery removal dialog is reachable without touching the real
     /// stores. It has no effect unless demo mode is also enabled by the caller.
     static func historyRecoveryRequested(in environment: [String: String]) -> Bool {
-        environment["VIGIL_DEMO_HISTORY_RECOVERY"] == "1"
+        #if DEBUG
+        return environment["VIGIL_DEMO_HISTORY_RECOVERY"] == "1"
+        #else
+        return false
+        #endif
     }
 
     /// UI-test and screenshot hook: seeds one retained observed reading for
     /// the demo Claude account so history rows render without any polling.
     /// It has no effect unless demo mode is also enabled by the caller.
     static func historySeedRequested(in environment: [String: String]) -> Bool {
-        environment["VIGIL_DEMO_HISTORY"] == "1"
+        #if DEBUG
+        return environment["VIGIL_DEMO_HISTORY"] == "1"
+        #else
+        return false
+        #endif
     }
 
     /// One observed Claude reading whose row summary is deterministic:
@@ -70,7 +90,11 @@ enum DemoData {
     /// provider, so tests can assert the linking overlay's accessibility
     /// structure deterministically. Cancellation ends the hold.
     static func linkHoldRequested(in environment: [String: String]) -> Bool {
-        environment["VIGIL_UI_TEST_LINK_HOLD"] == "1"
+        #if DEBUG
+        return environment["VIGIL_UI_TEST_LINK_HOLD"] == "1"
+        #else
+        return false
+        #endif
     }
 
     static func seed(

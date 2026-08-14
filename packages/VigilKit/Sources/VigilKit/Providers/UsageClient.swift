@@ -57,7 +57,9 @@ public enum RequestBuilder {
     /// whose placeholder has no value are omitted (e.g. missing account id).
     /// Returns nil when the URL template cannot be satisfied.
     public static func usageRequest(spec: ProviderSpec, credentials: Credentials, now: Date = Date()) -> URLRequest? {
-        guard let url = requestURL(spec: spec, credentials: credentials, now: now) else { return nil }
+        guard spec.id == credentials.providerId,
+              let url = requestURL(spec: spec, credentials: credentials, now: now)
+        else { return nil }
         var request = URLRequest(
             url: url,
             cachePolicy: .reloadIgnoringLocalCacheData,

@@ -2174,6 +2174,12 @@ final class AppModel {
                 )
                 return .failed
             }
+            guard BoundAccount.validated(account: account, credentials: loaded) != nil else {
+                reportStorageError(
+                    "Vigil stopped a \(account.displayName) check because the stored credential does not match this account. Re-link the account."
+                )
+                return .failed
+            }
             credentials = loaded
         } catch {
             reportStorageError(
@@ -2573,6 +2579,11 @@ final class AppModel {
             reportStorageError(
                 "Vigil couldn't validate the shared account lifecycle for \(context), so provider writes were stopped. Settings can erase all local Vigil data and start over. \(detail)",
                 priority: 4
+            )
+        case .mismatchedCredentials:
+            reportStorageError(
+                "Vigil stopped a \(context) check because the stored credential does not match this account. Re-link the account.",
+                priority: 3
             )
         }
     }

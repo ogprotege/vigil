@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import VigilKit
 @testable import Vigil
 
 final class OpenAIAdminHistoryClientTests: XCTestCase {
@@ -14,6 +15,11 @@ final class OpenAIAdminHistoryClientTests: XCTestCase {
         XCTAssertNil(configuration.urlCache)
         XCTAssertFalse(configuration.httpShouldSetCookies)
         XCTAssertNil(configuration.httpCookieStorage)
+        XCTAssertEqual(
+            configuration.timeoutIntervalForRequest,
+            BoundedTransportPolicy.requestTimeout
+        )
+        XCTAssertNotNil(transport.session.delegate as? BoundedURLSessionDelegate)
     }
 
     func testPaginatesDailyUsageAndCostsWithTypedProvenance() async throws {

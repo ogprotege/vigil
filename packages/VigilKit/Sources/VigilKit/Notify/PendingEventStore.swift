@@ -7,6 +7,10 @@ import Foundation
 /// segment. A crossing from a new quota cycle must never be acknowledged as if
 /// it were the older cycle's event.
 public struct PendingEventStore: Sendable {
+    public static let maximumEventsPerAccount = 64
+    public static let maximumEventAge: TimeInterval = 7 * 24 * 3_600
+    public static let maximumEncodedBytes = 65_536
+
     private struct EventIdentity: Hashable {
         let windowId: String
         let threshold: Int
@@ -45,7 +49,7 @@ public struct PendingEventStore: Sendable {
             let ordered = merged.values.sorted {
                 eventOrder($0, $1)
             }
-            try writeUnlocked(ordered, to: fileURL)
+            try writeUnlocked(capped(ordered, now: Date()), to: fileURL)
         }
     }
 
@@ -123,19 +127,35 @@ public struct PendingEventStore: Sendable {
         }
     }
 
+    private func capped(_ events: [ThresholdEvent], now: Date) -> [ThresholdEvent] {
+        let fresh = events.filter { event in
+            guard let observed = event.observedAt else { return true }
+            return now.timeIntervalSince(observed) <= Self.maximumEventAge
+        }
+        return Array(fresh.suffix(Self.maximumEventsPerAccount))
+    }
+
     private func writeUnlocked(_ events: [ThresholdEvent], to fileURL: URL) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        let data: Data
-        do {
-            data = try encoder.encode(events)
-        } catch {
-            throw StorePersistenceError.writeFailed(
-                path: fileURL.path,
-                reason: error.localizedDescription
-            )
+        var remaining = events
+        while true {
+            let data: Data
+            do {
+                data = try encoder.encode(remaining)
+            } catch {
+                throw StorePersistenceError.writeFailed(
+                    path: fileURL.path,
+                    reason: error.localizedDescription
+                )
+            }
+            if data.count <= Self.maximumEncodedBytes {
+                try PersistenceFileIO.writeAtomically(data, to: fileURL)
+                return
+            }
+            guard !remaining.isEmpty else { return }
+            remaining.removeFirst()
         }
-        try PersistenceFileIO.writeAtomically(data, to: fileURL)
     }
 
     private func eventKey(_ event: ThresholdEvent) -> EventIdentity {

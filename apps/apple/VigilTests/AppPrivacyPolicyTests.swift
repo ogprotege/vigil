@@ -42,6 +42,17 @@ final class AppPrivacyPolicyTests: XCTestCase {
         )
     }
 
+    func testDeviceOwnerLockStaysClosedWhenPolicyIsUnavailable() {
+        XCTAssertFalse(AppLockAuthentication.unlocksWhenPolicyUnavailable)
+        XCTAssertEqual(
+            UsagePresentation.hiddenUsageAccessibilityLabel,
+            "Usage values hidden"
+        )
+        XCTAssertFalse(
+            UsagePresentation.hiddenUsageAccessibilityLabel.localizedCaseInsensitiveContains("claude")
+        )
+    }
+
     func testLockUITestLaunchHookRequiresExactOptIn() {
         XCTAssertTrue(
             AppLockLaunchConfiguration.holdsLockForUITesting(

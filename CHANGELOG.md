@@ -6,6 +6,12 @@ Anything that changes shipped behavior gets an entry here: TestFlight app builds
 
 ## Unreleased
 
+## 1.0.0 (26) — OpenRouter guided setup and provider-boundary hardening, 2026-08-14
+
+- Added a first-class **Connect OpenRouter** route: Vigil opens OpenRouter's official authorization page with an S256 challenge, exchanges the pasted one-time code for an API key, and stores that key as a non-refreshing credential. Pasting an existing key remains a disclosed fallback.
+- Moved MiniMax global and China Token Plan requests to the current vendor hosts (`www.minimax.io` and `www.minimaxi.com`).
+- Hardened provider boundaries before App Review: Grok device URLs are pinned to xAI, account/credential mismatches fail closed before any request, provider and Admin-history transports refuse redirects and stop at a 1 MiB body, pending-notification queues are capped, trusted-container reads fail closed above 1 MiB, screenshot/UI-test launch hooks compile out of Release, the app lock stays locked when device-owner authentication is unavailable, and hidden widgets no longer speak account labels.
+
 ## 1.0.0 (25) — Grok weekly credits contract fix, 2026-08-12
 
 - Fixed Grok Build accounts getting stuck on **Provider changed** after xAI retired the legacy monthly limit: the bare billing response can now return a zero `monthlyLimit` alongside nonzero `used`, which cannot form a valid quota. Vigil now requests the Grok CLI's current `format=credits` contract and maps its shared weekly `creditUsagePercent` plus `currentPeriod` reset. Nonzero legacy monthly responses remain a compatibility fallback, and sanitized live fixtures pin both the new weekly response and the retired zero-limit failure.

@@ -36,6 +36,8 @@ extension StorePersistenceError: LocalizedError {
 /// temporary file, fsync, and atomic rename so a crash cannot expose partial
 /// JSON.
 enum PersistenceFileIO {
+    static let maximumTrustedFileBytes = 1_048_576
+
     static func ensureDirectory(_ directory: URL) throws {
         let manager = FileManager.default
         var isDirectory: ObjCBool = false
@@ -192,6 +194,14 @@ enum PersistenceFileIO {
                 reason: "The path does not contain a regular file."
             )
         }
+        guard metadata.st_size >= 0,
+              metadata.st_size <= maximumTrustedFileBytes
+        else {
+            throw StorePersistenceError.corruptData(
+                path: url.path,
+                reason: "The file exceeds the trusted-container size ceiling."
+            )
+        }
 
         var data = Data()
         var buffer = [UInt8](repeating: 0, count: 16 * 1024)
@@ -201,6 +211,12 @@ enum PersistenceFileIO {
             }
             if count > 0 {
                 data.append(buffer, count: count)
+                if data.count > maximumTrustedFileBytes {
+                    throw StorePersistenceError.corruptData(
+                        path: url.path,
+                        reason: "The file exceeds the trusted-container size ceiling."
+                    )
+                }
                 continue
             }
             if count == 0 { return data }

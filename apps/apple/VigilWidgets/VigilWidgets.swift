@@ -200,10 +200,7 @@ struct SmallUsageView: View {
     private func privateSummary(_ snapshot: ProviderSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(
-                    entry.account.map(UsagePresentation.accountTitle)
-                        ?? snapshot.providerId.capitalized
-                )
+                Text("Vigil")
                 .font(.caption.weight(.semibold))
                 .lineLimit(1)
                 Spacer()
@@ -233,9 +230,7 @@ struct SmallUsageView: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            Text(
-                "\(entry.account.map(UsagePresentation.accountTitle) ?? snapshot.providerId.capitalized), usage values hidden"
-            )
+            Text(UsagePresentation.hiddenUsageAccessibilityLabel)
         )
     }
 
@@ -282,7 +277,7 @@ struct CircularUsageView: View {
             .widgetAccentable()
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(
-                Text("\(entry.account?.displayName ?? "Vigil"), usage values hidden")
+                Text(UsagePresentation.hiddenUsageAccessibilityLabel)
             )
         } else if let snapshot = entry.snapshot,
            let tightest = SnapshotFreshness.confirmedWindows(

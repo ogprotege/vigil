@@ -47,6 +47,50 @@ final class GrokAuthTests: XCTestCase {
         XCTAssertNil(GrokAuth.parseUserCode(Data("not-json".utf8)))
     }
 
+    func testParseUserCodePinsVerificationURLAndDropsHostileLocations() throws {
+        let hostile = Data("""
+        {
+          "device_code": "dev-code-1",
+          "user_code": "ABCD-EFGH",
+          "verification_uri": "https://accounts.x.ai/oauth2/device",
+          "verification_uri_complete": "https://evil.example/phish?user_code=ABCD-EFGH"
+        }
+        """.utf8)
+        let recovered = try XCTUnwrap(GrokAuth.parseUserCode(hostile))
+        XCTAssertEqual(
+            recovered.verificationURL?.absoluteString,
+            "https://accounts.x.ai/oauth2/device"
+        )
+
+        let unpinned = Data("""
+        {
+          "device_code": "dev-code-1",
+          "user_code": "ABCD-EFGH",
+          "verification_uri": "http://accounts.x.ai/oauth2/device",
+          "verification_uri_complete": "https://attacker.x.ai.evil/oauth2/device"
+        }
+        """.utf8)
+        let codesOnly = try XCTUnwrap(GrokAuth.parseUserCode(unpinned))
+        XCTAssertEqual(codesOnly.userCode, "ABCD-EFGH")
+        XCTAssertNil(codesOnly.verificationURL)
+
+        XCTAssertNil(
+            GrokAuth.pinnedVerificationURL(
+                from: "https://user:pass@accounts.x.ai/oauth2/device"
+            )
+        )
+        XCTAssertNil(
+            GrokAuth.pinnedVerificationURL(
+                from: "https://accounts.x.ai/oauth2/device?next=https://evil.example"
+            )
+        )
+        XCTAssertNotNil(
+            GrokAuth.pinnedVerificationURL(
+                from: "https://auth.x.ai/oauth2/device?user_code=ABCD-EFGH"
+            )
+        )
+    }
+
     func testPollRequestUsesDeviceCodeGrant() throws {
         let request = try XCTUnwrap(
             GrokAuth.pollRequest(oauth: oauth, deviceCode: "dev-code-1")

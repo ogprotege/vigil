@@ -84,8 +84,11 @@ struct AppLockView: View {
         let context = LAContext()
         var error: NSError?
         guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
-            // No passcode set at all — locking is meaningless; let them in.
-            unlock()
+            if AppLockAuthentication.unlocksWhenPolicyUnavailable {
+                unlock()
+            } else {
+                failed = true
+            }
             return
         }
         context.evaluatePolicy(

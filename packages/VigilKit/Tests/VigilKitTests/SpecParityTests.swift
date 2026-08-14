@@ -483,6 +483,21 @@ final class SpecParityTests: XCTestCase {
         }
     }
 
+    /// MiniMax publishes these account-level Token Plan endpoints in its
+    /// current global and China documentation. Pin the vendor hosts here so a
+    /// mirrored JSON/Swift typo cannot silently send subscription keys to an
+    /// undocumented sibling host.
+    func testMiniMaxUsesDocumentedTokenPlanHosts() {
+        XCTAssertEqual(
+            ProviderRegistry.miniMax.usageURLTemplate,
+            "https://www.minimax.io/v1/token_plan/remains"
+        )
+        XCTAssertEqual(
+            ProviderRegistry.miniMaxCN.usageURLTemplate,
+            "https://www.minimaxi.com/v1/token_plan/remains"
+        )
+    }
+
     /// The canonical registry describes the shipped iOS runtime only. These
     /// fields belonged to the deleted desktop/CLI discovery path or were never
     /// consumed by the app, so their return would make the contract misleading.

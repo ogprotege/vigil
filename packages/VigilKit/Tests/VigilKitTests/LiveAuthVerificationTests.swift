@@ -30,7 +30,7 @@ final class LiveAuthVerificationTests: XCTestCase {
             "claude must declare oauth metadata"
         )
 
-        let pkce = ClaudeAuth.generatePKCE()
+        let pkce = try ClaudeAuth.generatePKCE()
         let url = ClaudeAuth.authorizeURL(
             oauth: oauth,
             redirectURI: oauth.manualRedirectUri,

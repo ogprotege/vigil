@@ -17,6 +17,12 @@ final class DemoDataTests: XCTestCase {
         XCTAssertFalse(DemoData.requested(in: ["VIGIL_DEMO": "0"]))
         XCTAssertFalse(DemoData.requested(in: ["VIGIL_DEMO": "true"]))
         XCTAssertFalse(DemoData.requested(in: ["VIGIL_DEMO": ""]))
+        #if !DEBUG
+        XCTAssertFalse(
+            DemoData.requested(in: ["VIGIL_DEMO": "1"]),
+            "Release builds must ignore screenshot and UI-test launch hooks"
+        )
+        #endif
     }
 
     func testExpiredClaudeStateIsSeparatelyOptIn() throws {

@@ -15,7 +15,7 @@ complete set of accepted provider values one tap away.
 <p>
 <a href="https://github.com/ogprotege/vigil/actions/workflows/apple.yml"><img src="https://github.com/ogprotege/vigil/actions/workflows/apple.yml/badge.svg" alt="Apple CI" /></a>
 &nbsp;
-<a href="docs/releases/1.0.0-25.md"><img src="https://img.shields.io/badge/source-1.0.0%20%2825%29-9D8CFF" alt="Source version 1.0.0 build 25" /></a>
+<a href="docs/releases/1.0.0-26.md"><img src="https://img.shields.io/badge/source-1.0.0%20%2826%29-9D8CFF" alt="Source version 1.0.0 build 26" /></a>
 &nbsp;
 <a href="docs/user-guide/setup.md"><img src="https://img.shields.io/badge/iOS-17%2B-000000?logo=apple&amp;logoColor=white" alt="iOS 17 or later" /></a>
 &nbsp;
@@ -212,14 +212,12 @@ The complete simulator command and CI-equivalent gate live in the
 
 ## Project status
 
-The current release candidate is **Vigil 1.0.0, build 25**. It corrects Grok
-Build's new weekly credits contract so accounts do not get stuck on **Provider
-changed** after xAI retired the legacy monthly limit. Build 25 is live in
-Internal TestFlight and waiting for App Review; it replaces build 24. The
-candidate retains the build 23 Settings surface (adaptive appearance, native
-Liquid Glass chrome, privacy, alerts, automatic-check pause). Consult the
-[1.0.0 build 25 release record](docs/releases/1.0.0-25.md) for the exact
-artifact, TestFlight, and App Review evidence.
+The current release candidate is **Vigil 1.0.0, build 26**. It adds guided
+OpenRouter authorization and hardens provider, transport, and lock boundaries
+before the Guideline 2.1 App Review reply. Build 25 remains the previous
+Internal TestFlight and review binary until 26 is uploaded. Consult the
+[1.0.0 build 26 release record](docs/releases/1.0.0-26.md) for the exact
+artifact and remaining gates.
 
 Runtime provider behavior can change outside Vigil's control. Experimental
 integrations remain labeled during setup because their vendor contracts or
@@ -231,7 +229,7 @@ Vigil reports only data it can obtain and label honestly.
 
 > Documentation status: current
 >
-> Last reviewed: 2026-08-12
+> Last reviewed: 2026-08-14
 >
 > Review again: before each release
 

@@ -1068,14 +1068,14 @@ public enum ProviderRegistry {
     public static let miniMax = minimaxSpec(
         id: "minimax",
         name: "MiniMax Coding Plan",
-        url: "https://api.minimax.io/v1/token_plan/remains",
+        url: "https://www.minimax.io/v1/token_plan/remains",
         hint: "Paste your MiniMax Coding Plan API key (sk-cp-...) from platform.minimax.io -> User Center -> Interface Key. China keys need the MiniMax China provider."
     )
 
     public static let miniMaxCN = minimaxSpec(
         id: "minimax_cn",
         name: "MiniMax Coding Plan China",
-        url: "https://api.minimaxi.com/v1/token_plan/remains",
+        url: "https://www.minimaxi.com/v1/token_plan/remains",
         hint: "Paste your MiniMax China Coding Plan API key from platform.minimaxi.com -> User Center -> Interface Key."
     )
 

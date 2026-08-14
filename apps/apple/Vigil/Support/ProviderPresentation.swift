@@ -93,9 +93,30 @@ enum ProviderPresentation {
         }
     }
 
+    /// A hand-entered Grok credential is one non-renewing CLI session access
+    /// token. Its OAuth refresh token belongs only to Vigil's guided device
+    /// flow, so direct setup must neither request nor retain one.
+    static func acceptsManualRefreshToken(_ spec: ProviderSpec) -> Bool {
+        spec.oauth != nil && spec.id != "grok"
+    }
+
     static func credentialWarning(for spec: ProviderSpec) -> String? {
-        guard spec.id == "openai" else { return nil }
-        return "\(openAIAdminCredentialDisclosure) Use a dedicated key and revoke it when you disconnect permanently."
+        switch spec.id {
+        case "openai":
+            return "\(openAIAdminCredentialDisclosure) Use a dedicated key and revoke it when you disconnect permanently."
+        case "openrouter":
+            return "An OpenRouter API key can authorize model requests and spending, not only usage reads. Use a dedicated key, set a spending limit in OpenRouter where possible, and revoke it there when you disconnect permanently."
+        case "deepseek", "moonshot", "moonshot_cn":
+            return "This API key can authorize model requests and spending, not only balance reads. Use a dedicated key and revoke it with the provider when you disconnect permanently."
+        case "cursor":
+            return "This is a full browser session cookie, not a usage-only credential. It may authorize more of your Cursor account than Vigil uses. Do not reuse it elsewhere, and revoke your Cursor sessions when you disconnect permanently."
+        case "zai":
+            return "Z.ai limits Coding Plan credentials to supported tools, and Vigil is not currently listed. Connect only if Z.ai has authorized your use with Vigil."
+        case "kimi_code":
+            return "Kimi limits Kimi Code credentials to supported tools, and Vigil is not currently listed. Connect only if Kimi has authorized your use with Vigil."
+        default:
+            return nil
+        }
     }
 }
 

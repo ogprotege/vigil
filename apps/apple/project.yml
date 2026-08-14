@@ -20,7 +20,7 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "5.10"
-    CURRENT_PROJECT_VERSION: 25
+    CURRENT_PROJECT_VERSION: 26
     MARKETING_VERSION: 1.0.0
     # Local simulator builds need no team. Distribution settings below provide
     # the team and profiles for device and App Store builds.
@@ -131,6 +131,8 @@ targets:
       # pipeline, so the widget obeys the same ledger.
       - path: Vigil/Support/SharedContainer.swift
       - path: Vigil/Support/SnapshotFreshness.swift
+      - path: Vigil/Support/BoundAccount.swift
+      - path: Vigil/Support/BoundedURLSessionDelegate.swift
       - path: Vigil/Support/UsageService.swift
       - path: Vigil/Support/UsagePresentation.swift
       - path: Vigil/Support/VigilPreferences.swift

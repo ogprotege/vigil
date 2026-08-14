@@ -1,5 +1,6 @@
-import Foundation
 import CryptoKit
+import Foundation
+import Security
 
 /// On-device Claude OAuth (authorization-code + PKCE). Networking stays with
 /// the caller (like TokenRefresher); this type is pure request/URL construction
@@ -33,10 +34,17 @@ public enum ClaudeAuth {
         return PKCE(verifier: verifier, challenge: challenge, state: verifier)
     }
 
-    /// PKCE from 32 cryptographically-secure random bytes.
-    public static func generatePKCE() -> PKCE {
+    public enum PKCEGenerationError: Error, Equatable, Sendable {
+        case secureRandomUnavailable
+    }
+
+    /// PKCE from 32 cryptographically-secure random bytes. Failure is
+    /// surfaced instead of continuing with a zeroed challenge.
+    public static func generatePKCE() throws -> PKCE {
         var bytes = [UInt8](repeating: 0, count: 32)
-        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else {
+            throw PKCEGenerationError.secureRandomUnavailable
+        }
         return generatePKCE(randomBytes: Data(bytes))
     }
 

@@ -266,6 +266,11 @@ enum OpaqueAccountIdentifier {
 enum AccountIndex {
     static func load(from url: URL = SharedContainer.accountIndexURL) throws -> [AccountRef] {
         guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+        guard let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+              size <= 1_048_576
+        else {
+            throw CocoaError(.fileReadTooLarge)
+        }
         let data = try Data(contentsOf: url)
         let refs = try JSONDecoder().decode([AccountRef].self, from: data)
         try validateStorageKeys(refs)

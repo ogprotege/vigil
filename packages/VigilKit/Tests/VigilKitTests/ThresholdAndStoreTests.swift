@@ -327,6 +327,32 @@ final class PendingEventStoreTests: XCTestCase {
         XCTAssertTrue(try store.drain(accountKey: key).isEmpty, "drain removes the file")
     }
 
+    func testAppendDropsExpiredEventsAndCapsCount() throws {
+        let store = PendingEventStore(directory: try TestSupport.tempDirectory())
+        let key = "claude:cap"
+        let now = Date()
+        let expired = ThresholdEvent(
+            windowId: "old",
+            threshold: 80,
+            utilization: 90,
+            observedAt: now.addingTimeInterval(-(PendingEventStore.maximumEventAge + 60))
+        )
+        let extras = (0..<PendingEventStore.maximumEventsPerAccount + 8).map { index in
+            ThresholdEvent(
+                windowId: "window-\(index)",
+                threshold: 80,
+                utilization: Double(index),
+                observedAt: now
+            )
+        }
+
+        try store.append([expired] + extras, accountKey: key)
+        let loaded = try store.load(accountKey: key)
+        XCTAssertEqual(loaded.count, PendingEventStore.maximumEventsPerAccount)
+        XCTAssertFalse(loaded.contains { $0.windowId == "old" })
+        XCTAssertTrue(loaded.allSatisfy { $0.observedAt != nil })
+    }
+
     func testConcurrentAppendsDoNotLoseEvents() async throws {
         let directory = try TestSupport.tempDirectory()
         let store = PendingEventStore(directory: directory)
@@ -552,6 +578,21 @@ final class SnapshotStoreTests: XCTestCase {
         try store.delete(accountKey: key)
         XCTAssertNil(try store.current(accountKey: key))
         XCTAssertNil(try store.previous(accountKey: key))
+    }
+
+    func testOversizedSnapshotFileFailsClosed() throws {
+        let directory = try TestSupport.tempDirectory()
+        let store = SnapshotStore(directory: directory)
+        let key = "claude:acct"
+        let fileURL = directory.appendingPathComponent("snapshot-claude_acct-current.json")
+        let oversized = Data(repeating: 0x61, count: PersistenceFileIO.maximumTrustedFileBytes + 1)
+        try oversized.write(to: fileURL)
+
+        XCTAssertThrowsError(try store.current(accountKey: key)) {
+            guard case StorePersistenceError.corruptData = $0 else {
+                return XCTFail("Expected corruptData, got \($0)")
+            }
+        }
     }
 
     func testAccountKeysWithUnsafeCharacters() throws {
@@ -828,6 +869,14 @@ final class TokenRefresherTests: XCTestCase {
         XCTAssertNil(
             TokenRefresher.refreshRequest(spec: ProviderRegistry.codex, credentials: copiedCodex),
             "copied codex credentials must not be refreshed (ADR-0005)"
+        )
+
+        XCTAssertNil(
+            TokenRefresher.refreshRequest(
+                spec: ProviderRegistry.grok,
+                credentials: mintedClaude
+            ),
+            "a Claude mint must never refresh against Grok's token endpoint"
         )
     }
 
