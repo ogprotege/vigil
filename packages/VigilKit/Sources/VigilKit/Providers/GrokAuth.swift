@@ -55,16 +55,12 @@ public enum GrokAuth {
               let userCode = usableToken(object["user_code"] as? String)
         else { return nil }
 
-        let verification: URL?
-        if let complete = object["verification_uri_complete"] as? String,
-           let url = URL(string: complete) {
-            verification = url
-        } else if let base = object["verification_uri"] as? String,
-                  let url = URL(string: base) {
-            verification = url
-        } else {
-            verification = nil
-        }
+        // A compromised token endpoint must not be able to send the user to
+        // an arbitrary browser location. Accept only the documented xAI
+        // device pages; keep the user code so they can still type it.
+        let verification = pinnedVerificationURL(
+            from: object["verification_uri_complete"] as? String
+        ) ?? pinnedVerificationURL(from: object["verification_uri"] as? String)
 
         let rawInterval: TimeInterval
         if let number = object["interval"] as? NSNumber,
@@ -245,5 +241,39 @@ public enum GrokAuth {
               token.rangeOfCharacter(from: .controlCharacters) == nil
         else { return nil }
         return token
+    }
+
+    private static let allowedVerificationHosts: Set<String> = [
+        "accounts.x.ai",
+        "auth.x.ai",
+    ]
+
+    /// Pins Grok's device-authorization browser page to xAI's HTTPS device
+    /// path. Extra query keys, credentials, ports, and fragments are rejected.
+    static func pinnedVerificationURL(from raw: String?) -> URL? {
+        guard let raw,
+              let url = URL(string: raw),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              components.scheme?.lowercased() == "https",
+              let host = components.host?.lowercased(),
+              allowedVerificationHosts.contains(host),
+              components.port == nil,
+              components.user == nil,
+              components.password == nil,
+              components.fragment == nil,
+              components.path == "/oauth2/device"
+        else { return nil }
+
+        if let items = components.queryItems {
+            let names = Set(items.compactMap { $0.name.isEmpty ? nil : $0.name })
+            guard names.isSubset(of: ["user_code"]) else { return nil }
+            if let code = items.first(where: { $0.name == "user_code" })?.value {
+                guard !code.isEmpty,
+                      code.utf8.count <= 128,
+                      code.rangeOfCharacter(from: .controlCharacters) == nil
+                else { return nil }
+            }
+        }
+        return components.url
     }
 }

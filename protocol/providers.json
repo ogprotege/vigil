@@ -694,7 +694,7 @@
       "auth": "api_key_bearer",
       "usage": {
         "method": "GET",
-        "url": "https://api.minimax.io/v1/token_plan/remains",
+        "url": "https://www.minimax.io/v1/token_plan/remains",
         "headers": {
           "Authorization": "Bearer {access_token}",
           "Accept": "application/json",
@@ -807,7 +807,7 @@
       "auth": "api_key_bearer",
       "usage": {
         "method": "GET",
-        "url": "https://api.minimaxi.com/v1/token_plan/remains",
+        "url": "https://www.minimaxi.com/v1/token_plan/remains",
         "headers": {
           "Authorization": "Bearer {access_token}",
           "Accept": "application/json",

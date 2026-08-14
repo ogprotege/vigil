@@ -4,7 +4,7 @@ Vigil is an iOS-only local client. It has no collection server. This document st
 
 > Status: current
 >
-> Last reviewed: 2026-08-09
+> Last reviewed: 2026-08-14
 >
 > Review again: after any storage, authentication, networking, notification, widget, export, or deletion change
 
@@ -33,7 +33,7 @@ These files contain no bearer credential. They can still reveal account relation
 
 ### Provider authorization pages
 
-Claude and Codex sign-in opens provider-controlled web pages. Credentials, passwords, multifactor prompts, and approval decisions remain inside the provider's authentication surface.
+Claude, Codex, OpenRouter, and Grok Build sign-in open provider-controlled web pages. Credentials, passwords, multifactor prompts, and approval decisions remain inside the provider's authentication surface.
 
 Vigil receives an authorization code or device-authorization result and exchanges it with the provider's token endpoint. It does not receive the user's provider password.
 
@@ -54,6 +54,10 @@ iOS, TestFlight, background tasks, notifications, and WidgetKit remain under App
 - Every credential is minted or entered on the iOS device.
 - Vigil refreshes only credentials it minted.
 - Manually pasted tokens and keys are treated as externally owned.
+- A stored credential is sent only when its provider matches the account row.
+- Provider and official-history transports refuse HTTP redirects and stop
+  buffering after one mebibyte.
+- Grok Build opens only pinned `accounts.x.ai` / `auth.x.ai` device pages.
 - Credentials never enter the App Group snapshot store.
 - Account removal requires confirmed Keychain deletion before the UI drops the account.
 - Sensitive signing files are excluded from and rejected by repository checks.

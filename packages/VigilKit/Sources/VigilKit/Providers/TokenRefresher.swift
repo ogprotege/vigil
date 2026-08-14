@@ -11,7 +11,8 @@ public enum TokenRefresher {
 
     /// Returns nil when this credential must not (or cannot) be refreshed.
     public static func refreshRequest(spec: ProviderSpec, credentials: Credentials) -> URLRequest? {
-        guard credentials.source == mintSource,
+        guard spec.id == credentials.providerId,
+              credentials.source == mintSource,
               let oauth = spec.oauth,
               let refreshToken = credentials.refreshToken,
               !refreshToken.isEmpty

@@ -9,20 +9,14 @@ struct OpenAIAdminURLSessionTransport: OpenAIAdminHistoryTransport {
     let session: URLSession
 
     init(session: URLSession? = nil) {
-        if let session {
-            self.session = session
-        } else {
-            let configuration = URLSessionConfiguration.ephemeral
-            configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-            configuration.urlCache = nil
-            configuration.httpShouldSetCookies = false
-            configuration.httpCookieStorage = nil
-            self.session = URLSession(configuration: configuration)
-        }
+        self.session = session ?? ProviderUsageSession.make()
     }
 
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let (data, response) = try await session.data(for: request)
+        guard BoundedTransportPolicy.accepts(receivedByteCount: data.count) else {
+            throw OpenAIAdminHistoryError.invalidResponse
+        }
         guard let http = response as? HTTPURLResponse else {
             throw OpenAIAdminHistoryError.invalidResponse
         }

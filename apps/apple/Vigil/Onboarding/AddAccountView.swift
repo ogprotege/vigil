@@ -1,13 +1,76 @@
 import SwiftUI
 import VigilKit
 
-enum SetupRoute: String, Hashable, Identifiable {
+enum SetupRoute: String, CaseIterable, Hashable, Identifiable {
     case claude
     case codex
+    case openrouter
     case grok
     case other
 
     var id: String { rawValue }
+
+    /// A guided route owns exactly one provider. `other` is the entry point
+    /// for the remaining direct-credential providers and therefore has no
+    /// provider id of its own.
+    var providerId: String? {
+        switch self {
+        case .claude: return "claude"
+        case .codex: return "codex"
+        case .openrouter: return "openrouter"
+        case .grok: return "grok"
+        case .other: return nil
+        }
+    }
+
+    static var guidedProviderIds: Set<String> {
+        Set(allCases.compactMap(\.providerId))
+    }
+
+    var symbol: String {
+        switch self {
+        case .claude: return "sparkles"
+        case .codex: return "terminal"
+        case .openrouter: return "point.3.connected.trianglepath.dotted"
+        case .grok: return "hammer"
+        case .other: return "key.horizontal"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .claude: return "Connect Claude"
+        case .codex: return "Connect ChatGPT / Codex"
+        case .openrouter: return "Connect OpenRouter"
+        case .grok: return "Connect Grok Build"
+        case .other: return "Other provider"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .claude:
+            return "Sign in through Claude and keep the connection renewable."
+        case .codex:
+            return "Use OpenAI's device authorization on this device."
+        case .openrouter:
+            return "Approve in OpenRouter, then paste its one-time code."
+        case .grok:
+            return "Use xAI device authorization for Grok Build usage."
+        case .other:
+            return "Choose a provider and enter its API key or token."
+        }
+    }
+
+    var tone: SetupChoiceTone {
+        switch self {
+        case .claude: return .primary
+        case .codex, .openrouter, .grok: return .standard
+        case .other: return .quiet
+        }
+    }
+
+    var accessibilityIdentifier: String { "vigil.setup.\(rawValue)" }
 }
 
 /// Guided sign-in is the default. Manual credentials remain one disclosed path
@@ -126,35 +189,16 @@ struct AddAccountView: View {
                     }
 
                     VStack(spacing: 12) {
-                        NavigationLink(value: SetupRoute.claude) {
-                            SetupChoiceRow(
-                                symbol: "sparkles",
-                                title: "Connect Claude",
-                                detail: "Sign in through Claude and keep the connection renewable.",
-                                tone: .primary
-                            )
-                        }
-                        NavigationLink(value: SetupRoute.codex) {
-                            SetupChoiceRow(
-                                symbol: "terminal",
-                                title: "Connect ChatGPT / Codex",
-                                detail: "Use OpenAI's device authorization on this device."
-                            )
-                        }
-                        NavigationLink(value: SetupRoute.grok) {
-                            SetupChoiceRow(
-                                symbol: "hammer",
-                                title: "Connect Grok Build",
-                                detail: "Use xAI device authorization for Grok Build usage."
-                            )
-                        }
-                        NavigationLink(value: SetupRoute.other) {
-                            SetupChoiceRow(
-                                symbol: "key.horizontal",
-                                title: "Other provider",
-                                detail: "Choose a provider and enter its API key or token.",
-                                tone: .quiet
-                            )
+                        ForEach(SetupRoute.allCases) { route in
+                            NavigationLink(value: route) {
+                                SetupChoiceRow(
+                                    symbol: route.symbol,
+                                    title: route.title,
+                                    detail: route.detail,
+                                    tone: route.tone
+                                )
+                            }
+                            .accessibilityIdentifier(route.accessibilityIdentifier)
                         }
                     }
                     .buttonStyle(.plain)
@@ -180,8 +224,18 @@ struct AddAccountView: View {
             ClaudeSignInView { attempt(.credentials($0)) }
         case .codex:
             CodexSignInView { attempt(.credentials($0)) }
+        case .openrouter:
+            OpenRouterSignInView(
+                manualSubmitTitle: relinkTarget == nil
+                    ? "Verify and add account"
+                    : "Verify and re-link account"
+            ) { attempt(.credentials($0)) }
         case .grok:
-            GrokSignInView { attempt(.credentials($0)) }
+            GrokSignInView(
+                manualSubmitTitle: relinkTarget == nil
+                    ? "Verify and add account"
+                    : "Verify and re-link account"
+            ) { attempt(.credentials($0)) }
         case .other:
             if let relinkTarget {
                 ManualEntryView(
@@ -353,6 +407,7 @@ struct AddAccountView: View {
         switch providerId {
         case "claude": return .claude
         case "codex": return .codex
+        case "openrouter": return .openrouter
         case "grok": return .grok
         default: return .other
         }

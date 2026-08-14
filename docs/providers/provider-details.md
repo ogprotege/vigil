@@ -1,7 +1,7 @@
 # Provider details
 
 - Status: Current
-- Last reviewed: 2026-08-12
+- Last reviewed: 2026-08-14
 - Review again: whenever provider authentication, mapping, or user-facing setup changes
 
 The [support matrix](support-matrix.md) is the canonical provider list. This guide explains how to interpret each integration without repeating its evidence table.
@@ -45,9 +45,14 @@ ChatGPT / Codex and OpenAI API are separate Vigil providers. Their credentials, 
 
 ### OpenRouter
 
+Setup is a first-class guided flow. Vigil opens OpenRouter's official
+authorization page with an S256 challenge, then exchanges the one-time code
+for an API key that is stored as a non-refreshing manual credential. Pasting
+an existing key remains available.
+
 Vigil reads key-level usage and limit data. All mapped money fields are USD dollar amounts exactly as returned. For example, a response value of `12.5` becomes `$12.50`, not `$0.125`.
 
-The key can have no finite spending limit. In that case Vigil keeps the eight usage counters and omits the limit and remaining pair. It does not create a percentage gauge.
+The key can have no finite spending limit. In that case Vigil keeps the eight usage counters and omits the limit and remaining pair. It does not create a percentage gauge. The minted or pasted key can authorize spending, not only usage reads.
 
 ### DeepSeek
 

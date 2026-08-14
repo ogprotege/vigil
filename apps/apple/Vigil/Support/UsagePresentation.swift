@@ -124,6 +124,9 @@ enum UsagePresentation {
         }
     }
 
+    /// Hidden-widget VoiceOver copy must not include the account label.
+    static let hiddenUsageAccessibilityLabel = "Usage values hidden"
+
     static func accountTitle(_ account: AccountRef) -> String {
         guard let label = account.label?.trimmingCharacters(
             in: .whitespacesAndNewlines

@@ -2,8 +2,9 @@ import SwiftUI
 import VigilKit
 
 /// Direct-credential providers remain available without competing with guided
-/// sign-in. Claude and ChatGPT/Codex use their first-class guided routes for
-/// both initial setup and re-linking.
+/// sign-in. Every provider represented by SetupRoute uses its first-class
+/// guided route for both initial setup and re-linking; guided screens retain
+/// any provider-specific direct-credential fallback they support.
 struct ProviderCatalogView: View {
     let onSubmit: (Credentials) -> Void
 
@@ -12,7 +13,7 @@ struct ProviderCatalogView: View {
 
     static var availableProviders: [ProviderSpec] {
         ProviderRegistry.all.filter { spec in
-            spec.id != "claude" && spec.id != "codex" && spec.id != "grok"
+            !SetupRoute.guidedProviderIds.contains(spec.id)
         }
     }
 

@@ -1,7 +1,7 @@
 # Provider support matrix
 
 - Status: Current
-- Last reviewed: 2026-08-12
+- Last reviewed: 2026-08-14
 - Review again: whenever `protocol/providers.json`, `ProviderRegistry`, or fixture provenance changes
 
 This is the canonical list of providers that Vigil can connect. It describes the current code, not a planned integration list.
@@ -25,7 +25,7 @@ Fixture coverage proves deterministic behavior for the committed body. It does n
 |---|---|---|---|---|
 | Claude (`claude`) | Guided browser approval and pasted authorization code for setup and re-linking. | Five-hour and weekly utilization windows, active provider-scoped weekly limits, and optional extra-usage spend and limit values. Exact token ceilings appear only if the provider supplies them. | Live-sanitized scoped-limit and 429 bodies, plus synthetic success and money cases. The consumer usage endpoint is undocumented. | Established |
 | ChatGPT / Codex (`codex`) | Guided OpenAI device authorization for setup and re-linking. | Any provider-returned primary or secondary subscription rate window, additional provider-declared metered-feature windows, Flex credit balance, and reset credits. | Live-sanitized current response plus synthetic fixtures derived from the upstream Codex response model. The consumer usage endpoint is undocumented. | Established |
-| OpenRouter (`openrouter`) | OpenRouter API key. | USD usage for all-time, day, week, and month periods; the same four BYOK usage periods; optional key spending limit and remaining amount. | Vendor-documented contract with synthetic fixtures. | Established |
+| OpenRouter (`openrouter`) | Guided OpenRouter authorization that mints an API key, or paste an existing key. | USD usage for all-time, day, week, and month periods; the same four BYOK usage periods; optional key spending limit and remaining amount. | Vendor-documented contract with synthetic fixtures. | Established |
 | DeepSeek (`deepseek`) | DeepSeek API key. | One balance metric for each currency returned by the provider. | Vendor-documented contract with synthetic fixtures. | Established |
 | Moonshot (Kimi) (`moonshot`) | Global Moonshot open-platform API key. | Available, cash, and voucher balances in USD. | Vendor example fixture. | Established |
 | Moonshot (Kimi) China (`moonshot_cn`) | China Moonshot open-platform API key. | Available, cash, and voucher balances in CNY. | Vendor-documented contract with a synthetic boundary fixture. | Established |

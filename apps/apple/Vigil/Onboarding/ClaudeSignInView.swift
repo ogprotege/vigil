@@ -12,7 +12,7 @@ struct ClaudeSignInView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.dismiss) private var dismiss
 
-    @State private var pkce = ClaudeAuth.generatePKCE()
+    @State private var pkce: ClaudeAuth.PKCE?
     @State private var pastedCode = ""
     @State private var didOpen = false
     @State private var exchangeAttempt = SignInAttempt()
@@ -20,16 +20,9 @@ struct ClaudeSignInView: View {
 
     private var oauth: OAuthEndpoint { ProviderRegistry.claude.oauth! }
     private var redirectURI: String { oauth.manualRedirectUri }
-    private var authorizeURL: URL {
-        ClaudeAuth.authorizeURL(
-            oauth: oauth,
-            redirectURI: redirectURI,
-            challenge: pkce.challenge,
-            state: pkce.state
-        )
-    }
     private var canLink: Bool {
-        !pastedCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        pkce != nil
+            && !pastedCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !exchangeAttempt.isRunning
     }
 
@@ -57,6 +50,7 @@ struct ClaudeSignInView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .overlay { if exchangeAttempt.isRunning { exchangingOverlay } }
+        .onAppear { _ = ensurePKCE() }
         .onDisappear { exchangeAttempt.cancel() }
     }
 
@@ -81,8 +75,7 @@ struct ClaudeSignInView: View {
                 .font(.caption)
                 .foregroundStyle(VigilPalette.inkMuted)
             Button {
-                didOpen = true
-                openURL(authorizeURL)
+                openAuthorization()
             } label: {
                 Label(didOpen ? "Reopen Claude sign-in" : "Open Claude sign-in", systemImage: "safari")
                     .frame(maxWidth: .infinity)
@@ -143,9 +136,45 @@ struct ClaudeSignInView: View {
         }
     }
 
+    private func openAuthorization() {
+        errorMessage = nil
+        guard let pkce = ensurePKCE() else { return }
+        let url = ClaudeAuth.authorizeURL(
+            oauth: oauth,
+            redirectURI: redirectURI,
+            challenge: pkce.challenge,
+            state: pkce.state
+        )
+        didOpen = true
+        openURL(url)
+    }
+
+    @discardableResult
+    private func ensurePKCE() -> ClaudeAuth.PKCE? {
+        if let pkce { return pkce }
+        do {
+            let created = try ClaudeAuth.generatePKCE()
+            pkce = created
+            return created
+        } catch {
+            errorMessage = "This device couldn't create a secure sign-in challenge. Try again."
+            return nil
+        }
+    }
+
+    private func resetPKCE(message: String) {
+        pkce = nil
+        pastedCode = ""
+        didOpen = false
+        errorMessage = message
+        _ = ensurePKCE()
+    }
+
     private func link() {
         errorMessage = nil
-        guard let code = ClaudeAuth.parsePastedCode(pastedCode, expectedState: pkce.state) else {
+        guard let pkce,
+              let code = ClaudeAuth.parsePastedCode(pastedCode, expectedState: pkce.state)
+        else {
             errorMessage = "That code didn't look right. Copy the whole code Claude showed you and try again."
             return
         }
@@ -167,9 +196,9 @@ struct ClaudeSignInView: View {
                       let credentials = ClaudeAuth.credentials(fromExchange: data)
                 else {
                     // A fresh PKCE for the next attempt: a used/expired code can't be retried.
-                    pkce = ClaudeAuth.generatePKCE()
-                    pastedCode = ""
-                    errorMessage = "Claude didn't accept that code — it may have expired. Tap 'Reopen Claude sign-in' to start over."
+                    resetPKCE(
+                        message: "Claude didn't accept that code — it may have expired. Tap 'Reopen Claude sign-in' to start over."
+                    )
                     return
                 }
                 onComplete(credentials)

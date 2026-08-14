@@ -87,10 +87,53 @@ final class AppModelReliabilityTests: XCTestCase {
         XCTAssertEqual(try vault.load(accountKey: accountKey), credentials)
     }
 
-    func testRelinkRoutesClaudeCodexAndManualProvidersToTargetedFlows() {
+    func testRelinkRoutesGuidedAndManualProvidersToTargetedFlows() {
         XCTAssertEqual(AddAccountView.relinkRoute(forProviderId: "claude"), .claude)
         XCTAssertEqual(AddAccountView.relinkRoute(forProviderId: "codex"), .codex)
-        XCTAssertEqual(AddAccountView.relinkRoute(forProviderId: "openrouter"), .other)
+        XCTAssertEqual(AddAccountView.relinkRoute(forProviderId: "openrouter"), .openrouter)
+        XCTAssertEqual(AddAccountView.relinkRoute(forProviderId: "grok"), .grok)
+        XCTAssertEqual(AddAccountView.relinkRoute(forProviderId: "deepseek"), .other)
+    }
+
+    func testMismatchedCredentialIsQuarantinedBeforeAnyProviderRequest() async throws {
+        let directory = try makeTemporaryDirectory()
+        StubURLProtocol.reset()
+        defer { StubURLProtocol.reset() }
+        StubURLProtocol.respond(statusCode: 200, body: Data("{}".utf8))
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let account = AccountRef(
+            key: "claude:credential:deadbeef",
+            providerId: "claude",
+            label: nil,
+            plan: nil
+        )
+        let result = await UsageService.refresh(
+            account: account,
+            credentials: Credentials(providerId: "codex", accessToken: "stolen"),
+            scheduler: FetchScheduler(
+                store: FileLedgerStore(directory: directory),
+                jitter: { _ in 0 }
+            ),
+            snapshots: SnapshotStore(directory: directory),
+            surface: "test",
+            session: session
+        )
+
+        guard case .mismatchedCredentials? = result.persistenceIssue else {
+            return XCTFail("Expected mismatched credential quarantine")
+        }
+        XCTAssertNil(result.snapshot)
+        XCTAssertEqual(StubURLProtocol.requestCount, 0)
+        XCTAssertNil(BoundAccount.validated(account: account, credentials: Credentials(
+            providerId: "codex",
+            accessToken: "stolen"
+        )))
+        XCTAssertNotNil(BoundAccount.validated(
+            account: account,
+            credentials: Credentials(providerId: "claude", accessToken: "ok")
+        ))
     }
 
     func testProviderUsageSessionCannotReuseURLCacheAsFreshUsage() {
@@ -103,6 +146,79 @@ final class AppModelReliabilityTests: XCTestCase {
         XCTAssertNil(session.configuration.urlCache)
         XCTAssertFalse(session.configuration.httpShouldSetCookies)
         XCTAssertNil(session.configuration.httpCookieStorage)
+        XCTAssertEqual(
+            session.configuration.timeoutIntervalForRequest,
+            BoundedTransportPolicy.requestTimeout
+        )
+        XCTAssertEqual(
+            session.configuration.timeoutIntervalForResource,
+            BoundedTransportPolicy.resourceTimeout
+        )
+        XCTAssertNotNil(session.delegate as? BoundedURLSessionDelegate)
+    }
+
+    /// Starts, but deliberately never polls or authorizes, Grok's device flow
+    /// through the same isolated URLSession configuration used by the iOS app.
+    /// Issued codes and response bodies must never enter test output.
+    func testGrokDeviceAuthorizationReturnsARealCodeLive() async throws {
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["VIGIL_LIVE_AUTH"] == "1",
+            "set VIGIL_LIVE_AUTH=1 to run live endpoint probes"
+        )
+        let oauth = try XCTUnwrap(
+            ProviderRegistry.grok.oauth,
+            "grok must declare oauth metadata"
+        )
+        let request = try XCTUnwrap(
+            GrokAuth.userCodeRequest(oauth: oauth),
+            "grok oauth metadata must supply a device-code URL"
+        )
+        let session = ProviderUsageSession.make()
+        defer { session.invalidateAndCancel() }
+
+        let result: (Data, URLResponse)
+        do {
+            result = try await session.data(for: request)
+        } catch {
+            let safeCode = (error as? URLError)
+                .map { String($0.code.rawValue) } ?? "unknown"
+            XCTFail(
+                "device authorization network error \(safeCode); "
+                    + "response values redacted"
+            )
+            return
+        }
+        let (data, response) = result
+        let code = try XCTUnwrap((response as? HTTPURLResponse)?.statusCode)
+        XCTAssertTrue(
+            (200..<300).contains(code),
+            "device authorization failed with HTTP \(code); response body redacted"
+        )
+
+        let parsed = try XCTUnwrap(
+            GrokAuth.parseUserCode(data),
+            "live device-authorization body did not parse; response body redacted"
+        )
+        XCTAssertFalse(parsed.deviceCode.isEmpty, "device code was empty")
+        XCTAssertFalse(parsed.userCode.isEmpty, "user code was empty")
+        let verificationURL = try XCTUnwrap(
+            parsed.verificationURL,
+            "verification URL was missing; response body redacted"
+        )
+        XCTAssertEqual(
+            verificationURL.scheme?.lowercased(),
+            "https",
+            "verification URL was not HTTPS; value redacted"
+        )
+        XCTAssertNotNil(
+            verificationURL.host,
+            "verification URL had no host; value redacted"
+        )
+        XCTAssertGreaterThanOrEqual(parsed.intervalSeconds, GrokAuth.minimumPollInterval)
+        print(
+            "LIVE grok device authorization -> HTTP \(code), "
+                + "parseable codes and HTTPS verification URL (values redacted)"
+        )
     }
 
     func testLegacyNetworkStorageCleanerRemovesOnlyAppScopedSessionResidue() throws {

@@ -26,9 +26,13 @@ final class ProviderPresentationTests: XCTestCase {
     func testOtherProviderCatalogExcludesGuidedSetupWithoutRemovingRecoverySpecs() {
         let catalogIDs = Set(ProviderCatalogView.availableProviders.map(\.id))
 
-        XCTAssertEqual(catalogIDs.count, ProviderRegistry.all.count - 3)
+        XCTAssertEqual(
+            catalogIDs.count,
+            ProviderRegistry.all.count - SetupRoute.guidedProviderIds.count
+        )
         XCTAssertFalse(catalogIDs.contains("claude"))
         XCTAssertFalse(catalogIDs.contains("codex"))
+        XCTAssertFalse(catalogIDs.contains("openrouter"))
         XCTAssertFalse(catalogIDs.contains("grok"))
         XCTAssertNotNil(
             ProviderRegistry.spec(for: "claude"),
@@ -39,8 +43,60 @@ final class ProviderPresentationTests: XCTestCase {
             "Codex direct entry must remain available to targeted recovery flows"
         )
         XCTAssertNotNil(
+            ProviderRegistry.spec(for: "openrouter"),
+            "OpenRouter direct entry must remain available from its guided fallback"
+        )
+        XCTAssertNotNil(
             ProviderRegistry.spec(for: "grok"),
             "Grok Build direct entry must remain available to targeted recovery flows"
+        )
+    }
+
+    func testGuidedRoutesAndDirectCatalogCoverEveryRegistryProviderExactlyOnce() {
+        let registryIDs = Set(ProviderRegistry.all.map(\.id))
+        let guidedIDs = SetupRoute.guidedProviderIds
+        let directIDs = Set(ProviderCatalogView.availableProviders.map(\.id))
+
+        XCTAssertTrue(
+            guidedIDs.isDisjoint(with: directIDs),
+            "A provider must not compete in both guided setup and the direct catalog"
+        )
+        XCTAssertEqual(
+            guidedIDs.union(directIDs),
+            registryIDs,
+            "Every registered provider must be reachable through guided or direct setup"
+        )
+    }
+
+    func testSetupRoutePresentationIsCompleteAndStable() {
+        XCTAssertEqual(
+            SetupRoute.allCases.map(\.rawValue),
+            ["claude", "codex", "openrouter", "grok", "other"]
+        )
+        XCTAssertEqual(
+            SetupRoute.openrouter.accessibilityIdentifier,
+            "vigil.setup.openrouter"
+        )
+        XCTAssertEqual(SetupRoute.grok.accessibilityIdentifier, "vigil.setup.grok")
+        XCTAssertEqual(
+            Set(SetupRoute.allCases.map(\.accessibilityIdentifier)).count,
+            SetupRoute.allCases.count
+        )
+        for route in SetupRoute.allCases {
+            XCTAssertFalse(route.symbol.isEmpty)
+            XCTAssertFalse(route.title.isEmpty)
+            XCTAssertFalse(route.detail.isEmpty)
+        }
+    }
+
+    func testManualGrokRecoveryAcceptsOnlyTheSessionAccessToken() throws {
+        let grok = try XCTUnwrap(ProviderRegistry.spec(for: "grok"))
+        let claude = try XCTUnwrap(ProviderRegistry.spec(for: "claude"))
+
+        XCTAssertFalse(ProviderPresentation.acceptsManualRefreshToken(grok))
+        XCTAssertTrue(
+            ProviderPresentation.acceptsManualRefreshToken(claude),
+            "This test isolates Grok's one-token CLI recovery policy"
         )
     }
 
@@ -158,8 +214,41 @@ final class ProviderPresentationTests: XCTestCase {
         XCTAssertTrue(hint.localizedCaseInsensitiveContains("revoke"))
         XCTAssertNil(
             ProviderPresentation.credentialWarning(
-                for: try XCTUnwrap(ProviderRegistry.spec(for: "openrouter"))
+                for: try XCTUnwrap(ProviderRegistry.spec(for: "github"))
             )
         )
+    }
+
+    func testCredentialWarningsCoverBroadAndRestrictedCredentials() throws {
+        for id in ["openrouter", "deepseek", "moonshot", "moonshot_cn"] {
+            let warning = try XCTUnwrap(
+                ProviderPresentation.credentialWarning(
+                    for: try XCTUnwrap(ProviderRegistry.spec(for: id))
+                ),
+                "\(id) must disclose that its key can authorize spending"
+            ).lowercased()
+            XCTAssertTrue(warning.contains("spending"))
+            XCTAssertTrue(warning.contains("dedicated key"))
+            XCTAssertTrue(warning.contains("revoke"))
+        }
+
+        let cursorWarning = try XCTUnwrap(
+            ProviderPresentation.credentialWarning(
+                for: try XCTUnwrap(ProviderRegistry.spec(for: "cursor"))
+            )
+        ).lowercased()
+        XCTAssertTrue(cursorWarning.contains("full browser session cookie"))
+        XCTAssertTrue(cursorWarning.contains("not a usage-only credential"))
+        XCTAssertTrue(cursorWarning.contains("revoke"))
+
+        for id in ["zai", "kimi_code"] {
+            let warning = try XCTUnwrap(
+                ProviderPresentation.credentialWarning(
+                    for: try XCTUnwrap(ProviderRegistry.spec(for: id))
+                )
+            ).lowercased()
+            XCTAssertTrue(warning.contains("not currently listed"))
+            XCTAssertTrue(warning.contains("authorized"))
+        }
     }
 }

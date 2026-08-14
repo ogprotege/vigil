@@ -2,7 +2,7 @@
 
 Vigil requires iOS 17 or later. All account setup happens in Vigil on the iPhone or iPad, except that some experimental credentials may first need to be copied from a provider website.
 
-> Last reviewed: 2026-08-12
+> Last reviewed: 2026-08-14
 >
 > Review again: when setup or provider support changes
 
@@ -12,10 +12,14 @@ On first launch, choose one of the guided routes or the catalog:
 
 - **Connect Claude** uses Claude's browser approval flow.
 - **Connect ChatGPT / Codex** uses OpenAI's device authorization flow.
+- **Connect OpenRouter** uses OpenRouter's official authorization page and a
+  pasted one-time code, or an existing API key.
 - **Connect Grok Build** uses xAI's OIDC device authorization flow (the same family of code-and-URL sign-in as the Grok Build terminal).
-- **Other provider** opens the supported provider catalog.
+- **Other provider** opens the remaining supported provider catalog.
 
-The current setup interface does not expose manual token entry for Claude, ChatGPT/Codex, or Grok Build on the primary route. Use their guided sign-in or the guided re-link action.
+The current setup interface does not expose Claude, ChatGPT/Codex, OpenRouter,
+or Grok Build in the Other provider catalog. Use their first-class routes;
+OpenRouter and Grok Build keep a disclosed direct-credential fallback.
 
 ## Connect Claude
 
@@ -57,20 +61,21 @@ The current Grok Build reading is the provider's shared weekly usage percentage 
 
 ## Connect another provider
 
-Choose **Other provider**, select a provider, and follow the credential instructions shown in the app.
+Use the first-class **Connect OpenRouter** or **Connect Grok Build** rows when
+those are the accounts you want. OpenRouter can mint a new key after you
+approve access, or you can paste an existing key. Grok Build uses xAI device
+authorization; a session token remains available as recovery.
 
-The current catalog contains:
+Choose **Other provider** for the remaining direct-credential integrations:
 
 | Provider | Credential required | Status |
 |---|---|---|
-| OpenRouter | API key | Established |
 | DeepSeek | API key | Established |
 | Moonshot (Kimi) | Global-platform API key | Established |
 | Moonshot (Kimi) China | China-platform API key | Established |
 | OpenAI API | Organization Admin API key | Established, broad privilege |
 | GitHub Copilot | Fine-grained token with Account Plan read permission, plus username | Established |
 | xAI API | Management Key with billing-read access, plus team ID | Established |
-| Grok Build | Guided xAI device authorization (or a session token for recovery) | Experimental |
 | MiniMax Coding Plan | Global coding-plan key | Experimental |
 | MiniMax Coding Plan China | China coding-plan key | Experimental |
 | Z.ai Coding Plan | GLM Coding Plan key | Experimental |

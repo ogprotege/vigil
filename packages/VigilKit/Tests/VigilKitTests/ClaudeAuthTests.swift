@@ -11,7 +11,7 @@ final class ClaudeAuthTests: XCTestCase {
         manualRedirectUri: "https://console.anthropic.com/oauth/code/callback"
     )
 
-    func testPKCEDerivesChallengeFromVerifierAsBase64URLSHA256() {
+    func testPKCEDerivesChallengeFromVerifierAsBase64URLSHA256() throws {
         let bytes = Data(repeating: 0xAB, count: 32)
         let pkce = ClaudeAuth.generatePKCE(randomBytes: bytes)
         // Verifier is base64url(bytes), no padding.
@@ -27,6 +27,9 @@ final class ClaudeAuthTests: XCTestCase {
         XCTAssertEqual(pkce.challenge, expected)
         // State is the verifier itself (ADR-0005).
         XCTAssertEqual(pkce.state, pkce.verifier)
+        let live = try ClaudeAuth.generatePKCE()
+        XCTAssertFalse(live.verifier.isEmpty)
+        XCTAssertEqual(live.state, live.verifier)
     }
 
     func testAuthorizeURLCarriesEveryRequiredParam() {

@@ -78,32 +78,17 @@ struct DashboardView: View {
             }
 
             VStack(spacing: 12) {
-                Button { activeSetup = .claude } label: {
-                    SetupChoiceRow(
-                        symbol: "sparkles",
-                        title: "Connect Claude",
-                        detail: "Sign in through Claude and keep the connection renewable.",
-                        tone: .primary
-                    )
+                ForEach(SetupRoute.allCases) { route in
+                    Button { activeSetup = route } label: {
+                        SetupChoiceRow(
+                            symbol: route.symbol,
+                            title: route.title,
+                            detail: route.detail,
+                            tone: route.tone
+                        )
+                    }
+                    .accessibilityIdentifier(route.accessibilityIdentifier)
                 }
-                .accessibilityIdentifier("vigil.setup.claude")
-                Button { activeSetup = .codex } label: {
-                    SetupChoiceRow(
-                        symbol: "terminal",
-                        title: "Connect ChatGPT / Codex",
-                        detail: "Use OpenAI's device authorization on this device."
-                    )
-                }
-                .accessibilityIdentifier("vigil.setup.codex")
-                Button { activeSetup = .other } label: {
-                    SetupChoiceRow(
-                        symbol: "key.horizontal",
-                        title: "Other provider",
-                        detail: "Choose a provider and enter its API key or token.",
-                        tone: .quiet
-                    )
-                }
-                .accessibilityIdentifier("vigil.setup.other")
             }
             .buttonStyle(.plain)
 

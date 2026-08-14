@@ -4,15 +4,15 @@ This page records documentation coverage, review triggers, and known debt. It is
 
 > Status: current
 >
-> Last reviewed: 2026-08-12
+> Last reviewed: 2026-08-14
 >
 > Review again: before each release and after any product-boundary change
 
 ## Current health
 
-The current documentation set is aligned with Vigil 1.0.0, build 25. The product contract, user guides, provider references, development guides, and release procedure have distinct owners and scopes. Build 25 is the App Review and Internal TestFlight binary: it carries the build 24 lifecycle fix and updates Grok Build to the provider's weekly credits contract. Builds 24 and 23 remain documented as superseded public candidates.
+The current documentation set is aligned with Vigil 1.0.0, build 26. The product contract, user guides, provider references, development guides, and release procedure have distinct owners and scopes. Build 26 is the source candidate: it adds guided OpenRouter setup and the provider-boundary hardening that precedes the Guideline 2.1 App Review reply. Build 25 remains the last uploaded Internal TestFlight and review binary until 26 is processed. Builds 24 and 23 remain documented as superseded public candidates.
 
-No known critical documentation defect remains open. Historical organization remains explicit debt. The build 25 release record now includes owner-attested physical-device acceptance evidence.
+No known critical documentation defect remains open. Historical organization remains explicit debt.
 
 | Area | Canonical source | State | Review trigger |
 |---|---|---|---|
@@ -22,7 +22,7 @@ No known critical documentation defect remains open. Historical organization rem
 | Architecture and development | [Development architecture](development/architecture.md) | Current | Storage, scheduling, lifecycle, build, or diagnostic change |
 | Security and privacy | [Security policy](../SECURITY.md) and [privacy guide](user-guide/privacy-deletion-notifications.md) | Current | Storage, network, Keychain, notification, widget, export, or deletion change |
 | Release procedure | [iOS release runbook](development/release.md) | Current | Signing, CI, archive, upload, or App Store Connect change |
-| Release evidence | [1.0.0 (25) record](releases/1.0.0-25.md) | Current (App Review waiting; device walk passed) | Every completed or failed release gate |
+| Release evidence | [1.0.0 (26) record](releases/1.0.0-26.md) | Current (source candidate; upload pending) | Every completed or failed release gate |
 | Decisions | [ADR index](decisions/README.md) | Current | A durable architectural decision is accepted, amended, or superseded |
 
 ## Known documentation debt

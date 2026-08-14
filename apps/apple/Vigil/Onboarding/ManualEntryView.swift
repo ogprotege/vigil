@@ -40,6 +40,10 @@ struct ManualEntryView: View {
         selectedSpec.map(ProviderPresentation.setupLabel) ?? "Credential"
     }
 
+    private var acceptsRefreshToken: Bool {
+        selectedSpec.map(ProviderPresentation.acceptsManualRefreshToken) == true
+    }
+
     private var canSubmit: Bool {
         let token = accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !token.isEmpty else { return false }
@@ -193,7 +197,7 @@ struct ManualEntryView: View {
                 .vigilInsetSurface(cornerRadius: VigilRadius.small)
             }
 
-            if selectedSpec?.oauth != nil {
+            if acceptsRefreshToken {
                 VStack(alignment: .leading, spacing: 7) {
                     Text("Refresh token")
                         .font(.caption.weight(.semibold))
@@ -249,7 +253,7 @@ struct ManualEntryView: View {
                 Credentials(
                     providerId: providerId,
                     accessToken: accessToken.trimmingCharacters(in: .whitespacesAndNewlines),
-                    refreshToken: selectedSpec?.oauth != nil && !trimmedRefresh.isEmpty
+                    refreshToken: acceptsRefreshToken && !trimmedRefresh.isEmpty
                         ? trimmedRefresh
                         : nil,
                     accountId: requiresAccountId && !trimmedAccount.isEmpty

@@ -151,7 +151,7 @@ final class VigilAccessibilityUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Other provider"].waitForExistence(timeout: 5))
 
         let providerRow = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label CONTAINS %@", "OpenRouter")
+            NSPredicate(format: "label CONTAINS %@", "DeepSeek")
         ).firstMatch
         let catalogScroll = app.scrollViews.firstMatch
         for _ in 0..<10 where !providerRow.isHittable {
@@ -196,6 +196,38 @@ final class VigilAccessibilityUITests: XCTestCase {
         )
     }
 
+    func testGrokManualRecoveryRequestsOnlyItsSessionToken() {
+        launch(tab: "home", demo: false)
+
+        tapVisiblePortion(of: reachableElement("vigil.setup.grok"))
+        XCTAssertTrue(app.navigationBars["Sign in with Grok Build"].waitForExistence(timeout: 5))
+
+        tapVisiblePortion(of: reachableElement("vigil.grok.useSessionToken"))
+        XCTAssertTrue(app.navigationBars["Direct setup"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.secureTextFields["Grok Build session token"].exists)
+        XCTAssertFalse(
+            app.staticTexts["Refresh token"].exists,
+            "Manual Grok recovery must not solicit an OAuth refresh token"
+        )
+    }
+
+    func testOpenRouterGuidedSetupRetainsLockedAPIKeyFallback() {
+        launch(tab: "home", demo: false)
+
+        tapVisiblePortion(of: reachableElement("vigil.setup.openrouter"))
+        XCTAssertTrue(app.navigationBars["Connect OpenRouter"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["vigil.openrouter.spendingNotice"]
+                .waitForExistence(timeout: 5),
+            "Guided setup must disclose that OpenRouter's generated key can authorize spending"
+        )
+
+        tapVisiblePortion(of: reachableElement("vigil.openrouter.useAPIKey"))
+        XCTAssertTrue(app.navigationBars["Direct setup"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["OpenRouter"].exists)
+        XCTAssertTrue(app.secureTextFields["API key"].exists)
+    }
+
     private func assertCriticalActions(in scenario: ContentSizeScenario) {
         assertFirstRunSetupRoutes(in: scenario)
         assertHomeAndAccountDetailRoutes(in: scenario)
@@ -205,6 +237,8 @@ final class VigilAccessibilityUITests: XCTestCase {
         let routes = [
             (identifier: "vigil.setup.claude", destination: "Sign in with Claude"),
             (identifier: "vigil.setup.codex", destination: "Sign in with Codex"),
+            (identifier: "vigil.setup.openrouter", destination: "Connect OpenRouter"),
+            (identifier: "vigil.setup.grok", destination: "Sign in with Grok Build"),
             (identifier: "vigil.setup.other", destination: "Other provider"),
         ]
 

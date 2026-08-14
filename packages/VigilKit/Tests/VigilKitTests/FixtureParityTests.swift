@@ -444,6 +444,13 @@ final class FixtureParityTests: XCTestCase {
         XCTAssertEqual(claude.cachePolicy, .reloadIgnoringLocalCacheData)
         XCTAssertEqual(claude.value(forHTTPHeaderField: "Cache-Control"), "no-cache, no-store")
         XCTAssertEqual(claude.value(forHTTPHeaderField: "Pragma"), "no-cache")
+        XCTAssertNil(
+            RequestBuilder.usageRequest(
+                spec: ProviderRegistry.claude,
+                credentials: Credentials(providerId: "codex", accessToken: "sk-ant-oat01-X")
+            ),
+            "A Codex credential must never be attached to Claude's usage URL"
+        )
 
         let codexNoAccount = try XCTUnwrap(RequestBuilder.usageRequest(
             spec: ProviderRegistry.codex,

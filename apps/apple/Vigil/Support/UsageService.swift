@@ -11,7 +11,14 @@ enum ProviderUsageSession {
         configuration.urlCache = nil
         configuration.httpShouldSetCookies = false
         configuration.httpCookieStorage = nil
-        return URLSession(configuration: configuration)
+        configuration.httpMaximumConnectionsPerHost = 1
+        configuration.timeoutIntervalForRequest = BoundedTransportPolicy.requestTimeout
+        configuration.timeoutIntervalForResource = BoundedTransportPolicy.resourceTimeout
+        return URLSession(
+            configuration: configuration,
+            delegate: BoundedURLSessionDelegate(),
+            delegateQueue: nil
+        )
     }
 }
 
@@ -65,6 +72,9 @@ enum UsageService {
         /// Writes stop fail-closed because account removal cannot otherwise be
         /// made atomic across the app and widget processes.
         case accountLifecycle(String)
+        /// The Keychain credential does not belong to this account row.
+        /// No request is sent.
+        case mismatchedCredentials
     }
 
     enum CredentialState: Sendable, Equatable {
@@ -110,6 +120,15 @@ enum UsageService {
         lifecycle: AccountLifecycleStore? = nil,
         generation: AccountLifecycleGeneration? = nil
     ) async -> Result {
+        guard BoundAccount.validated(account: account, credentials: credentials) != nil else {
+            return Result(
+                snapshot: nil,
+                nextAllowed: nil,
+                persistenceIssue: .mismatchedCredentials,
+                effectiveCredentials: credentials,
+                credentialState: .unchanged
+            )
+        }
         guard let spec = ProviderRegistry.spec(for: account.providerId) else {
             return Result(
                 snapshot: nil,
