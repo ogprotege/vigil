@@ -8,6 +8,10 @@ Anything that changes shipped behavior gets an entry here: TestFlight app builds
 
 ## 1.0.0 (26) — OpenRouter guided setup and provider-boundary hardening, 2026-08-14
 
+- Kept the OpenRouter S256 challenge and pasted one-time code after a transport failure so a brief connectivity blip does not force a new authorization. A rejected or unparseable exchange still starts over.
+- Recorded a classified HTTP 429 when lifecycle rotation retired the in-flight lease, so provider backoff still outranks the ordinary poll floor.
+- Wrapped account verification and ledger clear/reset in `SuspensionGuard`, closing remaining 0xdead10cc windows on those App Group flocks.
+- Stopped calling retained percentages "live". Hidden home-screen widgets now show the linked provider. Stale freshness lines and widget status text name the degraded state explicitly.
 - Added a first-class **Connect OpenRouter** route: Vigil opens OpenRouter's official authorization page with an S256 challenge, exchanges the pasted one-time code for an API key, and stores that key as a non-refreshing credential. Pasting an existing key remains a disclosed fallback.
 - Moved MiniMax global and China Token Plan requests to the current vendor hosts (`www.minimax.io` and `www.minimaxi.com`).
 - Hardened provider boundaries before App Review: Grok device URLs are pinned to xAI, account/credential mismatches fail closed before any request, provider and Admin-history transports refuse redirects and stop at a 1 MiB body, pending-notification queues are capped, trusted-container reads fail closed above 1 MiB, screenshot/UI-test launch hooks compile out of Release, the app lock stays locked when device-owner authentication is unavailable, and hidden widgets no longer speak account labels.
