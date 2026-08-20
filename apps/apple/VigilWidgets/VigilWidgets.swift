@@ -79,13 +79,22 @@ struct SmallUsageView: View {
                         .lineLimit(1)
                     Spacer()
                     if degraded {
-                        Image(
-                            systemName: snapshot.status == .ok
-                                ? "clock.badge.exclamationmark"
-                                : statusSymbol(snapshot.status)
-                        )
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
+                        HStack(spacing: 3) {
+                            Image(
+                                systemName: snapshot.status == .ok
+                                    ? "clock.badge.exclamationmark"
+                                    : statusSymbol(snapshot.status)
+                            )
+                            Text(
+                                UsagePresentation.surfaceStatusTitle(
+                                    snapshot: snapshot,
+                                    at: entry.date
+                                )
+                            )
+                            .lineLimit(1)
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
                     }
                 }
                 if let tightest {
@@ -198,9 +207,13 @@ struct SmallUsageView: View {
     }
 
     private func privateSummary(_ snapshot: ProviderSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let providerTitle = UsagePresentation.hiddenWidgetProviderTitle(
+            account: entry.account,
+            providerId: snapshot.providerId
+        )
+        return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Vigil")
+                Text(providerTitle)
                 .font(.caption.weight(.semibold))
                 .lineLimit(1)
                 Spacer()
@@ -230,7 +243,7 @@ struct SmallUsageView: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            Text(UsagePresentation.hiddenUsageAccessibilityLabel)
+            Text(UsagePresentation.hiddenUsageAccessibilityLabel(providerDisplayName: providerTitle))
         )
     }
 
@@ -263,7 +276,11 @@ struct CircularUsageView: View {
     }
 
     private var degradedSuffix: String {
-        degraded ? ", data may be out of date" : ""
+        guard let snapshot = entry.snapshot else { return "" }
+        return UsagePresentation.circularDegradedAccessibilitySuffix(
+            snapshot: snapshot,
+            at: entry.date
+        )
     }
 
     var body: some View {
@@ -277,7 +294,11 @@ struct CircularUsageView: View {
             .widgetAccentable()
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(
-                Text(UsagePresentation.hiddenUsageAccessibilityLabel)
+                Text(
+                    UsagePresentation.hiddenUsageAccessibilityLabel(
+                        providerDisplayName: entry.account?.displayName
+                    )
+                )
             )
         } else if let snapshot = entry.snapshot,
            let tightest = SnapshotFreshness.confirmedWindows(

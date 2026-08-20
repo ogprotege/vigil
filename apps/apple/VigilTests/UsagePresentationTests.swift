@@ -253,6 +253,123 @@ final class UsagePresentationTests: XCTestCase {
         )
     }
 
+    func testRetainedReadingsDoNotCallThePercentageLive() {
+        let fetchedAt = Date(timeIntervalSince1970: 1_785_000_000)
+        let window = window(id: "session", used: 40, seconds: 18_000)
+        let offline = ProviderSnapshot(
+            providerId: "claude",
+            accountKey: "claude:test",
+            accountLabel: nil,
+            planLabel: "pro",
+            fetchedAt: fetchedAt,
+            status: .network,
+            windows: [window]
+        )
+        let note = UsagePresentation.limitSourceNote(
+            snapshot: offline,
+            accountPlan: "pro",
+            at: fetchedAt
+        )
+        XCTAssertTrue(note.contains("retained from the last accepted provider reading"))
+        XCTAssertTrue(note.contains("last accepted reading"))
+        XCTAssertFalse(
+            note.localizedCaseInsensitiveContains("live percentage"),
+            "Retained percentages must not be described as live: \(note)"
+        )
+
+        let live = ProviderSnapshot(
+            providerId: "claude",
+            accountKey: "claude:test",
+            accountLabel: nil,
+            planLabel: "pro",
+            fetchedAt: fetchedAt,
+            status: .ok,
+            windows: [window]
+        )
+        let liveNote = UsagePresentation.limitSourceNote(
+            snapshot: live,
+            accountPlan: "pro",
+            at: fetchedAt
+        )
+        XCTAssertTrue(liveNote.contains("live percentage already reflects that tier"))
+    }
+
+    func testAcceptedFreshnessPrefixNamesStaleData() {
+        XCTAssertEqual(
+            UsagePresentation.acceptedFreshnessPrefix(resetPending: false, stale: false),
+            "Checked "
+        )
+        XCTAssertTrue(
+            UsagePresentation.acceptedFreshnessPrefix(resetPending: false, stale: true)
+                .hasPrefix("Stale.")
+        )
+        XCTAssertFalse(
+            UsagePresentation.acceptedFreshnessPrefix(resetPending: false, stale: true)
+                .hasPrefix("Checked ")
+        )
+    }
+
+    func testHiddenWidgetCopyShowsProviderAndOmitsAccountLabel() {
+        let account = AccountRef(
+            key: "claude:secret",
+            providerId: "claude",
+            label: "Personal",
+            plan: "pro"
+        )
+        XCTAssertEqual(
+            UsagePresentation.hiddenWidgetProviderTitle(account: account, providerId: "claude"),
+            "Claude"
+        )
+        XCTAssertFalse(
+            UsagePresentation.hiddenWidgetProviderTitle(account: account, providerId: "claude")
+                .localizedCaseInsensitiveContains("personal")
+        )
+        let spoken = UsagePresentation.hiddenUsageAccessibilityLabel(providerDisplayName: "Claude")
+        XCTAssertTrue(spoken.hasPrefix("Claude."))
+        XCTAssertTrue(spoken.contains("Usage values hidden"))
+        XCTAssertFalse(spoken.localizedCaseInsensitiveContains("personal"))
+    }
+
+    func testSurfaceStatusTitleDistinguishesStaleOfflineAndLive() {
+        let now = Date()
+        let live = ProviderSnapshot(
+            providerId: "claude",
+            accountKey: "claude:test",
+            accountLabel: nil,
+            planLabel: nil,
+            fetchedAt: now,
+            status: .ok,
+            windows: [window(id: "session", used: 10)]
+        )
+        XCTAssertEqual(UsagePresentation.surfaceStatusTitle(snapshot: live, at: now), "Live")
+
+        let stale = ProviderSnapshot(
+            providerId: "claude",
+            accountKey: "claude:test",
+            accountLabel: nil,
+            planLabel: nil,
+            fetchedAt: now.addingTimeInterval(-(SnapshotFreshness.staleAfter + 1)),
+            status: .ok,
+            windows: [window(id: "session", used: 10)]
+        )
+        XCTAssertEqual(UsagePresentation.surfaceStatusTitle(snapshot: stale, at: now), "Stale")
+
+        let offline = ProviderSnapshot(
+            providerId: "claude",
+            accountKey: "claude:test",
+            accountLabel: nil,
+            planLabel: nil,
+            fetchedAt: now,
+            status: .network,
+            windows: [window(id: "session", used: 10)]
+        )
+        XCTAssertEqual(UsagePresentation.surfaceStatusTitle(snapshot: offline, at: now), "Offline")
+        XCTAssertEqual(
+            UsagePresentation.circularDegradedAccessibilitySuffix(snapshot: offline, at: now),
+            ", offline"
+        )
+    }
+
     func testDegradedFreshnessDescribesDataAgeNotACheckTime() {
         // fetchedAt on a degraded snapshot is the moment the data was last
         // accepted, not the last poll attempt — polls may still run every

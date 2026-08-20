@@ -143,56 +143,10 @@ struct AccountDetailView: View {
     }
 
     private var limitSourceNote: some View {
-        let exactCount = snapshot?.windows.filter {
-            $0.used != nil && $0.limit != nil
-        }.count ?? 0
-        let differingAmountBaseCount = snapshot?.windows.filter {
-            $0.used != nil
-                && $0.limit != nil
-                && !UsagePresentation.exactAmountsMatchUtilization($0)
-        }.count ?? 0
-        let windowCount = snapshot?.windows.count ?? 0
-        let metricCount = snapshot?.metrics.count ?? 0
-        let plan = snapshot?.planLabel ?? account.plan
-        let planContext = plan.flatMap { value -> String? in
-            guard !value.isEmpty else { return nil }
-            return "The displayed \(UsagePresentation.planTitle(value)) plan identifies the allowance tier, and the live percentage already reflects that tier."
-        }
-        let text: String
-        if let snapshot,
-           SnapshotFreshness.hasUnconfirmedReset(in: snapshot) {
-            text = "One or more provider resets have passed. Vigil hides those old values until a provider update confirms the new usage. Other unexpired limits and metrics remain visible."
-        } else if snapshot == nil {
-            text = "Vigil has no accepted provider reading for this account yet."
-        } else if snapshot?.status != .ok {
-            if windowCount > 0 {
-                let retainedSource = exactCount > 0
-                    ? "It included exact amounts for at least one quota."
-                    : "It included percentages and reset times, but no absolute token or message ceiling."
-                let tier = exactCount == 0
-                    ? planContext.map { " \($0)" } ?? ""
-                    : ""
-                text = "These values are retained from the last accepted provider reading. \(retainedSource)\(tier)"
-            } else if metricCount > 0 {
-                text = "These balances or account metrics are retained from the last accepted provider reading."
-            } else {
-                text = "Vigil has no accepted quota or metric reading for this account. The latest provider check was not accepted."
-            }
-        } else if windowCount == 0, metricCount > 0 {
-            text = "This provider currently reports balances or account metrics rather than a reset quota."
-        } else if windowCount == 0 {
-            text = "The provider accepted this account but did not report a finite quota or balance."
-        } else if differingAmountBaseCount > 0 {
-            text = "This provider reports both a quota percentage and exact amount fields, but at least one amount ratio uses a different allowance base. Vigil preserves and labels both instead of forcing them into one calculation."
-        } else if exactCount == windowCount {
-            text = "This provider supplied both used and limit values for every current quota."
-        } else if exactCount > 0 {
-            text = "This provider supplied exact amounts for some quotas and percentages for the others."
-        } else {
-            let source = "This provider supplied quota percentages and reset times, but no absolute token or message ceiling."
-            let tier = planContext.map { " \($0) Vigil does not invent a fixed denominator from the plan name alone." } ?? ""
-            text = source + tier
-        }
+        let text = UsagePresentation.limitSourceNote(
+            snapshot: snapshot,
+            accountPlan: account.plan
+        )
         return Label(text, systemImage: "checkmark.shield")
             .font(.caption)
             .foregroundStyle(VigilPalette.inkMuted)

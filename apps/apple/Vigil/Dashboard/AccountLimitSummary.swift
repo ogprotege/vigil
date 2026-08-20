@@ -98,15 +98,7 @@ struct AccountLimitSummary: Identifiable {
     }
 
     var displayStatusTitle: String {
-        guard let snapshot else { return "Waiting" }
-        if snapshot.status == .ok, resetPending { return "Awaiting update" }
-        if snapshot.status == .ok, SnapshotFreshness.isStale(
-            fetchedAt: snapshot.fetchedAt,
-            at: evaluatedAt
-        ) {
-            return "Stale"
-        }
-        return UsagePresentation.statusTitle(snapshot.status)
+        UsagePresentation.surfaceStatusTitle(snapshot: snapshot, at: evaluatedAt)
     }
 
     var displayStatusSymbol: String? {
