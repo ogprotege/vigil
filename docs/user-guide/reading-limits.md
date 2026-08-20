@@ -2,7 +2,7 @@
 
 Vigil presents provider data without turning estimates or labels into invented precision.
 
-> Last reviewed: 2026-07-30
+> Last reviewed: 2026-08-20
 >
 > Review again: when ranking, freshness, or presentation changes
 
@@ -41,7 +41,7 @@ History keeps the earlier observation in its original reset segment. A new reset
 | Label | Meaning |
 |---|---|
 | **Live** | The latest accepted response satisfied the provider contract and is not over 30 minutes old. |
-| **Stale** | The last accepted response is more than 30 minutes old. |
+| **Stale** | The last accepted response is more than 30 minutes old. The freshness line says **Stale. Last checked**, not only a check time. |
 | **Awaiting update** | A reported reset passed and the new value has not been confirmed. |
 | **Cooling down** | The provider rate-limited a request. |
 | **Re-link needed** | The provider rejected the saved credential. |

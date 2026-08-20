@@ -69,13 +69,15 @@ struct SnapshotFreshnessLine: View {
     @ViewBuilder
     private var freshnessText: some View {
         if let snapshot, snapshot.fetchedAt > .distantPast {
-            if snapshot.status == .ok,
-               SnapshotFreshness.hasUnconfirmedReset(in: snapshot) {
-                Text("Reset passed, awaiting provider update. Last checked ")
+            if snapshot.status == .ok {
+                Text(
+                    UsagePresentation.acceptedFreshnessPrefix(
+                        resetPending: SnapshotFreshness.hasUnconfirmedReset(in: snapshot),
+                        stale: SnapshotFreshness.isStale(fetchedAt: snapshot.fetchedAt)
+                    )
+                )
                     + Text(snapshot.fetchedAt, style: .relative)
                     + Text(" ago")
-            } else if snapshot.status == .ok {
-                Text("Checked ") + Text(snapshot.fetchedAt, style: .relative) + Text(" ago")
             } else {
                 Text(UsagePresentation.retainedFreshnessPrefix(snapshot.status))
                     + Text(snapshot.fetchedAt, style: .relative)

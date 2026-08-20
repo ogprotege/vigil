@@ -127,6 +127,20 @@ enum UsagePresentation {
     /// Hidden-widget VoiceOver copy must not include the account label.
     static let hiddenUsageAccessibilityLabel = "Usage values hidden"
 
+    /// Settings promises the provider identity remains visible when values
+    /// are hidden. Use the registry display name, never a user-supplied label.
+    static func hiddenWidgetProviderTitle(account: AccountRef?, providerId: String) -> String {
+        let resolvedId = account?.providerId ?? providerId
+        return ProviderRegistry.spec(for: resolvedId)?.displayName ?? "Vigil"
+    }
+
+    static func hiddenUsageAccessibilityLabel(providerDisplayName: String?) -> String {
+        guard let providerDisplayName, !providerDisplayName.isEmpty else {
+            return hiddenUsageAccessibilityLabel
+        }
+        return "\(providerDisplayName). \(hiddenUsageAccessibilityLabel)"
+    }
+
     static func accountTitle(_ account: AccountRef) -> String {
         guard let label = account.label?.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -162,6 +176,121 @@ enum UsagePresentation {
         case .schemaChanged: return "Provider changed"
         case .network: return "Offline"
         }
+    }
+
+    /// Shared glanceable status used by Home, account detail, and widgets.
+    static func surfaceStatusTitle(
+        snapshot: ProviderSnapshot?,
+        at evaluatedAt: Date = Date()
+    ) -> String {
+        guard let snapshot else { return "Waiting" }
+        if snapshot.status == .ok,
+           SnapshotFreshness.hasUnconfirmedReset(in: snapshot, at: evaluatedAt) {
+            return "Awaiting update"
+        }
+        if snapshot.status == .ok,
+           SnapshotFreshness.isStale(fetchedAt: snapshot.fetchedAt, at: evaluatedAt) {
+            return "Stale"
+        }
+        return statusTitle(snapshot.status)
+    }
+
+    static func treatsPercentageAsLive(
+        snapshot: ProviderSnapshot,
+        at evaluatedAt: Date = Date()
+    ) -> Bool {
+        snapshot.status == .ok
+            && !SnapshotFreshness.isStale(fetchedAt: snapshot.fetchedAt, at: evaluatedAt)
+            && !SnapshotFreshness.hasUnconfirmedReset(in: snapshot, at: evaluatedAt)
+    }
+
+    static func planTierContext(plan: String?, treatsPercentageAsLive: Bool) -> String? {
+        let value = plan?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !value.isEmpty else { return nil }
+        let title = planTitle(value)
+        if treatsPercentageAsLive {
+            return "The displayed \(title) plan identifies the allowance tier, and the live percentage already reflects that tier."
+        }
+        return "The displayed \(title) plan identifies the allowance tier. The percentage is from the last accepted reading."
+    }
+
+    static func acceptedFreshnessPrefix(resetPending: Bool, stale: Bool) -> String {
+        if resetPending {
+            return "Reset passed, awaiting provider update. Last checked "
+        }
+        if stale {
+            return "Stale. Last checked "
+        }
+        return "Checked "
+    }
+
+    static func circularDegradedAccessibilitySuffix(
+        snapshot: ProviderSnapshot,
+        at date: Date = Date()
+    ) -> String {
+        let title = surfaceStatusTitle(snapshot: snapshot, at: date)
+        if title == "Live" { return "" }
+        return ", \(title.lowercased())"
+    }
+
+    static func limitSourceNote(
+        snapshot: ProviderSnapshot?,
+        accountPlan: String?,
+        at evaluatedAt: Date = Date()
+    ) -> String {
+        let exactCount = snapshot?.windows.filter {
+            $0.used != nil && $0.limit != nil
+        }.count ?? 0
+        let differingAmountBaseCount = snapshot?.windows.filter {
+            $0.used != nil
+                && $0.limit != nil
+                && !exactAmountsMatchUtilization($0)
+        }.count ?? 0
+        let windowCount = snapshot?.windows.count ?? 0
+        let metricCount = snapshot?.metrics.count ?? 0
+        let plan = snapshot?.planLabel ?? accountPlan
+        let live = snapshot.map { treatsPercentageAsLive(snapshot: $0, at: evaluatedAt) } ?? false
+        let planContext = planTierContext(plan: plan, treatsPercentageAsLive: live)
+
+        if let snapshot, SnapshotFreshness.hasUnconfirmedReset(in: snapshot, at: evaluatedAt) {
+            return "One or more provider resets have passed. Vigil hides those old values until a provider update confirms the new usage. Other unexpired limits and metrics remain visible."
+        }
+        if snapshot == nil {
+            return "Vigil has no accepted provider reading for this account yet."
+        }
+        if snapshot?.status != .ok {
+            if windowCount > 0 {
+                let retainedSource = exactCount > 0
+                    ? "It included exact amounts for at least one quota."
+                    : "It included percentages and reset times, but no absolute token or message ceiling."
+                let tier = exactCount == 0
+                    ? planContext.map { " \($0)" } ?? ""
+                    : ""
+                return "These values are retained from the last accepted provider reading. \(retainedSource)\(tier)"
+            }
+            if metricCount > 0 {
+                return "These balances or account metrics are retained from the last accepted provider reading."
+            }
+            return "Vigil has no accepted quota or metric reading for this account. The latest provider check was not accepted."
+        }
+        if windowCount == 0, metricCount > 0 {
+            return "This provider currently reports balances or account metrics rather than a reset quota."
+        }
+        if windowCount == 0 {
+            return "The provider accepted this account but did not report a finite quota or balance."
+        }
+        if differingAmountBaseCount > 0 {
+            return "This provider reports both a quota percentage and exact amount fields, but at least one amount ratio uses a different allowance base. Vigil preserves and labels both instead of forcing them into one calculation."
+        }
+        if exactCount == windowCount {
+            return "This provider supplied both used and limit values for every current quota."
+        }
+        if exactCount > 0 {
+            return "This provider supplied exact amounts for some quotas and percentages for the others."
+        }
+        let source = "This provider supplied quota percentages and reset times, but no absolute token or message ceiling."
+        let tier = planContext.map { " \($0) Vigil does not invent a fixed denominator from the plan name alone." } ?? ""
+        return source + tier
     }
 
     /// Freshness-line prefix for a degraded snapshot, completed by a relative

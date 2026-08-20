@@ -530,7 +530,9 @@ final class AppModel {
         for accountKey in accountKeys {
             await notifications.removeNotifications(accountKey: accountKey)
             guard destructiveCleanupIsCurrent(cleanupEpoch) else { return }
-            let ledgerCleared = await scheduler.clear(accountKey: accountKey)
+            let ledgerCleared = await SuspensionGuard.withProtection(named: "LedgerCleanup") {
+                await scheduler.clear(accountKey: accountKey)
+            }
             guard destructiveCleanupIsCurrent(cleanupEpoch) else { return }
             guard ledgerCleared else {
                 let detail = await scheduler.persistenceErrorDescription(accountKey: accountKey)
@@ -1101,7 +1103,9 @@ final class AppModel {
                 "Vigil couldn't save the account list. The previous Keychain state was restored.",
                 error: error
             )
-            let cleared = await scheduler.clear(accountKey: ref.key)
+            let cleared = await SuspensionGuard.withProtection(named: "LedgerCleanup") {
+                await scheduler.clear(accountKey: ref.key)
+            }
             if !cleared, let detail = await scheduler.persistenceErrorDescription(accountKey: ref.key) {
                 reportStorageError(
                     "Vigil restored the previous account state but couldn't clear the verification lease. \(detail)"
@@ -1686,7 +1690,9 @@ final class AppModel {
         // cleanup. Await it while the tombstone is still authoritative so a
         // successful return guarantees no old clear can erase a prompt
         // re-link's new generation state.
-        let ledgerCleared = await scheduler.clear(accountKey: account.key)
+        let ledgerCleared = await SuspensionGuard.withProtection(named: "LedgerCleanup") {
+            await scheduler.clear(accountKey: account.key)
+        }
         guard destructiveCleanupIsCurrent(cleanupEpoch) else {
             throw LinkError.persistence(
                 "Account removal was superseded by the full local-data reset."
@@ -1860,7 +1866,9 @@ final class AppModel {
         }
 
         do {
-            try await scheduler.resetAll()
+            try await SuspensionGuard.withProtection(named: "LedgerReset") {
+                try await scheduler.resetAll()
+            }
             let currentDirectoryPath = accountIndexURL.deletingLastPathComponent()
                 .standardizedFileURL.path
             let recoveryDirectories = fullRecoveryDirectories

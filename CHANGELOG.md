@@ -6,6 +6,12 @@ Anything that changes shipped behavior gets an entry here: TestFlight app builds
 
 ## Unreleased
 
+- Kept the OpenRouter S256 challenge and pasted one-time code after a transport failure so a brief connectivity blip does not force a new authorization. A rejected or unparseable exchange still starts over.
+- Recorded a classified HTTP 429 when lifecycle rotation retired the in-flight lease, so provider backoff still outranks the ordinary poll floor.
+- Wrapped ledger clear and reset in `SuspensionGuard` so those App Group flocks match the existing lock-protection rule.
+- Reject usage bodies over 1 MiB at classification so an unbounded session cannot map an oversized 2xx as Live. HTTP 401 and 429 still classify from the status code.
+- Stopped calling retained or stale percentages "live". Hidden home-screen widgets now show the linked provider. Stale freshness lines name the degraded state explicitly.
+
 ## 1.0.0 (26) — OpenRouter guided setup and provider-boundary hardening, 2026-08-14
 
 - Added a first-class **Connect OpenRouter** route: Vigil opens OpenRouter's official authorization page with an S256 challenge, exchanges the pasted one-time code for an API key, and stores that key as a non-refreshing credential. Pasting an existing key remains a disclosed fallback.

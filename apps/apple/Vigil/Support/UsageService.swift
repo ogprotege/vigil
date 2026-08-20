@@ -378,7 +378,8 @@ enum UsageService {
                     lease: lease,
                     policy: spec.poll,
                     accountKey: account.key,
-                    credentials: credentials
+                    credentials: credentials,
+                    status: status
                 )
             case .unavailable:
                 break
@@ -429,7 +430,8 @@ enum UsageService {
                     lease: lease,
                     policy: spec.poll,
                     accountKey: account.key,
-                    credentials: effectiveCredentials
+                    credentials: effectiveCredentials,
+                    status: status
                 )
             } catch {
                 if persistenceIssue == nil {
@@ -458,7 +460,8 @@ enum UsageService {
                     lease: lease,
                     policy: spec.poll,
                     accountKey: account.key,
-                    credentials: effectiveCredentials
+                    credentials: effectiveCredentials,
+                    status: status
                 )
             } catch {
                 if persistenceIssue == nil {
@@ -491,7 +494,8 @@ enum UsageService {
                     lease: lease,
                     policy: spec.poll,
                     accountKey: account.key,
-                    credentials: effectiveCredentials
+                    credentials: effectiveCredentials,
+                    status: status
                 )
             } catch {
                 if persistenceIssue == nil {
@@ -534,7 +538,8 @@ enum UsageService {
                     lease: lease,
                     policy: spec.poll,
                     accountKey: account.key,
-                    credentials: effectiveCredentials
+                    credentials: effectiveCredentials,
+                    status: status
                 )
             } catch {
                 return Result(
@@ -829,17 +834,20 @@ enum UsageService {
     /// A generation may be invalidated while this process owns the scheduler
     /// slot. Guarded release/result methods must then fail, but the local owner
     /// still needs retiring or this app/widget process can never fetch that key
-    /// again. Charge the normal floor because the request was already sent.
+    /// again. Charge the normal floor unless the caller already classified a
+    /// 429 — that backoff still outranks the ordinary floor.
     private static func retireAndReturnInactive(
         scheduler: FetchScheduler,
         lease: FetchLease,
         policy: PollPolicy,
         accountKey: String,
-        credentials: Credentials
+        credentials: Credentials,
+        status: SnapshotStatus? = nil
     ) async -> Result {
         _ = await scheduler.retireInFlightForLifecycleRotation(
             lease,
-            policy: policy
+            policy: policy,
+            status: status
         )
         return inactiveResult(credentials: credentials)
     }

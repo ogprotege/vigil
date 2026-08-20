@@ -249,10 +249,11 @@ struct OpenRouterSignInView: View {
             } catch is CancellationError {
                 // A dismissed or explicitly canceled attempt publishes nothing.
             } catch {
+                // Match Claude: a transport error does not wipe the S256
+                // challenge or the pasted one-time code. HTTP rejection and
+                // unparseable bodies still reset above.
                 guard isCurrent(), !Task.isCancelled else { return }
-                resetAuthorization(
-                    message: "Vigil couldn't reach OpenRouter. Open authorization again and try a new one-time code."
-                )
+                errorMessage = "Vigil couldn't reach OpenRouter. Check your connection and try the same one-time code again."
             }
         }
     }

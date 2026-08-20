@@ -127,7 +127,10 @@ public enum UsageClient {
 
     /// Classifies an HTTP result per the shared error taxonomy:
     /// 401/403 -> authExpired, 429 -> rateLimited, other non-2xx -> network,
-    /// unparseable 2xx -> schemaChanged.
+    /// unparseable 2xx -> schemaChanged. An oversized 2xx is `.network` and
+    /// is never mapped Live, even when the session skipped the bounded
+    /// delegate. 401/429 still classify from the status code without
+    /// inspecting the body.
     public static func classify(data: Data, statusCode: Int, spec: ProviderSpec) -> Outcome {
         switch statusCode {
         case 401, 403:
@@ -135,6 +138,9 @@ public enum UsageClient {
         case 429:
             return Outcome(status: .rateLimited, planLabel: nil, windows: [])
         case 200...299:
+            guard BoundedTransportPolicy.accepts(receivedByteCount: data.count) else {
+                return Outcome(status: .network, planLabel: nil, windows: [])
+            }
             if let envelopeStatus = UsageMapper.envelopeStatus(spec: spec, body: data) {
                 return Outcome(status: envelopeStatus, planLabel: nil, windows: [])
             }

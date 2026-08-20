@@ -86,6 +86,12 @@ struct SmallUsageView: View {
                         )
                             .font(.caption2)
                             .foregroundStyle(.orange)
+                            .accessibilityLabel(
+                                UsagePresentation.surfaceStatusTitle(
+                                    snapshot: snapshot,
+                                    at: entry.date
+                                )
+                            )
                     }
                 }
                 if let tightest {
@@ -198,9 +204,13 @@ struct SmallUsageView: View {
     }
 
     private func privateSummary(_ snapshot: ProviderSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let providerTitle = UsagePresentation.hiddenWidgetProviderTitle(
+            account: entry.account,
+            providerId: snapshot.providerId
+        )
+        return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Vigil")
+                Text(providerTitle)
                 .font(.caption.weight(.semibold))
                 .lineLimit(1)
                 Spacer()
@@ -230,7 +240,7 @@ struct SmallUsageView: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            Text(UsagePresentation.hiddenUsageAccessibilityLabel)
+            Text(UsagePresentation.hiddenUsageAccessibilityLabel(providerDisplayName: providerTitle))
         )
     }
 
@@ -263,7 +273,11 @@ struct CircularUsageView: View {
     }
 
     private var degradedSuffix: String {
-        degraded ? ", data may be out of date" : ""
+        guard let snapshot = entry.snapshot else { return "" }
+        return UsagePresentation.circularDegradedAccessibilitySuffix(
+            snapshot: snapshot,
+            at: entry.date
+        )
     }
 
     var body: some View {
@@ -277,7 +291,14 @@ struct CircularUsageView: View {
             .widgetAccentable()
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(
-                Text(UsagePresentation.hiddenUsageAccessibilityLabel)
+                Text(
+                    UsagePresentation.hiddenUsageAccessibilityLabel(
+                        providerDisplayName: UsagePresentation.hiddenWidgetProviderTitle(
+                            account: entry.account,
+                            providerId: entry.snapshot?.providerId ?? ""
+                        )
+                    )
+                )
             )
         } else if let snapshot = entry.snapshot,
            let tightest = SnapshotFreshness.confirmedWindows(
