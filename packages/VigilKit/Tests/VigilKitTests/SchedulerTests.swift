@@ -194,15 +194,19 @@ final class SchedulerTests: XCTestCase {
         let store = FileLedgerStore(directory: try TestSupport.tempDirectory())
         let scheduler = makeScheduler(clock: clock, store: store)
 
-        let lease = try XCTUnwrap(await scheduler.acquireLease(accountKey: key, policy: policy))
+        // Await actor hops into locals first. XCTUnwrap / XCTAssertEqual take
+        // autoclosures, and Swift 5.10 cannot await inside those.
+        let acquiredLease = await scheduler.acquireLease(accountKey: key, policy: policy)
+        let lease = try XCTUnwrap(acquiredLease)
         let retired = await scheduler.retireInFlightForLifecycleRotation(
             lease,
             policy: policy,
             status: .rateLimited
         )
         XCTAssertTrue(retired)
+        let next = await scheduler.nextAllowedFetch(accountKey: key)
         XCTAssertEqual(
-            await scheduler.nextAllowedFetch(accountKey: key)?.timeIntervalSince(clock.now()),
+            next?.timeIntervalSince(clock.now()),
             policy.backoff429BaseSeconds,
             "a classified 429 must keep provider backoff after generation rotation"
         )
