@@ -113,6 +113,24 @@ final class OpenRouterAuthTests: XCTestCase {
         )
     }
 
+    func testTransportFailureDoesNotConsumeAuthorizationChallenge() {
+        XCTAssertFalse(
+            OpenRouterAuth.shouldResetAuthorization(
+                afterTransportError: URLError(.notConnectedToInternet)
+            )
+        )
+        XCTAssertFalse(
+            OpenRouterAuth.shouldResetAuthorization(
+                afterTransportError: URLError(.timedOut)
+            )
+        )
+        XCTAssertFalse(
+            OpenRouterAuth.shouldResetAuthorization(
+                afterTransportError: URLError(.networkConnectionLost)
+            )
+        )
+    }
+
     func testCredentialsFromExchangeRejectMalformedResponses() throws {
         XCTAssertNil(OpenRouterAuth.credentials(fromExchange: Data("not-json".utf8)))
         XCTAssertNil(OpenRouterAuth.credentials(fromExchange: Data("{}".utf8)))

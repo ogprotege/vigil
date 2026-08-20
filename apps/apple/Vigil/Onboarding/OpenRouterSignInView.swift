@@ -250,9 +250,13 @@ struct OpenRouterSignInView: View {
                 // A dismissed or explicitly canceled attempt publishes nothing.
             } catch {
                 guard isCurrent(), !Task.isCancelled else { return }
-                resetAuthorization(
-                    message: "Vigil couldn't reach OpenRouter. Open authorization again and try a new one-time code."
-                )
+                if OpenRouterAuth.shouldResetAuthorization(afterTransportError: error) {
+                    resetAuthorization(
+                        message: "Vigil couldn't reach OpenRouter. Open authorization again and try a new one-time code."
+                    )
+                } else {
+                    errorMessage = "Vigil couldn't reach OpenRouter. Check your connection and try the same one-time code again."
+                }
             }
         }
     }

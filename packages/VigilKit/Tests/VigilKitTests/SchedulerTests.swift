@@ -189,6 +189,37 @@ final class SchedulerTests: XCTestCase {
         await scheduler.release(accountKey: key)
     }
 
+    func testLifecycleRotationPreserves429WhenStatusIsKnown() async throws {
+        let clock = ClockBox(Date(timeIntervalSince1970: 1_784_408_400))
+        let store = FileLedgerStore(directory: try TestSupport.tempDirectory())
+        let scheduler = makeScheduler(clock: clock, store: store)
+
+        let lease = try XCTUnwrap(await scheduler.acquireLease(accountKey: key, policy: policy))
+        let retired = await scheduler.retireInFlightForLifecycleRotation(
+            lease,
+            policy: policy,
+            status: .rateLimited
+        )
+        XCTAssertTrue(retired)
+        XCTAssertEqual(
+            await scheduler.nextAllowedFetch(accountKey: key)?.timeIntervalSince(clock.now()),
+            policy.backoff429BaseSeconds,
+            "a classified 429 must keep provider backoff after generation rotation"
+        )
+
+        clock.advance(by: policy.minSeconds + 1)
+        let stillBlocked = await scheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertFalse(
+            stillBlocked,
+            "429 backoff must outrank the ordinary floor after rotation"
+        )
+
+        clock.advance(by: policy.backoff429BaseSeconds)
+        let allowed = await scheduler.acquire(accountKey: key, policy: policy)
+        XCTAssertTrue(allowed)
+        await scheduler.release(accountKey: key)
+    }
+
     func testStaleLeaseRetirementCannotClearNewLifecycleOwner() async throws {
         let clock = ClockBox(Date(timeIntervalSince1970: 1_784_408_400))
         let store = FileLedgerStore(directory: try TestSupport.tempDirectory())

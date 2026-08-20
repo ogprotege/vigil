@@ -517,14 +517,19 @@ public actor FetchScheduler {
     /// result recording, so leaving its process-local owner behind would make
     /// every later acquire fail forever in this process. If a request was
     /// actually in flight, charge the ordinary provider floor before releasing
-    /// it. A completed verification has already removed its owner and is left
-    /// untouched.
+    /// it — unless the caller already classified a 429, in which case the
+    /// provider backoff still outranks that floor. A completed verification
+    /// has already removed its owner and is left untouched.
     @discardableResult
     public func retireInFlightForLifecycleRotation(
         accountKey: String,
-        policy: PollPolicy
+        policy: PollPolicy,
+        status: SnapshotStatus? = nil
     ) -> Bool {
         guard inFlight[accountKey] != nil else { return true }
+        if status == .rateLimited {
+            return recordResult(accountKey: accountKey, policy: policy, status: .rateLimited)
+        }
         return chargeFloor(accountKey: accountKey, policy: policy)
     }
 
@@ -534,9 +539,13 @@ public actor FetchScheduler {
     @discardableResult
     public func retireInFlightForLifecycleRotation(
         _ lease: FetchLease,
-        policy: PollPolicy
+        policy: PollPolicy,
+        status: SnapshotStatus? = nil
     ) -> Bool {
         guard inFlight[lease.accountKey] == lease.owner else { return true }
+        if status == .rateLimited {
+            return recordResult(lease, policy: policy, status: .rateLimited)
+        }
         return chargeFloor(lease, policy: policy)
     }
 
