@@ -79,22 +79,19 @@ struct SmallUsageView: View {
                         .lineLimit(1)
                     Spacer()
                     if degraded {
-                        HStack(spacing: 3) {
-                            Image(
-                                systemName: snapshot.status == .ok
-                                    ? "clock.badge.exclamationmark"
-                                    : statusSymbol(snapshot.status)
-                            )
-                            Text(
+                        Image(
+                            systemName: snapshot.status == .ok
+                                ? "clock.badge.exclamationmark"
+                                : statusSymbol(snapshot.status)
+                        )
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                            .accessibilityLabel(
                                 UsagePresentation.surfaceStatusTitle(
                                     snapshot: snapshot,
                                     at: entry.date
                                 )
                             )
-                            .lineLimit(1)
-                        }
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
                     }
                 }
                 if let tightest {
@@ -296,7 +293,10 @@ struct CircularUsageView: View {
             .accessibilityLabel(
                 Text(
                     UsagePresentation.hiddenUsageAccessibilityLabel(
-                        providerDisplayName: entry.account?.displayName
+                        providerDisplayName: UsagePresentation.hiddenWidgetProviderTitle(
+                            account: entry.account,
+                            providerId: entry.snapshot?.providerId ?? ""
+                        )
                     )
                 )
             )

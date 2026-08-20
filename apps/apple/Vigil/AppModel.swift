@@ -1522,24 +1522,22 @@ final class AppModel {
         credentials: Credentials,
         generation: AccountLifecycleGeneration? = nil
     ) async -> UsageService.Result {
-        await SuspensionGuard.withProtection(named: "AccountVerify") {
-            await UsageService.refresh(
-                account: account,
-                credentials: credentials,
-                scheduler: scheduler,
-                snapshots: snapshotStore,
-                vault: nil,
-                surface: "verify",
-                session: usageSession,
-                persistSnapshot: false,
-                emitThresholdEvents: false,
-                persistRotatedCredentials: false,
-                allowCredentialRefresh: false,
-                pendingEvents: pendingEvents,
-                lifecycle: generation == nil ? nil : lifecycleStore,
-                generation: generation
-            )
-        }
+        await UsageService.refresh(
+            account: account,
+            credentials: credentials,
+            scheduler: scheduler,
+            snapshots: snapshotStore,
+            vault: nil,
+            surface: "verify",
+            session: usageSession,
+            persistSnapshot: false,
+            emitThresholdEvents: false,
+            persistRotatedCredentials: false,
+            allowCredentialRefresh: false,
+            pendingEvents: pendingEvents,
+            lifecycle: generation == nil ? nil : lifecycleStore,
+            generation: generation
+        )
     }
 
     func removeAccount(_ account: AccountRef) async throws {

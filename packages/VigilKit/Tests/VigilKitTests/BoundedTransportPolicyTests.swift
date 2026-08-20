@@ -27,4 +27,37 @@ final class BoundedTransportPolicyTests: XCTestCase {
             )
         )
     }
+
+    func testOversizedSuccessBodyIsNetworkAndDoesNotMap() {
+        let huge = Data(count: BoundedTransportPolicy.maximumResponseBytes + 1)
+        let outcome = UsageClient.classify(
+            data: huge,
+            statusCode: 200,
+            spec: ProviderRegistry.claude
+        )
+        XCTAssertEqual(outcome.status, .network)
+        XCTAssertTrue(outcome.windows.isEmpty)
+        XCTAssertTrue(outcome.metrics.isEmpty)
+        XCTAssertNil(outcome.planLabel)
+    }
+
+    func testOversizedAuthAndRateLimitBodiesStillClassifyFromStatus() {
+        let huge = Data(count: BoundedTransportPolicy.maximumResponseBytes + 1)
+        XCTAssertEqual(
+            UsageClient.classify(
+                data: huge,
+                statusCode: 429,
+                spec: ProviderRegistry.claude
+            ).status,
+            .rateLimited
+        )
+        XCTAssertEqual(
+            UsageClient.classify(
+                data: huge,
+                statusCode: 401,
+                spec: ProviderRegistry.claude
+            ).status,
+            .authExpired
+        )
+    }
 }

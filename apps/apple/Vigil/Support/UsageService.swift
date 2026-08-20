@@ -254,18 +254,11 @@ enum UsageService {
                 // this request counted against its rate limits and must charge
                 // the poll clock — see `shouldChargePollClock` below.
                 providerAnswered = true
-                if BoundedTransportPolicy.accepts(receivedByteCount: data.count) {
-                    let outcome = UsageClient.classify(data: data, statusCode: code, spec: spec)
-                    status = outcome.status
-                    planLabel = outcome.planLabel
-                    windows = outcome.windows
-                    metrics = outcome.metrics
-                } else {
-                    status = .network
-                    planLabel = nil
-                    windows = []
-                    metrics = []
-                }
+                let outcome = UsageClient.classify(data: data, statusCode: code, spec: spec)
+                status = outcome.status
+                planLabel = outcome.planLabel
+                windows = outcome.windows
+                metrics = outcome.metrics
             } catch {
                 // Cancellation (scene ended, BG task expired) is not a provider
                 // failure, so the account is not painted "offline" and no

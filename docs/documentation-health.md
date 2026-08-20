@@ -4,7 +4,7 @@ This page records documentation coverage, review triggers, and known debt. It is
 
 > Status: current
 >
-> Last reviewed: 2026-08-20
+> Last reviewed: 2026-08-14
 >
 > Review again: before each release and after any product-boundary change
 

@@ -292,6 +292,26 @@ final class UsagePresentationTests: XCTestCase {
             at: fetchedAt
         )
         XCTAssertTrue(liveNote.contains("live percentage already reflects that tier"))
+
+        let stale = ProviderSnapshot(
+            providerId: "claude",
+            accountKey: "claude:test",
+            accountLabel: nil,
+            planLabel: "pro",
+            fetchedAt: fetchedAt.addingTimeInterval(-(SnapshotFreshness.staleAfter + 1)),
+            status: .ok,
+            windows: [window]
+        )
+        let staleNote = UsagePresentation.limitSourceNote(
+            snapshot: stale,
+            accountPlan: "pro",
+            at: fetchedAt
+        )
+        XCTAssertTrue(staleNote.contains("last accepted reading"))
+        XCTAssertFalse(
+            staleNote.localizedCaseInsensitiveContains("live percentage"),
+            "Stale accepted percentages must not be described as live: \(staleNote)"
+        )
     }
 
     func testAcceptedFreshnessPrefixNamesStaleData() {
@@ -323,6 +343,10 @@ final class UsagePresentationTests: XCTestCase {
         XCTAssertFalse(
             UsagePresentation.hiddenWidgetProviderTitle(account: account, providerId: "claude")
                 .localizedCaseInsensitiveContains("personal")
+        )
+        XCTAssertEqual(
+            UsagePresentation.hiddenWidgetProviderTitle(account: nil, providerId: "claude"),
+            "Claude"
         )
         let spoken = UsagePresentation.hiddenUsageAccessibilityLabel(providerDisplayName: "Claude")
         XCTAssertTrue(spoken.hasPrefix("Claude."))

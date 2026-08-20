@@ -130,8 +130,8 @@ enum UsagePresentation {
     /// Settings promises the provider identity remains visible when values
     /// are hidden. Use the registry display name, never a user-supplied label.
     static func hiddenWidgetProviderTitle(account: AccountRef?, providerId: String) -> String {
-        if let account { return account.displayName }
-        return ProviderRegistry.spec(for: providerId)?.displayName ?? "Vigil"
+        let resolvedId = account?.providerId ?? providerId
+        return ProviderRegistry.spec(for: resolvedId)?.displayName ?? "Vigil"
     }
 
     static func hiddenUsageAccessibilityLabel(providerDisplayName: String?) -> String {

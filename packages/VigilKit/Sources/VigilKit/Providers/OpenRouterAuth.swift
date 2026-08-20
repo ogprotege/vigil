@@ -95,14 +95,6 @@ public enum OpenRouterAuth {
         return request
     }
 
-    /// A transport error does not consume OpenRouter's one-time code or the
-    /// S256 challenge that minted it. Only a completed HTTP rejection or an
-    /// unparseable body should force a new authorization.
-    public static func shouldResetAuthorization(afterTransportError error: Error) -> Bool {
-        _ = error
-        return false
-    }
-
     /// Turns a successful exchange response into a copied/manual OpenRouter
     /// credential. It has no refresh token or expiry and will never enter the
     /// refresh-token path used by Vigil-owned OAuth token pairs.
