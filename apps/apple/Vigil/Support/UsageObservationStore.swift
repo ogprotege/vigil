@@ -99,8 +99,9 @@ struct LegacyUsageObservationStore: Sendable {
     }
 
     func load() throws -> [LegacyUsageObservation] {
-        guard exists else { return [] }
-        let data = try Data(contentsOf: fileURL)
+        guard let data = try TrustedPersistenceFile.readIfPresent(at: fileURL) else {
+            return []
+        }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return try decoder.decode([LegacyUsageObservation].self, from: data)

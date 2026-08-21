@@ -31,12 +31,23 @@ extension StorePersistenceError: LocalizedError {
     }
 }
 
+/// Bounded, no-follow reader for trusted-container persistence shared with
+/// app-layer stores. It applies the same regular-file, owner-permission, data
+/// protection, and one-mebibyte checks as VigilKit's snapshot/event stores.
+public enum TrustedPersistenceFile {
+    public static let maximumBytes = 1_048_576
+
+    public static func readIfPresent(at url: URL) throws -> Data? {
+        try PersistenceFileIO.readIfPresent(at: url)
+    }
+}
+
 /// POSIX-backed storage primitives shared by the snapshot and pending-event
 /// stores. Locks are advisory and cross-process. Writes use a same-directory
 /// temporary file, fsync, and atomic rename so a crash cannot expose partial
 /// JSON.
 enum PersistenceFileIO {
-    static let maximumTrustedFileBytes = 1_048_576
+    static let maximumTrustedFileBytes = TrustedPersistenceFile.maximumBytes
 
     static func ensureDirectory(_ directory: URL) throws {
         let manager = FileManager.default
