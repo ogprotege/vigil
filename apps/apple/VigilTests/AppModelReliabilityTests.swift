@@ -3244,7 +3244,10 @@ final class AppModelReliabilityTests: XCTestCase {
     }
 
     private func waitForRelinkRaceRequest(_ gate: RelinkRaceGate) async -> Bool {
-        for _ in 0..<200 {
+        // GitHub can run the push and pull-request macOS schemes in parallel.
+        // URLProtocol startup has exceeded two seconds under that load even
+        // though the same deterministic gate passes in the sibling run.
+        for _ in 0..<1_000 {
             if gate.requestCount > 0 { return true }
             try? await Task.sleep(for: .milliseconds(10))
         }
