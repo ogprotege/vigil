@@ -104,4 +104,36 @@ final class AppPrivacyPolicyTests: XCTestCase {
             )
         )
     }
+
+    func testRootDestinationLaunchHookCannotChangeReleaseNavigation() {
+        #if DEBUG
+        XCTAssertEqual(
+            VigilLaunchConfiguration.destination(
+                environment: ["VIGIL_TAB": "settings"]
+            ),
+            .settings
+        )
+        XCTAssertEqual(
+            VigilLaunchConfiguration.destination(
+                environment: ["VIGIL_TAB": "connections"]
+            ),
+            .connections
+        )
+        #endif
+        XCTAssertEqual(
+            VigilLaunchConfiguration.destination(
+                environment: ["VIGIL_TAB": "not-a-destination"]
+            ),
+            .home
+        )
+        #if !DEBUG
+        XCTAssertEqual(
+            VigilLaunchConfiguration.destination(
+                environment: ["VIGIL_TAB": "settings"]
+            ),
+            .home,
+            "Release builds must ignore screenshot and UI-test navigation hooks"
+        )
+        #endif
+    }
 }
