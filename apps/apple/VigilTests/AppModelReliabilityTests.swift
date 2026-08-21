@@ -136,6 +136,100 @@ final class AppModelReliabilityTests: XCTestCase {
         ))
     }
 
+    func testSameProviderCredentialCannotCrossAccountBoundary() async throws {
+        let directory = try makeTemporaryDirectory()
+        StubURLProtocol.reset()
+        defer { StubURLProtocol.reset() }
+        StubURLProtocol.respond(statusCode: 200, body: Data("{}".utf8))
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let account = AccountRef(
+            key: "codex:acct-owner",
+            providerId: "codex",
+            label: nil,
+            plan: nil
+        )
+        let otherAccountCredentials = Credentials(
+            providerId: "codex",
+            accessToken: "other-account-token",
+            accountId: "acct-other"
+        )
+
+        let result = await UsageService.refresh(
+            account: account,
+            credentials: otherAccountCredentials,
+            scheduler: FetchScheduler(
+                store: FileLedgerStore(directory: directory),
+                jitter: { _ in 0 }
+            ),
+            snapshots: SnapshotStore(directory: directory),
+            surface: "test",
+            session: session
+        )
+
+        guard case .mismatchedCredentials? = result.persistenceIssue else {
+            return XCTFail("Expected same-provider cross-account quarantine")
+        }
+        XCTAssertNil(result.snapshot)
+        XCTAssertEqual(StubURLProtocol.requestCount, 0)
+        XCTAssertNil(
+            BoundAccount.validated(
+                account: account,
+                credentials: otherAccountCredentials
+            )
+        )
+        XCTAssertNotNil(
+            BoundAccount.validated(
+                account: account,
+                credentials: Credentials(
+                    providerId: "codex",
+                    accessToken: "owner-token",
+                    accountId: "acct-owner"
+                )
+            )
+        )
+    }
+
+    func testMalformedStoredCredentialIsQuarantinedBeforeAnyProviderRequest() async throws {
+        let directory = try makeTemporaryDirectory()
+        StubURLProtocol.reset()
+        defer { StubURLProtocol.reset() }
+        StubURLProtocol.respond(statusCode: 200, body: Data("{}".utf8))
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let account = AccountRef(
+            key: "claude:credential:deadbeef",
+            providerId: "claude",
+            label: nil,
+            plan: nil
+        )
+        let malformed = Credentials(
+            providerId: "claude",
+            accessToken: "header\ninjection"
+        )
+
+        let result = await UsageService.refresh(
+            account: account,
+            credentials: malformed,
+            scheduler: FetchScheduler(
+                store: FileLedgerStore(directory: directory),
+                jitter: { _ in 0 }
+            ),
+            snapshots: SnapshotStore(directory: directory),
+            surface: "test",
+            session: session
+        )
+
+        guard case .mismatchedCredentials? = result.persistenceIssue else {
+            return XCTFail("Expected malformed credential quarantine")
+        }
+        XCTAssertNil(result.snapshot)
+        XCTAssertEqual(StubURLProtocol.requestCount, 0)
+        XCTAssertNil(BoundAccount.validated(account: account, credentials: malformed))
+    }
+
     func testProviderUsageSessionCannotReuseURLCacheAsFreshUsage() {
         let session = ProviderUsageSession.make()
 
