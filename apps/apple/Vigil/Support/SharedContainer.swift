@@ -265,13 +265,9 @@ enum OpaqueAccountIdentifier {
 
 enum AccountIndex {
     static func load(from url: URL = SharedContainer.accountIndexURL) throws -> [AccountRef] {
-        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
-        guard let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
-              size <= 1_048_576
-        else {
-            throw CocoaError(.fileReadTooLarge)
+        guard let data = try TrustedPersistenceFile.readIfPresent(at: url) else {
+            return []
         }
-        let data = try Data(contentsOf: url)
         let refs = try JSONDecoder().decode([AccountRef].self, from: data)
         try validateStorageKeys(refs)
         return refs
@@ -298,23 +294,51 @@ enum AccountIndex {
         try FileManager.default.setAttributes(attributes, ofItemAtPath: url.path)
     }
 
-    /// Copies damaged bytes aside before recovery replaces the live index.
-    /// The backup contains account references only, never credentials.
+    /// Atomically moves damaged bytes aside before recovery replaces the live
+    /// index. Renaming in the same directory preserves them without buffering
+    /// a file that the bounded reader already rejected.
     @discardableResult
     static func preserveCorruptFile(at url: URL) throws -> URL {
+        let directory = url.deletingLastPathComponent()
         try FileManager.default.setAttributes(
             [.posixPermissions: 0o700],
-            ofItemAtPath: url.deletingLastPathComponent().path
+            ofItemAtPath: directory.path
         )
-        let data = try Data(contentsOf: url)
-        let backup = url.deletingLastPathComponent()
-            .appendingPathComponent("account-index.corrupt-\(UUID().uuidString).json")
-        try data.write(to: backup, options: [.atomic, .completeFileProtectionUnlessOpen])
+        var metadata = stat()
+        guard Darwin.lstat(url.path, &metadata) == 0 else {
+            let code = errno
+            throw preservationError(
+                "Could not inspect the damaged account index",
+                path: url.path,
+                code: code
+            )
+        }
+        guard metadata.st_mode & S_IFMT == S_IFREG else {
+            throw CocoaError(
+                .fileReadUnknown,
+                userInfo: [
+                    NSFilePathErrorKey: url.path,
+                    NSLocalizedFailureReasonErrorKey:
+                        "The damaged account index is not a regular file.",
+                ]
+            )
+        }
         var attributes: [FileAttributeKey: Any] = [.posixPermissions: 0o600]
         #if os(iOS)
         attributes[.protectionKey] = FileProtectionType.completeUntilFirstUserAuthentication
         #endif
-        try FileManager.default.setAttributes(attributes, ofItemAtPath: backup.path)
+        try FileManager.default.setAttributes(attributes, ofItemAtPath: url.path)
+
+        let backup = directory
+            .appendingPathComponent("account-index.corrupt-\(UUID().uuidString).json")
+        guard Darwin.rename(url.path, backup.path) == 0 else {
+            let code = errno
+            throw preservationError(
+                "Could not preserve the damaged account index",
+                path: url.path,
+                code: code
+            )
+        }
         return backup
     }
 
@@ -388,6 +412,22 @@ enum AccountIndex {
     private static func storageComponent(_ accountKey: String) -> String {
         accountKey.replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: ":", with: "_")
+    }
+
+    private static func preservationError(
+        _ operation: String,
+        path: String,
+        code: Int32
+    ) -> NSError {
+        NSError(
+            domain: NSPOSIXErrorDomain,
+            code: Int(code),
+            userInfo: [
+                NSFilePathErrorKey: path,
+                NSLocalizedDescriptionKey:
+                    "\(operation): \(String(cString: strerror(code)))",
+            ]
+        )
     }
 }
 
@@ -879,11 +919,11 @@ struct AccountLifecycleStore: Sendable {
     }
 
     private func loadUnlocked() throws -> Registry {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
-            return Registry()
-        }
         do {
-            return try JSONDecoder().decode(Registry.self, from: Data(contentsOf: fileURL))
+            guard let data = try TrustedPersistenceFile.readIfPresent(at: fileURL) else {
+                return Registry()
+            }
+            return try JSONDecoder().decode(Registry.self, from: data)
         } catch {
             throw AccountLifecycleError.corruptRegistry(error.localizedDescription)
         }

@@ -1,19 +1,29 @@
 import SwiftUI
 
-private enum VigilLaunchDestination: String {
+enum VigilLaunchDestination: String {
     case home
     case connections
     case settings
 }
 
+enum VigilLaunchConfiguration {
+    static func destination(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> VigilLaunchDestination {
+        #if DEBUG
+        let raw = environment["VIGIL_TAB"] ?? "home"
+        if raw == "limits" { return .home }
+        return VigilLaunchDestination(rawValue: raw) ?? .home
+        #else
+        return .home
+        #endif
+    }
+}
+
 struct RootView: View {
     /// `VIGIL_TAB` remains a deterministic UI-test and screenshot hook for
     /// shipping destinations. Production always launches Home.
-    private let launchDestination: VigilLaunchDestination = {
-        let raw = ProcessInfo.processInfo.environment["VIGIL_TAB"] ?? "home"
-        if raw == "limits" { return .home }
-        return VigilLaunchDestination(rawValue: raw) ?? .home
-    }()
+    private let launchDestination = VigilLaunchConfiguration.destination()
 
     var body: some View {
         NavigationStack {

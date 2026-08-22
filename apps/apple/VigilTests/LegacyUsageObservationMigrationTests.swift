@@ -138,6 +138,29 @@ final class LegacyUsageObservationMigrationTests: XCTestCase {
         XCTAssertFalse(store.exists)
     }
 
+    func testOversizedLegacyObservationFileIsRejectedBeforeDecode() throws {
+        let directory = try temporaryDirectory()
+        let fileURL = legacyFile(in: directory)
+        try Data(
+            repeating: 0x20,
+            count: TrustedPersistenceFile.maximumBytes + 1
+        ).write(to: fileURL)
+
+        do {
+            _ = try LegacyUsageObservationStore(directory: directory).load()
+            XCTFail("Expected the oversized legacy file to be rejected")
+        } catch StorePersistenceError.corruptData(_, let reason) {
+            XCTAssertTrue(
+                reason.contains("trusted-container size ceiling"),
+                "The bounded reader should reject the file before JSON decoding: \(reason)"
+            )
+        }
+        XCTAssertEqual(
+            try fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+            TrustedPersistenceFile.maximumBytes + 1
+        )
+    }
+
     @discardableResult
     private func writeLegacy(
         _ observations: [LegacyUsageObservation],

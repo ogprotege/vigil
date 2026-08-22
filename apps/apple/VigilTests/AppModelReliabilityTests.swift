@@ -136,6 +136,100 @@ final class AppModelReliabilityTests: XCTestCase {
         ))
     }
 
+    func testSameProviderCredentialCannotCrossAccountBoundary() async throws {
+        let directory = try makeTemporaryDirectory()
+        StubURLProtocol.reset()
+        defer { StubURLProtocol.reset() }
+        StubURLProtocol.respond(statusCode: 200, body: Data("{}".utf8))
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let account = AccountRef(
+            key: "codex:acct-owner",
+            providerId: "codex",
+            label: nil,
+            plan: nil
+        )
+        let otherAccountCredentials = Credentials(
+            providerId: "codex",
+            accessToken: "other-account-token",
+            accountId: "acct-other"
+        )
+
+        let result = await UsageService.refresh(
+            account: account,
+            credentials: otherAccountCredentials,
+            scheduler: FetchScheduler(
+                store: FileLedgerStore(directory: directory),
+                jitter: { _ in 0 }
+            ),
+            snapshots: SnapshotStore(directory: directory),
+            surface: "test",
+            session: session
+        )
+
+        guard case .mismatchedCredentials? = result.persistenceIssue else {
+            return XCTFail("Expected same-provider cross-account quarantine")
+        }
+        XCTAssertNil(result.snapshot)
+        XCTAssertEqual(StubURLProtocol.requestCount, 0)
+        XCTAssertNil(
+            BoundAccount.validated(
+                account: account,
+                credentials: otherAccountCredentials
+            )
+        )
+        XCTAssertNotNil(
+            BoundAccount.validated(
+                account: account,
+                credentials: Credentials(
+                    providerId: "codex",
+                    accessToken: "owner-token",
+                    accountId: "acct-owner"
+                )
+            )
+        )
+    }
+
+    func testMalformedStoredCredentialIsQuarantinedBeforeAnyProviderRequest() async throws {
+        let directory = try makeTemporaryDirectory()
+        StubURLProtocol.reset()
+        defer { StubURLProtocol.reset() }
+        StubURLProtocol.respond(statusCode: 200, body: Data("{}".utf8))
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let account = AccountRef(
+            key: "claude:credential:deadbeef",
+            providerId: "claude",
+            label: nil,
+            plan: nil
+        )
+        let malformed = Credentials(
+            providerId: "claude",
+            accessToken: "header\ninjection"
+        )
+
+        let result = await UsageService.refresh(
+            account: account,
+            credentials: malformed,
+            scheduler: FetchScheduler(
+                store: FileLedgerStore(directory: directory),
+                jitter: { _ in 0 }
+            ),
+            snapshots: SnapshotStore(directory: directory),
+            surface: "test",
+            session: session
+        )
+
+        guard case .mismatchedCredentials? = result.persistenceIssue else {
+            return XCTFail("Expected malformed credential quarantine")
+        }
+        XCTAssertNil(result.snapshot)
+        XCTAssertEqual(StubURLProtocol.requestCount, 0)
+        XCTAssertNil(BoundAccount.validated(account: account, credentials: malformed))
+    }
+
     func testProviderUsageSessionCannotReuseURLCacheAsFreshUsage() {
         let session = ProviderUsageSession.make()
 
@@ -2119,6 +2213,25 @@ final class AppModelReliabilityTests: XCTestCase {
         XCTAssertThrowsError(try AccountIndex.load(from: url))
     }
 
+    func testOversizedLifecycleRegistryFailsClosedBeforeDecode() throws {
+        let directory = try makeTemporaryDirectory()
+        let lifecycleURL = directory.appendingPathComponent("account-lifecycle.json")
+        try Data(
+            repeating: 0x7B,
+            count: TrustedPersistenceFile.maximumBytes + 1
+        ).write(to: lifecycleURL)
+
+        do {
+            _ = try AccountLifecycleStore(directory: directory).statuses()
+            XCTFail("Expected an oversized lifecycle registry to fail closed")
+        } catch AccountLifecycleError.corruptRegistry(let reason) {
+            XCTAssertTrue(
+                reason.contains("trusted-container size ceiling"),
+                "The bounded reader should reject the file before JSON decoding: \(reason)"
+            )
+        }
+    }
+
     func testAccountIndexRejectsCollidingStorageKeys() throws {
         let directory = try makeTemporaryDirectory()
         let url = directory.appendingPathComponent("account-index.json")
@@ -2171,6 +2284,54 @@ final class AppModelReliabilityTests: XCTestCase {
 
         XCTAssertFalse(model.hasAccountRepairBackups)
         XCTAssertFalse(FileManager.default.fileExists(atPath: backups[0].path))
+    }
+
+    func testOversizedCorruptAccountIndexIsMovedWithoutBufferingIt() throws {
+        let directory = try makeTemporaryDirectory()
+        let indexURL = directory.appendingPathComponent("account-index.json")
+        try Data(
+            repeating: 0x78,
+            count: TrustedPersistenceFile.maximumBytes + 1
+        ).write(to: indexURL)
+        let originalAttributes = try FileManager.default.attributesOfItem(
+            atPath: indexURL.path
+        )
+        let originalFileNumber = try XCTUnwrap(
+            originalAttributes[.systemFileNumber] as? NSNumber
+        )
+        let credentials = Credentials(
+            providerId: "claude",
+            accessToken: "oversized-index-recovery",
+            label: "Recovered"
+        )
+        let accountKey = AppModel.accountKey(for: credentials)
+        let vault = InMemoryCredentialsStore()
+        try vault.save(credentials, accountKey: accountKey)
+
+        let model = AppModel(vault: vault, directory: directory)
+        model.ensureLoadedFromDisk()
+
+        XCTAssertTrue(model.accountIndexUsable)
+        XCTAssertEqual(model.accounts.map(\.key), [accountKey])
+        XCTAssertEqual(try AccountIndex.load(from: indexURL), model.accounts)
+        let backups = try FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil
+        ).filter { $0.lastPathComponent.hasPrefix("account-index.corrupt-") }
+        XCTAssertEqual(backups.count, 1)
+        let backup = try XCTUnwrap(backups.first)
+        let backupAttributes = try FileManager.default.attributesOfItem(
+            atPath: backup.path
+        )
+        XCTAssertEqual(
+            backupAttributes[.systemFileNumber] as? NSNumber,
+            originalFileNumber,
+            "Preservation should rename the rejected file instead of reading and copying it"
+        )
+        XCTAssertEqual(
+            backupAttributes[.size] as? NSNumber,
+            NSNumber(value: TrustedPersistenceFile.maximumBytes + 1)
+        )
     }
 
     func testValidEmptyIndexRecoversActiveCredentialMissingFromIndex() throws {
@@ -3150,7 +3311,10 @@ final class AppModelReliabilityTests: XCTestCase {
     }
 
     private func waitForRelinkRaceRequest(_ gate: RelinkRaceGate) async -> Bool {
-        for _ in 0..<200 {
+        // GitHub can run the push and pull-request macOS schemes in parallel.
+        // URLProtocol startup has exceeded two seconds under that load even
+        // though the same deterministic gate passes in the sibling run.
+        for _ in 0..<1_000 {
             if gate.requestCount > 0 { return true }
             try? await Task.sleep(for: .milliseconds(10))
         }
