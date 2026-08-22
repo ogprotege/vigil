@@ -40,7 +40,7 @@ struct CodexSignInView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
-        .task { await run() }
+        .task { startSignIn() }
         .onDisappear { retryAttempt.cancel() }
     }
 
@@ -133,7 +133,7 @@ struct CodexSignInView: View {
         case .failed(let message):
             VStack(alignment: .leading, spacing: VigilSpacing.medium) {
                 Text(message).font(.callout).foregroundStyle(VigilPalette.caution)
-                Button("Try again") { retryAttempt.start { _ in await run() } }
+                Button("Try again", action: startSignIn)
                     .buttonStyle(.borderedProminent)
                     .tint(VigilPalette.signal)
                     .foregroundStyle(VigilPalette.canvas)
@@ -148,14 +148,25 @@ struct CodexSignInView: View {
             .vigilCard(padding: VigilSpacing.large)
     }
 
-    private func run() async {
+    private func startSignIn() {
+        retryAttempt.start { isCurrent in
+            await run(isCurrent: isCurrent)
+        }
+    }
+
+    private func run(
+        isCurrent: @escaping @MainActor () -> Bool
+    ) async {
+        guard isCurrent(), !Task.isCancelled else { return }
         phase = .requesting
         guard let request = CodexAuth.userCodeRequest(oauth: oauth) else {
+            guard isCurrent(), !Task.isCancelled else { return }
             phase = .failed("Codex sign-in isn't configured.")
             return
         }
         do {
             let (data, response) = try await ProviderUsageSession.shared.data(for: request)
+            guard isCurrent(), !Task.isCancelled else { return }
             guard let http = response as? HTTPURLResponse,
                   (200..<300).contains(http.statusCode),
                   let device = CodexAuth.parseUserCode(data)
@@ -164,44 +175,63 @@ struct CodexSignInView: View {
                 return
             }
             phase = .waiting(userCode: device.userCode, url: CodexAuth.verificationURL(oauth: oauth))
-            await poll(device: device)
+            await poll(device: device, isCurrent: isCurrent)
         } catch is CancellationError {
             // View went away — nothing to do.
         } catch {
+            guard isCurrent(), !Task.isCancelled else { return }
             phase = .failed("Couldn't reach OpenAI to start Codex sign-in.")
         }
     }
 
-    private func poll(device: CodexAuth.DeviceCode) async {
+    private func poll(
+        device: CodexAuth.DeviceCode,
+        isCurrent: @escaping @MainActor () -> Bool
+    ) async {
         let deadline = Date().addingTimeInterval(15 * 60)
         do {
             while Date() < deadline {
+                guard isCurrent(), !Task.isCancelled else { return }
                 try await Task.sleep(nanoseconds: UInt64(device.intervalSeconds * 1_000_000_000))
+                guard isCurrent(), !Task.isCancelled else { return }
                 guard let request = CodexAuth.pollRequest(
                     oauth: oauth, deviceAuthId: device.deviceAuthId, userCode: device.userCode
                 ) else { break }
                 let (data, response) = try await ProviderUsageSession.shared.data(for: request)
+                guard isCurrent(), !Task.isCancelled else { return }
                 let status = (response as? HTTPURLResponse)?.statusCode ?? 0
                 switch CodexAuth.parsePoll(statusCode: status, data: data) {
                 case .pending:
                     continue
                 case .authorized(let code, let verifier):
-                    await complete(authorizationCode: code, codeVerifier: verifier)
+                    await complete(
+                        authorizationCode: code,
+                        codeVerifier: verifier,
+                        isCurrent: isCurrent
+                    )
                     return
                 case .failed:
+                    guard isCurrent(), !Task.isCancelled else { return }
                     phase = .failed("Sign-in was denied or the code expired. Tap Try again.")
                     return
                 }
             }
+            guard isCurrent(), !Task.isCancelled else { return }
             phase = .failed("Sign-in timed out. Tap Try again.")
         } catch is CancellationError {
             // View dismissed.
         } catch {
+            guard isCurrent(), !Task.isCancelled else { return }
             phase = .failed("Lost the connection while waiting. Tap Try again.")
         }
     }
 
-    private func complete(authorizationCode: String, codeVerifier: String) async {
+    private func complete(
+        authorizationCode: String,
+        codeVerifier: String,
+        isCurrent: @escaping @MainActor () -> Bool
+    ) async {
+        guard isCurrent(), !Task.isCancelled else { return }
         phase = .completing
         let request = CodexAuth.exchangeRequest(
             oauth: oauth, authorizationCode: authorizationCode, codeVerifier: codeVerifier
@@ -210,7 +240,7 @@ struct CodexSignInView: View {
             let (data, response) = try await ProviderUsageSession.shared.data(for: request)
             // A dismissed or superseded sign-in must never link an account:
             // the user was told nothing happened.
-            guard !Task.isCancelled else { return }
+            guard isCurrent(), !Task.isCancelled else { return }
             guard let http = response as? HTTPURLResponse,
                   (200..<300).contains(http.statusCode)
             else {
@@ -223,9 +253,13 @@ struct CodexSignInView: View {
                 )
                 return
             }
+            guard isCurrent(), !Task.isCancelled else { return }
             onComplete(credentials)
             dismiss()
+        } catch is CancellationError {
+            // View disappeared or a retry superseded this attempt.
         } catch {
+            guard isCurrent(), !Task.isCancelled else { return }
             phase = .failed("Couldn't finish Codex sign-in. Tap Try again.")
         }
     }
