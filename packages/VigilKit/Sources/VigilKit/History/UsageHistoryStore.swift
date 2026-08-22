@@ -103,6 +103,7 @@ public struct UsageHistoryStore: Sendable {
     static let databaseFilename = "usage-history-v2.sqlite3"
     static let legacyFilename = "usage-history-v1.json"
     static let lockFilename = "usage-history-v1.lock"
+    static let maximumPayloadBytes = TrustedPersistenceFile.maximumBytes
 
     private struct LegacyEnvelope: Codable {
         let schemaVersion: Int
@@ -519,10 +520,9 @@ public struct UsageHistoryStore: Sendable {
         _ sample: UsageHistorySample,
         database: UsageHistorySQLiteConnection
     ) throws {
-        let payload: Data
+        let payload = try encodedPayload(sample)
         let digest: Data
         do {
-            payload = try Self.encoder().encode(sample)
             digest = try Self.payloadDigest(sample)
         } catch {
             throw StorePersistenceError.writeFailed(
@@ -690,6 +690,12 @@ public struct UsageHistoryStore: Sendable {
     }
 
     private func decodeAndValidate(row: StoredRow) throws -> UsageHistorySample {
+        guard row.payload.count <= Self.maximumPayloadBytes else {
+            throw StorePersistenceError.corruptData(
+                path: databaseURL.path,
+                reason: "A history row exceeds the trusted payload size ceiling."
+            )
+        }
         let sample: UsageHistorySample
         do {
             sample = try Self.decoder().decode(UsageHistorySample.self, from: row.payload)
@@ -882,6 +888,9 @@ public struct UsageHistoryStore: Sendable {
         if let reason = validationFailure(in: samples) {
             throw StorePersistenceError.writeFailed(path: databaseURL.path, reason: reason)
         }
+        for sample in samples {
+            _ = try encodedPayload(sample)
+        }
     }
 
     private func validationFailure(in samples: [UsageHistorySample]) -> String? {
@@ -954,6 +963,25 @@ public struct UsageHistoryStore: Sendable {
     ) -> Bool {
         guard let value else { return true }
         return value.isFinite && (exclusive ? value > minimum : value >= minimum)
+    }
+
+    private func encodedPayload(_ sample: UsageHistorySample) throws -> Data {
+        let payload: Data
+        do {
+            payload = try Self.encoder().encode(sample)
+        } catch {
+            throw StorePersistenceError.writeFailed(
+                path: databaseURL.path,
+                reason: "A history sample cannot be encoded: \(error.localizedDescription)"
+            )
+        }
+        guard payload.count <= Self.maximumPayloadBytes else {
+            throw StorePersistenceError.writeFailed(
+                path: databaseURL.path,
+                reason: "A history sample exceeds the trusted payload size ceiling."
+            )
+        }
+        return payload
     }
 
     private static let rowSelection =

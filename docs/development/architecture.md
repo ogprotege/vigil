@@ -1,7 +1,7 @@
 # Vigil architecture
 
 - Status: Current
-- Last reviewed: 2026-08-20
+- Last reviewed: 2026-08-22
 - Review again: after changes to provider contracts, persistence, account lifecycle, background work, widgets, or diagnostics
 
 ## Product boundary
@@ -138,13 +138,23 @@ Manually entered credentials use `source: manual`. Vigil does not refresh those 
 
 Credentials use `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. They are stored as generic-password Keychain items in the shared access group when the signed entitlements make that group available.
 
+Every Keychain load is revalidated at the final account/network boundary. The
+credential provider, stable provider account ID when present, token sizes, and
+control-character rules must match before request construction. Guided sign-in
+views also attach each async stage to an opaque attempt identity; canceling or
+retrying invalidates older callbacks before they can publish or link.
+
 ## Storage
 
 ### App Group directory
 
 The signed app and widget resolve `group.app.vigil.shared/VigilShared`. The directory contains the account index and Vigil-owned stores for current snapshots, previous snapshots, polling leases, lifecycle generations and tombstones, pending events, normalized history, and recovery metadata.
 
-Files use owner-only permissions and iOS data protection. JSON stores use same-directory temporary files, `fsync`, and atomic rename. Cross-process mutations use file locks.
+Files use owner-only permissions and iOS data protection. Trusted JSON reads
+require a regular, non-symbolic-link file and stop at one mebibyte before
+decoding. JSON stores use same-directory temporary files, `fsync`, and atomic
+rename. A damaged account index is renamed into its protected repair backup
+without buffering it. Cross-process mutations use file locks.
 
 Unsigned builds and previews can lack the App Group entitlement. In that case each process falls back to its Application Support `VigilShared` directory. The app records and surfaces this degraded state because the app and widget then cannot share one polling ledger.
 
@@ -159,6 +169,10 @@ After a provider reset passes, the app hides the expired window until a newer pr
 ### History
 
 `UsageHistoryStore` uses `usage-history-v2.sqlite3` with WAL mode and short-lived full-mutex connections. The app and widget can append accepted observations. Whole-store deletion and legacy migration use an external file lock.
+
+Each normalized history row has a one-mebibyte encoded payload ceiling before
+SQLite mutation and before JSON decoding. This bounds a provider-backfill
+sample even when it aggregates values from many separately bounded pages.
 
 iOS kills a suspended process that still holds these file locks (RUNNINGBOARD 0xdead10cc). The app therefore runs every lock-holding critical section inside a `SuspensionGuard` background-task assertion so suspension waits until the locks are released. That includes history reads/writes, the persistence tail of a fetch, ledger clear and reset, shared snapshot reconciliation, account retirement deletes, pending-event loads, and — structural choke point — every `AccountLifecycleStore` flock acquisition (`withLock` asserts as `AccountLifecycle` before taking the exclusive lock when compiled with `VIGIL_APP_HOST`). History append/backfill take the assertion *before* the lifecycle generation lock so the process is never holding a generation flock without protection. `SuspensionGuard` and `UIApplication` background-task code compile only into the app host; the widget extension omits `VIGIL_APP_HOST` and cannot hold those assertions. Widget-process 0xdead10cc remains an accepted residual risk and is integrity-safe because flock releases on process death. VigilKit stays UI-free. Account previews use `UsageHistoryStore.accountState`, which reads all provenance summaries and both source pages over one connection, so a screen refresh pays one flock acquisition and one checkpointed close instead of five.
 

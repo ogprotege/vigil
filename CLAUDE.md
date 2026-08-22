@@ -4,7 +4,7 @@ This file gives coding guidance for this repository.
 
 > Status: current
 >
-> Last reviewed: 2026-07-26
+> Last reviewed: 2026-08-22
 >
 > Review again: after any architecture, provider, build, test, or release-process change
 
@@ -106,7 +106,9 @@ A successful response becomes `schemaChanged` when parsing fails or the provider
 - Apple fetches acquire a durable account-level lease before network I/O. Ledger failure fails closed.
 - Claude requests require the exact configured `User-Agent` and beta header.
 - Refresh only credentials marked as minted by Vigil. Never rotate a credential copied or pasted from another client.
+- Revalidate Keychain credentials at the network boundary. Provider IDs, stable provider account IDs, token bounds, and control-character checks must pass before request construction.
 - Credentials go in Keychain. Snapshots, ledgers, account indexes, and notification state go in the App Group container.
+- Trusted App Group JSON and each normalized history payload have a 1 MiB ceiling. Oversized or non-regular files fail closed before decoding.
 - Reset countdowns are client-computed. A ticking countdown does not imply a recent network fetch.
 - Provider failures stay isolated. One account must not stop another account's refresh.
 - Missing required windows or metrics mean provider drift, even when an unrelated value mapped.

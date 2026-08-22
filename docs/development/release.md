@@ -6,7 +6,7 @@ release.
 
 > Status: current
 >
-> Last reviewed: 2026-07-26
+> Last reviewed: 2026-08-22
 >
 > Review again: after any signing, CI, archive, upload, or App Store Connect change
 

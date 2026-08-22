@@ -4,7 +4,7 @@ Vigil is an iOS-only local client. It has no collection server. This document st
 
 > Status: current
 >
-> Last reviewed: 2026-08-14
+> Last reviewed: 2026-08-22
 >
 > Review again: after any storage, authentication, networking, notification, widget, export, or deletion change
 
@@ -54,12 +54,18 @@ iOS, TestFlight, background tasks, notifications, and WidgetKit remain under App
 - Every credential is minted or entered on the iOS device.
 - Vigil refreshes only credentials it minted.
 - Manually pasted tokens and keys are treated as externally owned.
-- A stored credential is sent only when its provider matches the account row.
+- A stored credential reaches request construction only when its provider,
+  transport values, and stable provider account ID match the account row.
+- Cancellation and retry invalidate older guided sign-in attempts before they
+  can publish state, exchange a superseded code, or link an account.
 - Provider and official-history transports refuse HTTP redirects and stop
   buffering after one mebibyte.
 - Grok Build opens only pinned `accounts.x.ai` / `auth.x.ai` device pages.
 - Credentials never enter the App Group snapshot store.
 - Account removal requires confirmed Keychain deletion before the UI drops the account.
+- Trusted App Group JSON files and individual normalized-history payloads stop
+  at one mebibyte. Reads refuse symbolic links and non-regular files before
+  decoding; damaged indexes are preserved by same-directory atomic rename.
 - Sensitive signing files are excluded from and rejected by repository checks.
 
 ### OAuth and device authorization

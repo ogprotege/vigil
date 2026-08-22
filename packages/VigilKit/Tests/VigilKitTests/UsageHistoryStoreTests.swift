@@ -208,6 +208,40 @@ final class UsageHistoryStoreTests: XCTestCase {
         XCTAssertTrue(try store.load().isEmpty)
     }
 
+    func testOversizedHistoryPayloadFailsBeforePersistence() throws {
+        let store = UsageHistoryStore(directory: try TestSupport.tempDirectory())
+        let maximumLabel = String(repeating: "x", count: 1_024)
+        let metrics = (0..<1_100).map { index in
+            UsageHistoryMetric(
+                id: "metric-\(index)",
+                label: maximumLabel,
+                value: Double(index),
+                unit: "USD",
+                kind: .spend
+            )
+        }
+        let oversized = UsageHistorySample(
+            source: .observed,
+            accountKey: "openai:oversized-history",
+            providerId: "openai",
+            recordedAt: base,
+            retrievedAt: base,
+            metrics: metrics
+        )
+        let encoded = try JSONEncoder().encode(oversized)
+        XCTAssertGreaterThan(encoded.count, TrustedPersistenceFile.maximumBytes)
+
+        XCTAssertThrowsError(
+            try store.importObserved([oversized], now: base)
+        ) { error in
+            guard case StorePersistenceError.writeFailed(_, let reason) = error else {
+                return XCTFail("Expected writeFailed, got \(error)")
+            }
+            XCTAssertTrue(reason.contains("trusted payload size ceiling"))
+        }
+        XCTAssertTrue(try store.load().isEmpty)
+    }
+
     func testObservedImportPreservesStableIdentityAndIsIdempotent() throws {
         let store = UsageHistoryStore(directory: try TestSupport.tempDirectory())
         let stableID = UUID(uuidString: "E47B469D-6D1E-4024-8298-BC96AD916F8D")!

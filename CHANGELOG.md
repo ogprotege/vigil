@@ -11,6 +11,10 @@ Anything that changes shipped behavior gets an entry here: TestFlight app builds
 - Wrapped ledger clear and reset in `SuspensionGuard` so those App Group flocks match the existing lock-protection rule.
 - Reject usage bodies over 1 MiB at classification so an unbounded session cannot map an oversized 2xx as Live. HTTP 401 and 429 still classify from the status code.
 - Stopped calling retained or stale percentages "live". Hidden home-screen widgets now show the linked provider. Stale freshness lines name the degraded state explicitly.
+- Bound stored credentials to their provider account ID when available and revalidated transport values after every Keychain load. A malformed or cross-account credential now stops before request construction.
+- Fenced every ChatGPT / Codex device-authorization stage with its current attempt identity, so cancellation or retry cannot publish stale state, exchange a superseded code, or link later.
+- Capped trusted App Group JSON and individual normalized-history payloads at 1 MiB. Corrupt account indexes move atomically into protected recovery backups without being buffered.
+- Compiled the remaining navigation test hook out of Release and hardened Apple CI with read-only permissions, non-persisted checkout credentials, concurrency cancellation, and an immutable verified checkout action.
 
 ## 1.0.0 (26) — OpenRouter guided setup and provider-boundary hardening, 2026-08-14
 

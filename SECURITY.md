@@ -2,7 +2,7 @@
 
 > Status: current
 >
-> Last reviewed: 2026-07-26
+> Last reviewed: 2026-08-22
 >
 > Review again: after any authentication, storage, network, notification, widget, export, or deletion change
 

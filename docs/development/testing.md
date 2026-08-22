@@ -1,7 +1,7 @@
 # Testing guide
 
 - Status: Current
-- Last reviewed: 2026-07-26
+- Last reviewed: 2026-08-22
 - Review again: whenever test targets, CI, simulator requirements, or live probes change
 
 This guide owns the repository test commands. Run project generation and local setup from the [development guide](development.md) first.
@@ -144,6 +144,10 @@ The `apple` workflow runs on macOS and performs these gates on every branch push
 5. Build the app for a generic iOS simulator without signing.
 6. Run the complete Vigil scheme on an available iPhone simulator.
 7. Lint app and widget plists, privacy manifests, and entitlements.
+
+The workflow grants only read access to repository contents, checks out through
+an immutable verified action commit without persisting credentials, and cancels
+superseded runs for the same event ref.
 
 Local validation should match those gates before a pull request is declared ready.
 
